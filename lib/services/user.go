@@ -30,10 +30,12 @@ type User interface {
 	String() string
 	// Equals checks if user equals to another
 	Equals(other User) bool
-	// GetStatus return user login status
+	// GetStatus gets user status.
 	GetStatus() LoginStatus
-	// SetLocked sets login status to locked
-	SetLocked(until time.Time, reason string)
+	// SetStatus sets user status.
+	SetStatus(LoginStatus)
+	//// SetLocked sets login status to locked
+	//SetLocked(until time.Time, reason string)
 	// SetRoles sets user roles
 	SetRoles(roles []string)
 	// AddRole adds role to the users' role list
@@ -418,9 +420,14 @@ func (u *UserV2) SetRoles(roles []string) {
 	u.Spec.Roles = utils.Deduplicate(roles)
 }
 
-// GetStatus returns login status of the user
+// GetStatus gets the user status.
 func (u *UserV2) GetStatus() LoginStatus {
 	return u.Spec.Status
+}
+
+// SetStatus sets the user status.
+func (u *UserV2) SetStatus(s LoginStatus) {
+	u.Spec.Status = s
 }
 
 // GetOIDCIdentities returns a list of connected OIDC identities
@@ -457,11 +464,11 @@ func (u *UserV2) String() string {
 	return fmt.Sprintf("User(name=%v, roles=%v, identities=%v)", u.Metadata.Name, u.Spec.Roles, u.Spec.OIDCIdentities)
 }
 
-func (u *UserV2) SetLocked(until time.Time, reason string) {
-	u.Spec.Status.IsLocked = true
-	u.Spec.Status.LockExpires = until
-	u.Spec.Status.LockedMessage = reason
-}
+//func (u *UserV2) SetLocked(until time.Time, reason string) {
+//	u.Spec.Status.IsLocked = true
+//	u.Spec.Status.LockExpires = until
+//	u.Spec.Status.LockedMessage = reason
+//}
 
 // Check checks validity of all parameters
 func (u *UserV2) Check() error {

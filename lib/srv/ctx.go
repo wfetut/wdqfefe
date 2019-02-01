@@ -263,9 +263,10 @@ func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext Identity
 		trace.ComponentFields: fields,
 	})
 
-	if !ctx.disconnectExpiredCert.IsZero() || ctx.clientIdleTimeout != 0 {
-		go ctx.periodicCheckDisconnect()
-	}
+	//if !ctx.disconnectExpiredCert.IsZero() || ctx.clientIdleTimeout != 0 {
+	// always run this loop now that users can be locked and disconnected.
+	go ctx.periodicCheckDisconnect()
+	//}
 
 	return ctx, nil
 }
@@ -331,8 +332,31 @@ func (c *ServerContext) periodicCheckDisconnect() {
 		idleTime = idleTimer.C
 	}
 
+	// replace this with a watch
+	lockCh := make(chan bool, 1)
+	go func() {
+		for {
+			user, err := c.srv.GetAccessPoint().GetUser(c.Identity.TeleportUser)
+			if err != nil {
+				fmt.Printf("--> failed to get user: %v.\n", err)
+			}
+			fmt.Printf("--> user(%v).GetStatus(): %v.\n", user.GetName(), user.GetStatus())
+
+			if user.GetStatus().IsLocked {
+				lockCh <- true
+			}
+
+			time.Sleep(1 * time.Second)
+		}
+	}()
+
 	for {
 		select {
+		case <-lockCh:
+			fmt.Printf("--> disconnecting locked user.\n")
+			//c.log.Debugf("Disconnecting client: %v", event[events.Reason])
+			c.Conn.Close()
+			return
 		// certificate has expired, disconnect
 		case <-certTime:
 			event := events.EventFields{

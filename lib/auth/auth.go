@@ -510,12 +510,19 @@ func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) 
 	message := fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
 		username, defaults.MaxLoginAttempts, utils.HumanTimeFormat(status.LockExpires))
 	log.Debug(message)
-	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
+
+	// Set user as locked and update the backend.
+	user.SetStatus(services.LoginStatus{
+		IsLocked:      true,
+		LockedMessage: "user has exceeded maximum failed login attempts",
+		LockedTime:    lockUntil,
+	})
 	err = s.Identity.UpsertUser(user)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
 	}
+
 	return trace.AccessDenied(message)
 }
 

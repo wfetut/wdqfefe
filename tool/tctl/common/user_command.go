@@ -41,12 +41,15 @@ type UserCommand struct {
 	kubeGroups    string
 	roles         string
 	identities    []string
+	message       string
 	ttl           time.Duration
 
 	userAdd    *kingpin.CmdClause
 	userUpdate *kingpin.CmdClause
 	userList   *kingpin.CmdClause
 	userDelete *kingpin.CmdClause
+	userLock   *kingpin.CmdClause
+	userUnlock *kingpin.CmdClause
 }
 
 // Initialize allows UserCommand to plug itself into the CLI parser
@@ -75,6 +78,14 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userDelete = users.Command("rm", "Deletes user accounts").Alias("del")
 	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
 		Required().StringVar(&u.login)
+
+	u.userLock = users.Command("lock", "Lock user to terminate existing sessions and prevent creation of new sessions.")
+	u.userLock.Arg("name", "Teleport user account name").Required().StringVar(&u.login)
+	u.userLock.Flag("message", "Set message for lock.").StringVar(&u.message)
+	u.userLock.Flag("ttl", "Set expiration time for lock. Default is never.").DurationVar(&u.ttl)
+
+	u.userUnlock = users.Command("unlock", "Unlock user to allow creation of new sessions.")
+	u.userUnlock.Arg("name", "Teleport user account name").Required().StringVar(&u.login)
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
@@ -88,7 +99,12 @@ func (u *UserCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 		err = u.List(client)
 	case u.userDelete.FullCommand():
 		err = u.Delete(client)
+	case u.userLock.FullCommand():
+		err = u.Lock(client)
+	case u.userUnlock.FullCommand():
+		err = u.Unlock(client)
 	default:
+		fmt.Printf("Unsupported command: %v. Try \"tctl help users\".\n", cmd)
 		return false, nil
 	}
 	return true, trace.Wrap(err)
@@ -158,10 +174,19 @@ func (u *UserCommand) List(client auth.ClientI) error {
 		fmt.Println("No users found")
 		return nil
 	}
-	t := asciitable.MakeTable([]string{"User", "Allowed logins"})
+	t := asciitable.MakeTable([]string{"User", "Allowed logins", "Locked"})
 	for _, u := range users {
 		logins, _ := u.GetTraits()[teleport.TraitLogins]
-		t.AddRow([]string{u.GetName(), strings.Join(logins, ",")})
+
+		lockedMessage := "false"
+		if u.GetStatus().IsLocked {
+			lockedMessage = fmt.Sprintf("Until %v", u.GetStatus().LockExpires.Format(time.RFC3339))
+			if u.GetStatus().LockExpires.IsZero() {
+				lockedMessage = "forever"
+			}
+		}
+
+		t.AddRow([]string{u.GetName(), strings.Join(logins, ","), lockedMessage})
 	}
 	fmt.Println(t.AsBuffer().String())
 	return nil
@@ -178,3 +203,75 @@ func (u *UserCommand) Delete(client auth.ClientI) error {
 	}
 	return nil
 }
+
+// Lock locks given user with a message for some time.
+func (u *UserCommand) Lock(client auth.ClientI) error {
+	user, err := client.GetUser(u.login)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if user.GetStatus().IsLocked {
+		fmt.Printf("User %v already locked.\n", u.login)
+		return nil
+	}
+
+	if u.message == "" {
+		u.message = "No lock message provided."
+	}
+
+	expires := time.Time{}
+	if u.ttl > 0 {
+		expires = time.Now().Add(u.ttl)
+	}
+
+	user.SetStatus(services.LoginStatus{
+		IsLocked:      true,
+		LockedMessage: u.message,
+		LockExpires:   expires,
+	})
+	err = client.UpsertUser(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf(userLockMessage, u.login)
+
+	return nil
+}
+
+// Unlock will unlock given user.
+func (u *UserCommand) Unlock(client auth.ClientI) error {
+	user, err := client.GetUser(u.login)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !user.GetStatus().IsLocked {
+		fmt.Printf("User %v already unlocked.\n", u.login)
+		return nil
+	}
+
+	user.SetStatus(services.LoginStatus{
+		IsLocked:      false,
+		LockedMessage: "",
+		LockExpires:   time.Time{},
+	})
+	err = client.UpsertUser(user)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf(userUnlockMessage, u.login)
+
+	return nil
+}
+
+var userLockMessage string = `User %v locked.
+
+All existing sessions will be terminated, establishment of new sessions will
+be restricted, and credentials will not be re-issued.
+`
+
+var userUnlockMessage string = `User %v unlocked.
+
+User will be able to create new sessions and request credentials be re-issued.
+`
