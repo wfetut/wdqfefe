@@ -332,32 +332,49 @@ func (c *ServerContext) periodicCheckDisconnect() {
 		idleTime = idleTimer.C
 	}
 
-	// replace this with a watch
 	lockCh := make(chan bool, 1)
+
+	// Watch
 	go func() {
 		for {
+			time.Sleep(5 * time.Second)
+
+			if c.ClusterName != c.Identity.CertAuthority.GetName() {
+				fmt.Printf("--> Certificate issued by remote cluster. Turning off user watch.\n")
+				return
+			}
+
 			user, err := c.srv.GetAccessPoint().GetUser(c.Identity.TeleportUser)
 			if err != nil {
-				fmt.Printf("--> failed to get user: %v.\n", err)
+				fmt.Printf("--> Failed to get user %v: %v.\n", user, err)
+				continue
 			}
-			fmt.Printf("--> user(%v).GetStatus(): %v.\n", user.GetName(), user.GetStatus())
-
 			if user.GetStatus().IsLocked {
 				lockCh <- true
+				fmt.Printf("--> Locking user: %v.\n", c.Identity.TeleportUser)
+				return
 			}
-
-			time.Sleep(1 * time.Second)
 		}
 	}()
 
 	for {
 		select {
+		// User has been locked, disconnect.
 		case <-lockCh:
-			fmt.Printf("--> disconnecting locked user.\n")
-			//c.log.Debugf("Disconnecting client: %v", event[events.Reason])
+			c.srv.EmitAuditEvent(events.ClientDisconnectEvent, events.EventFields{
+				events.EventType:       events.ClientDisconnectEvent,
+				events.EventLogin:      c.Identity.Login,
+				events.EventUser:       c.Identity.TeleportUser,
+				events.LocalAddr:       c.Conn.LocalAddr().String(),
+				events.RemoteAddr:      c.Conn.RemoteAddr().String(),
+				events.SessionServerID: c.srv.ID(),
+				events.Reason:          "<user.GetStatus().Message>",
+			})
+			c.Debugf("Disconnecting locked user: %v in %v.", c.Identity.TeleportUser, c.srv.ID())
+
 			c.Conn.Close()
 			return
-		// certificate has expired, disconnect
+		// Certificate has expired, disconnect.
 		case <-certTime:
 			event := events.EventFields{
 				events.EventType:       events.ClientDisconnectEvent,
@@ -372,6 +389,7 @@ func (c *ServerContext) periodicCheckDisconnect() {
 			c.Debugf("Disconnecting client: %v", event[events.Reason])
 			c.Conn.Close()
 			return
+		// If idle timeout has occurred, disconect.
 		case <-idleTime:
 			now := c.srv.GetClock().Now()
 			clientLastActive := c.GetClientLastActive()

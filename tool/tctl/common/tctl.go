@@ -56,7 +56,7 @@ type CLICommand interface {
 	TryRun(selectedCommand string, c auth.ClientI) (match bool, err error)
 }
 
-// Run() is the same as 'make'. It helps to share the code between different
+// Run is the same as 'make'. It helps to share the code between different
 // "distributions" like OSS or Enterprise
 //
 // distribution: name of the Teleport distribution

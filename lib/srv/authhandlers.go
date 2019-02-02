@@ -172,6 +172,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		h.AuditLog.EmitAuditEvent(events.AuthAttemptEvent, fields)
 	}
 
+	// Validate the certificate the user presents.
 	certChecker := ssh.CertChecker{IsUserAuthority: h.IsUserAuthority}
 	permissions, err := certChecker.Authenticate(conn, key)
 	if err != nil {
@@ -182,6 +183,19 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
+
+	// Check to make sure this user is not locked, don't allow locked users with
+	// valid credentials into a server.
+	u, err := h.AccessPoint.GetUser(teleportUser)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if u.GetStatus().IsLocked {
+		err := trace.AccessDenied("user is locked: %v", u.GetStatus().LockedMessage)
+		recordFailedLogin(err)
+		return nil, trace.Wrap(err)
+	}
+
 	h.Debugf("Successfully authenticated")
 
 	// see if the host user is valid, we only do this when logging into a teleport node

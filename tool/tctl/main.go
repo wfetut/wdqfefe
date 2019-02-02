@@ -28,6 +28,7 @@ func main() {
 		&common.AuthCommand{},
 		&common.ResourceCommand{},
 		&common.StatusCommand{},
+		&common.SessionsCommand{},
 	}
 	common.Run(commands)
 }

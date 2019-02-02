@@ -104,7 +104,6 @@ func (u *UserCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 	case u.userUnlock.FullCommand():
 		err = u.Unlock(client)
 	default:
-		fmt.Printf("Unsupported command: %v. Try \"tctl help users\".\n", cmd)
 		return false, nil
 	}
 	return true, trace.Wrap(err)
@@ -186,7 +185,7 @@ func (u *UserCommand) List(client auth.ClientI) error {
 			}
 		}
 
-		t.AddRow([]string{u.GetName(), strings.Join(logins, ","), lockedMessage})
+		t.AddRow([]string{u.GetName(), strings.Join(logins, ", "), lockedMessage})
 	}
 	fmt.Println(t.AsBuffer().String())
 	return nil
