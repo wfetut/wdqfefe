@@ -150,9 +150,19 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 	})
 	t.log.Debugf("Starting subsystem")
 
+	// Check to make sure this user is not locked, don't allow locked users with
+	// valid credentials into a server.
+	u, err := ctx.GetServer().GetAccessPoint().GetUser(ctx.Identity.TeleportUser)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if u.GetStatus().IsLocked {
+		return trace.AccessDenied("user is locked: %v", u.GetStatus().LockedMessage)
+	}
+
 	var (
-		site       reversetunnel.RemoteSite
-		err        error
+		site reversetunnel.RemoteSite
+		//err        error
 		tunnel     = t.srv.proxyTun
 		clientAddr = sconn.RemoteAddr()
 	)
