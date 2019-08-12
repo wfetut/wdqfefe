@@ -173,7 +173,6 @@ func (l *LoadBalancer) Listen() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	l.Debugf("created listening socket")
 	return nil
 }
 
@@ -190,7 +189,6 @@ func (l *LoadBalancer) Serve() error {
 			}
 			select {
 			case <-backoffTimer.C:
-				l.Debugf("Backoff on network error.")
 			case <-l.ctx.Done():
 				return trace.ConnectionProblem(nil, "context is closing")
 			}
@@ -237,7 +235,6 @@ func (l *LoadBalancer) forward(conn net.Conn) error {
 		"source": conn.RemoteAddr(),
 		"dest":   backendConn.RemoteAddr(),
 	})
-	logger.Debugf("forward")
 
 	messagesC := make(chan error, 2)
 
@@ -260,7 +257,7 @@ func (l *LoadBalancer) forward(conn net.Conn) error {
 		select {
 		case err := <-messagesC:
 			if err != nil && err != io.EOF {
-				logger.Warningf("connection problem: %v %T", trace.DebugReport(err), err)
+				logger.WithError(err).Warningf("connection problem")
 				lastErr = err
 			}
 		case <-l.ctx.Done():

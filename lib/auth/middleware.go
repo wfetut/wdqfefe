@@ -354,7 +354,6 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			log.Debugf("ClientCertPool -> %v", CertInfo(cert))
 			pool.AddCert(cert)
 		}
 	}

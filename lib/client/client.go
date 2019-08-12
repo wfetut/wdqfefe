@@ -94,7 +94,7 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	// forever
 	go func() {
 		if err := proxySession.RequestSubsystem("proxysites"); err != nil {
-			log.Warningf("Failed to request subsystem: %v", err)
+			log.WithError(err).Warningf("Failed to request subsystem.")
 		}
 	}()
 	select {
@@ -102,7 +102,6 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	case <-time.After(defaults.DefaultDialTimeout):
 		return nil, trace.ConnectionProblem(nil, "timeout")
 	}
-	log.Debugf("Found clusters: %v", stdout.String())
 	var sites []services.Site
 	if err := json.Unmarshal(stdout.Bytes(), &sites); err != nil {
 		return nil, trace.Wrap(err)
@@ -437,7 +436,6 @@ func (n *NodeAddr) ProxyFormat() string {
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
 func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAddr, user string, quiet bool) (*NodeClient, error) {
-	log.Infof("Client=%v connecting to node=%v", proxy.clientAddr, nodeAddress)
 	if len(proxy.teleportClient.JumpHosts) > 0 {
 		return proxy.PortForwardToNode(ctx, nodeAddress, user, quiet)
 	}

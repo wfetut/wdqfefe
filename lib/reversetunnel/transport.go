@@ -201,9 +201,7 @@ func (p *transport) start() {
 	}
 
 	var servers []string
-
 	dreq := parseDialReq(req.Payload)
-	p.log.Debugf("Received out-of-band proxy transport request for %v [%v].", dreq.Address, dreq.ServerID)
 
 	// Handle special non-resolvable addresses first.
 	switch dreq.Address {
@@ -273,7 +271,6 @@ func (p *transport) start() {
 
 	// Dial was successful.
 	req.Reply(true, []byte("Connected."))
-	p.log.Debugf("Successfully dialed to %v %v, start proxying.", dreq.Address, dreq.ServerID)
 
 	// Start processing channel requests. Pass in a context that wraps the passed
 	// in context with a context that closes when this function returns to
@@ -300,12 +297,11 @@ func (p *transport) start() {
 
 	for i := 0; i < 2; i++ {
 		select {
-		case err := <-errorCh:
+		case <-errorCh:
 			if err != nil && err != io.EOF {
-				p.log.Warnf("Proxy transport failed: %v %T.", trace.DebugReport(err), err)
+				p.log.WithError(err).Warnf("Proxy transport failed.")
 			}
 		case <-p.closeContext.Done():
-			p.log.Warnf("Proxy transport failed: closing context.")
 			return
 		}
 	}
@@ -324,13 +320,13 @@ func (p *transport) handleChannelRequests(closeContext context.Context, useTunne
 			case utils.ConnectionTypeRequest:
 				err := req.Reply(useTunnel, nil)
 				if err != nil {
-					p.log.Debugf("Failed to reply to %v request: %v.", req.Type, err)
+					p.log.WithError(err).Debugf("Failed to reply to %v request.", req.Type)
 					continue
 				}
 			default:
 				err := req.Reply(false, nil)
 				if err != nil {
-					p.log.Debugf("Failed to reply to %v request: %v.", req.Type, err)
+					p.log.WithError(err).Debugf("Failed to reply to %v request.", req.Type)
 					continue
 				}
 			}
@@ -346,24 +342,17 @@ func (p *transport) handleChannelRequests(closeContext context.Context, useTunne
 func (p *transport) getConn(servers []string, serverID string) (net.Conn, bool, error) {
 	// This function doesn't attempt to dial if a host with one of the
 	// search names is not registered. It's a fast check.
-	p.log.Debugf("Attempting to dial through tunnel with server ID %v.", serverID)
 	conn, err := p.tunnelDial(serverID)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, false, trace.Wrap(err)
 		}
-
-		p.log.Debugf("Attempting to dial directly %v.", servers)
 		conn, err = directDial(servers)
 		if err != nil {
 			return nil, false, trace.Wrap(err)
 		}
-
-		p.log.Debugf("Returning direct dialed connection to %v.", servers)
 		return conn, false, nil
 	}
-
-	p.log.Debugf("Returning connection dialed through tunnel with server ID %v.", serverID)
 	return conn, true, nil
 }
 

@@ -748,7 +748,6 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 	ctx.SetEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", pid))
 	ctx.AddCloser(agentServer)
 	ctx.AddCloser(dirCloser)
-	ctx.Debugf("Opened agent channel for Teleport user %v and socket %v.", ctx.Identity.TeleportUser, socketPath)
 	go agentServer.Serve()
 
 	return nil
@@ -757,7 +756,6 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 // EmitAuditEvent logs a given event to the audit log attached to the
 // server who owns these sessions
 func (s *Server) EmitAuditEvent(event events.Event, fields events.EventFields) {
-	log.Debugf("server.EmitAuditEvent(%v)", event.Name)
 	alog := s.alog
 	if alog != nil {
 		// record the event time with ms precision
@@ -1026,15 +1024,13 @@ func (s *Server) handleSessionRequests(conn net.Conn, sconn *ssh.ServerConn, ide
 			}
 		}
 		select {
-		case creq := <-ctx.SubsystemResultCh:
+		case <-ctx.SubsystemResultCh:
 			// this means that subsystem has finished executing and
 			// want us to close session and the channel
-			ctx.Debugf("Close session request: %v.", creq.Err)
 			return
 		case req := <-in:
 			if req == nil {
 				// this will happen when the client closes/drops the connection
-				ctx.Debugf("Client %v disconnected.", sconn.RemoteAddr())
 				return
 			}
 			if err := s.dispatch(ch, req, ctx); err != nil {
@@ -1045,15 +1041,9 @@ func (s *Server) handleSessionRequests(conn net.Conn, sconn *ssh.ServerConn, ide
 				req.Reply(true, nil)
 			}
 		case result := <-ctx.ExecResultCh:
-			ctx.Debugf("Exec request (%q) complete: %v", result.Command, result.Code)
-
 			// The exec process has finished and delivered the execution result, send
 			// the result back to the client, and close the session and channel.
-			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.Code)}))
-			if err != nil {
-				ctx.Infof("Failed to send exit status for %v: %v", result.Command, err)
-			}
-
+			ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.Code)}))
 			return
 		case <-closeContext.Done():
 			log.Debugf("Closing session due to missed heartbeat.")
@@ -1065,8 +1055,6 @@ func (s *Server) handleSessionRequests(conn net.Conn, sconn *ssh.ServerConn, ide
 // dispatch receives an SSH request for a subsystem and disptaches the request to the
 // appropriate subsystem implementation
 func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
-	ctx.Debugf("Handling request %v, want reply %v.", req.Type, req.WantReply)
-
 	// If this SSH server is configured to only proxy, we do not support anything
 	// other than our own custom "subsystems" and environment manipulation.
 	if s.proxyMode {
@@ -1189,20 +1177,16 @@ func (s *Server) handleAgentForwardProxy(req *ssh.Request, ctx *srv.ServerContex
 func (s *Server) handleSubsystem(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
 	sb, err := s.parseSubsystemRequest(req, ctx)
 	if err != nil {
-		ctx.Warnf("Failed to parse subsystem request: %v: %v.", req, err)
 		return trace.Wrap(err)
 	}
-	ctx.Debugf("Subsystem request: %v.", sb)
 	// starting subsystem is blocking to the client,
 	// while collecting its result and waiting is not blocking
 	if err := sb.Start(ctx.Conn, ch, req, ctx); err != nil {
-		ctx.Warnf("Subsystem request %v failed: %v.", sb, err)
 		ctx.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
 		return trace.Wrap(err)
 	}
 	go func() {
 		err := sb.Wait()
-		log.Debugf("Subsystem %v finished with result: %v.", sb, err)
 		ctx.SendSubsystemResult(srv.SubsystemResult{Err: trace.Wrap(err)})
 	}()
 	return nil
@@ -1222,18 +1206,14 @@ func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerCont
 
 // handleKeepAlive accepts and replies to keepalive@openssh.com requests.
 func (s *Server) handleKeepAlive(req *ssh.Request) {
-	log.Debugf("Received %q: WantReply: %v", req.Type, req.WantReply)
-
 	// only reply if the sender actually wants a response
 	if req.WantReply {
 		err := req.Reply(true, nil)
 		if err != nil {
-			log.Warnf("Unable to reply to %q request: %v", req.Type, err)
+			log.WithError(err).Warnf("Unable to reply to %q.", req.Type)
 			return
 		}
 	}
-
-	log.Debugf("Replied to %q", req.Type)
 }
 
 // handleRecordingProxy responds to global out-of-band with a bool which
@@ -1241,15 +1221,13 @@ func (s *Server) handleKeepAlive(req *ssh.Request) {
 func (s *Server) handleRecordingProxy(req *ssh.Request) {
 	var recordingProxy bool
 
-	log.Debugf("Global request (%v, %v) received", req.Type, req.WantReply)
-
 	if req.WantReply {
 		// get the cluster config, if we can't get it, reply false
 		clusterConfig, err := s.authService.GetClusterConfig()
 		if err != nil {
 			err := req.Reply(false, nil)
 			if err != nil {
-				log.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
+				log.WithError(err).Warnf("Unable to respond to global request (%v, %v).", req.Type, req.WantReply)
 			}
 			return
 		}
@@ -1259,12 +1237,10 @@ func (s *Server) handleRecordingProxy(req *ssh.Request) {
 		recordingProxy = clusterConfig.GetSessionRecording() == services.RecordAtProxy
 		err = req.Reply(true, []byte(strconv.FormatBool(recordingProxy)))
 		if err != nil {
-			log.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, recordingProxy, err)
+			log.WithError(err).Warnf("Unable to respond to global request (%v, %v): %v.", req.Type, req.WantReply, recordingProxy)
 			return
 		}
 	}
-
-	log.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, recordingProxy)
 }
 
 // handleProxyJump handles ProxyJump request that is executed via direct tcp-ip dial on the proxy
@@ -1273,7 +1249,7 @@ func (s *Server) handleProxyJump(conn net.Conn, sconn *ssh.ServerConn, identityC
 	// session request is complete.
 	ctx, err := srv.NewServerContext(s, sconn, identityContext)
 	if err != nil {
-		log.Errorf("Unable to create connection context: %v.", err)
+		log.WithError(err).Errorf("Unable to create connection context.")
 		ch.Stderr().Write([]byte("Unable to create connection context."))
 		return
 	}
@@ -1284,7 +1260,7 @@ func (s *Server) handleProxyJump(conn net.Conn, sconn *ssh.ServerConn, identityC
 
 	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
 	if err != nil {
-		log.Errorf("Unable to fetch cluster config: %v.", err)
+		log.WithError(err).Errorf("Unable to fetch cluster config.")
 		ch.Stderr().Write([]byte("Unable to fetch cluster configuration."))
 		return
 	}
@@ -1317,7 +1293,7 @@ func (s *Server) handleProxyJump(conn net.Conn, sconn *ssh.ServerConn, identityC
 	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
 		err = s.handleAgentForwardProxy(&ssh.Request{}, ctx)
 		if err != nil {
-			log.Warningf("Failed to request agent in recording mode: %v", err)
+			log.WithError(err).Warningf("Failed to request agent in recording mode.")
 			ch.Stderr().Write([]byte("Failed to request agent"))
 			return
 		}
@@ -1350,7 +1326,7 @@ func (s *Server) handleProxyJump(conn net.Conn, sconn *ssh.ServerConn, identityC
 		ctx:  ctx,
 	})
 	if err != nil {
-		log.Errorf("Unable instantiate proxy subsystem: %v.", err)
+		log.WithError(err).Errorf("Unable instantiate proxy subsystem.")
 		ch.Stderr().Write([]byte("Unable to instantiate proxy subsystem."))
 		return
 	}
@@ -1362,7 +1338,7 @@ func (s *Server) handleProxyJump(conn net.Conn, sconn *ssh.ServerConn, identityC
 	}
 
 	if err := subsys.Wait(); err != nil {
-		log.Errorf("Proxy subsystem failed: %v.", err)
+		log.WithError(err).Errorf("Proxy subsystem failed.", err)
 		ch.Stderr().Write([]byte("Proxy subsystem failed."))
 		return
 	}

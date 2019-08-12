@@ -284,7 +284,6 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 func (c *SessionContext) Close() error {
 	closers := c.TransferClosers()
 	for _, closer := range closers {
-		c.Debugf("Closing %v.", closer)
 		closer.Close()
 	}
 	if c.clt != nil {

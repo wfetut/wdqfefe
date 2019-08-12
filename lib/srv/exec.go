@@ -166,8 +166,6 @@ func (e *localExec) Start(channel ssh.Channel) (*ExecResult, error) {
 
 		return execResult, trace.Wrap(err)
 	}
-	e.Ctx.Infof("[LOCAL EXEC] Started command: %q", e.Command)
-
 	return nil, nil
 }
 
@@ -346,11 +344,6 @@ func prepareCommand(ctx *ServerContext) (*exec.Cmd, error) {
 			Gid:    uint32(gid),
 			Groups: groups,
 		}
-		log.Debugf("Creating process with UID %v, GID: %v, and Groups: %v.",
-			uid, gid, groups)
-	} else {
-		log.Debugf("Credential process with ambient credentials UID %v, GID: %v, Groups: %v.",
-			uid, gid, groups)
 	}
 
 	// Filling out syscall.SysProcAttr will trigger calling of certain syscalls

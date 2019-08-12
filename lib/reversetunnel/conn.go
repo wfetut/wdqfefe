@@ -243,9 +243,6 @@ func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 	for _, proxy := range req.Proxies {
 		names = append(names, proxy.GetName())
 	}
-	c.log.Debugf("Sending %v discovery request with proxies %q to %v.",
-		req.Type, names, c.sconn.RemoteAddr())
-
 	_, err = discoveryCh.SendRequest(chanDiscoveryReq, false, payload)
 	if err != nil {
 		c.markInvalid(err)

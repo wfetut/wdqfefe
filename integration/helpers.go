@@ -850,7 +850,6 @@ func (i *TeleInstance) AddUserWithRole(username string, role services.Role) *Use
 // Adds a new user into i Teleport instance. 'mappings' is a comma-separated
 // list of OS users
 func (i *TeleInstance) AddUser(username string, mappings []string) *User {
-	log.Infof("teleInstance.AddUser(%v) mapped to %v", username, mappings)
 	if mappings == nil {
 		mappings = make([]string, 0)
 	}
@@ -1065,19 +1064,14 @@ func (i *TeleInstance) Stop(removeData bool) error {
 	if i.Config != nil && removeData {
 		err := os.RemoveAll(i.Config.DataDir)
 		if err != nil {
-			log.Error("failed removing temporary local Teleport directory", err)
+			log.WithError(err).Error("Failed to remove temporary local Teleport directory.")
 		}
 	}
-
-	log.Infof("Asking Teleport to stop")
 	err := i.Process.Close()
 	if err != nil {
 		log.Error(err)
 		return trace.Wrap(err)
 	}
-	defer func() {
-		log.Infof("Teleport instance '%v' stopped!", i.Secrets.SiteName)
-	}()
 	return i.Process.Wait()
 }
 

@@ -310,7 +310,6 @@ func (s *remoteSite) fanOutProxies(proxies []services.Server) {
 // the connection as invalid.
 func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-chan *ssh.Request) {
 	defer func() {
-		s.Infof("Cluster connection closed.")
 		conn.Close()
 	}()
 
@@ -318,7 +317,6 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 	for {
 		select {
 		case <-s.ctx.Done():
-			s.Infof("closing")
 			return
 		case proxies := <-conn.newProxiesC:
 			req := discoveryRequest{
@@ -327,16 +325,13 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 				Proxies:     proxies,
 			}
 			if err := conn.sendDiscoveryRequest(req); err != nil {
-				s.Debugf("Marking connection invalid on error: %v.", err)
 				conn.markInvalid(err)
 				return
 			}
 		case req := <-reqC:
 			if req == nil {
-				s.Infof("Cluster agent disconnected.")
 				conn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
 				if !s.hasValidConnections() {
-					s.Debugf("Deleting connection record.")
 					s.deleteConnectionRecord()
 				}
 				return
@@ -349,18 +344,6 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 					conn.updateProxies(current)
 				}
 				firstHeartbeat = false
-			}
-			var timeSent time.Time
-			var roundtrip time.Duration
-			if req.Payload != nil {
-				if err := timeSent.UnmarshalText(req.Payload); err == nil {
-					roundtrip = s.srv.Clock.Now().Sub(timeSent)
-				}
-			}
-			if roundtrip != 0 {
-				s.WithFields(log.Fields{"latency": roundtrip}).Debugf("Ping <- %v.", conn.conn.RemoteAddr())
-			} else {
-				s.Debugf("Ping <- %v.", conn.conn.RemoteAddr())
 			}
 			tm := time.Now().UTC()
 			conn.setLastHeartbeat(tm)
@@ -456,13 +439,11 @@ func (s *remoteSite) updateCertAuthorities() error {
 }
 
 func (s *remoteSite) periodicUpdateCertAuthorities() {
-	s.Debugf("Ticking with period %v", s.srv.PollingPeriod)
 	ticker := time.NewTicker(s.srv.PollingPeriod)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-s.ctx.Done():
-			s.Debugf("Context is closing.")
 			return
 		case <-ticker.C:
 			err := s.updateCertAuthorities()
@@ -512,8 +493,6 @@ func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
 }
 
 func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
-	s.Debugf("Dialing from %v to %v.", params.From, params.To)
-
 	conn, err := s.connThroughTunnel(&dialReq{
 		Address:  params.To.String(),
 		ServerID: params.ServerID,
@@ -526,8 +505,6 @@ func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 }
 
 func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
-	s.Debugf("Dialing with an agent from %v to %v.", params.From, params.To)
-
 	// Get a host certificate for the forwarding node from the cache.
 	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.Principals)
 	if err != nil {
@@ -581,9 +558,6 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 func (s *remoteSite) connThroughTunnel(req *dialReq) (*utils.ChConn, error) {
 	var err error
 
-	s.Debugf("Requesting connection to %v [%v] in remote cluster.",
-		req.Address, req.ServerID)
-
 	// Loop through existing remote connections and try and establish a
 	// connection over the "reverse tunnel".
 	for i := 0; i < s.connectionCount(); i++ {
@@ -591,7 +565,6 @@ func (s *remoteSite) connThroughTunnel(req *dialReq) (*utils.ChConn, error) {
 		if err == nil {
 			return conn, nil
 		}
-		s.Warnf("Request for connection to remote site failed: %v.", err)
 	}
 
 	// Didn't connect and no error? This means we didn't have any connected

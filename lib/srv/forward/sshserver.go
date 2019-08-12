@@ -525,7 +525,6 @@ func (s *Server) newRemoteClient(systemLogin string) (*ssh.Client, error) {
 }
 
 func (s *Server) handleConnection(chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
-	defer s.log.Debugf("Closing forwarding server connected to %v and releasing resources.", s.sconn.LocalAddr())
 	defer s.Close()
 
 	for {
@@ -554,7 +553,7 @@ func (s *Server) rejectChannel(chans <-chan ssh.NewChannel, err error) {
 	for newChannel := range chans {
 		err := newChannel.Reject(ssh.ConnectionFailed, err.Error())
 		if err != nil {
-			s.log.Errorf("Unable to reject and close connection.")
+			s.log.WithError(err).Errorf("Unable to reject and close connection.")
 		}
 		return
 	}
@@ -563,14 +562,14 @@ func (s *Server) rejectChannel(chans <-chan ssh.NewChannel, err error) {
 func (s *Server) handleGlobalRequest(req *ssh.Request) {
 	ok, payload, err := s.remoteClient.SendRequest(req.Type, req.WantReply, req.Payload)
 	if err != nil {
-		s.log.Warnf("Failed to forward global request %v: %v", req.Type, err)
+		s.log.WithError(err).Warnf("Failed to forward global request %v.", req.Type)
 		return
 	}
 
 	if req.WantReply {
 		err = req.Reply(ok, payload)
 		if err != nil {
-			s.log.Warnf("Failed to reply to global request: %v: %v", req.Type, err)
+			s.log.WithError(err).Warnf("Failed to reply to global request: %v.", req.Type)
 		}
 	}
 }
@@ -584,7 +583,7 @@ func (s *Server) handleChannel(nch ssh.NewChannel) {
 	case "session":
 		ch, requests, err := nch.Accept()
 		if err != nil {
-			s.log.Warnf("Unable to accept channel: %v", err)
+			s.log.WithError(err).Warnf("Unable to accept channel.")
 			nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 			return
 		}
@@ -593,13 +592,13 @@ func (s *Server) handleChannel(nch ssh.NewChannel) {
 	case "direct-tcpip":
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
 		if err != nil {
-			s.log.Errorf("Failed to parse request data: %v, err: %v", string(nch.ExtraData()), err)
+			s.log.WithError(err).Errorf("Failed to parse request data: %v.", string(nch.ExtraData()))
 			nch.Reject(ssh.UnknownChannelType, "failed to parse direct-tcpip request")
 			return
 		}
 		ch, _, err := nch.Accept()
 		if err != nil {
-			s.log.Warnf("Unable to accept channel: %v", err)
+			s.log.WithError(err).Warnf("Unable to accept channel.")
 			nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err))
 			return
 		}
@@ -611,14 +610,13 @@ func (s *Server) handleChannel(nch ssh.NewChannel) {
 
 // handleDirectTCPIPRequest handles port forwarding requests.
 func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTCPIPReq) {
-	srcAddr := fmt.Sprintf("%v:%d", req.Orig, req.OrigPort)
 	dstAddr := fmt.Sprintf("%v:%d", req.Host, req.Port)
 
 	// Create context for this channel. This context will be closed when
 	// forwarding is complete.
 	ctx, err := srv.NewServerContext(s, s.sconn, s.identityContext)
 	if err != nil {
-		ctx.Errorf("Unable to create connection context: %v.", err)
+		ctx.WithError(err).Errorf("Unable to create connection context.")
 		ch.Stderr().Write([]byte("Unable to create connection context."))
 		return
 	}
@@ -632,14 +630,9 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 		ch.Stderr().Write([]byte(err.Error()))
 		return
 	}
-
-	s.log.Debugf("Opening direct-tcpip channel from %v to %v in context %v.", srcAddr, dstAddr, ctx.ID())
-	defer s.log.Debugf("Completing direct-tcpip request from %v to %v in context %v.", srcAddr, dstAddr, ctx.ID())
-
 	// Create "direct-tcpip" channel from the remote host to the target host.
 	conn, err := s.remoteClient.Dial("tcp", dstAddr)
 	if err != nil {
-		ctx.Infof("Failed to connect to: %v: %v", dstAddr, err)
 		return
 	}
 	defer conn.Close()
@@ -682,7 +675,7 @@ func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 	// done on the server's terminating side.
 	ctx, err := srv.NewServerContext(s, s.sconn, s.identityContext)
 	if err != nil {
-		ctx.Errorf("Unable to create connection context: %v.", err)
+		ctx.WithError(err).Errorf("Unable to create connection context.", err)
 		ch.Stderr().Write([]byte("Unable to create connection context."))
 		return
 	}
@@ -698,9 +691,6 @@ func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 		return
 	}
 	ctx.RemoteSession = remoteSession
-
-	s.log.Debugf("Opening session request to %v in context %v.", s.sconn.RemoteAddr(), ctx.ID())
-	defer s.log.Debugf("Closing session request to %v in context %v.", s.sconn.RemoteAddr(), ctx.ID())
 
 	for {
 		// Update the context with the session ID.
@@ -719,14 +709,12 @@ func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 		}
 
 		select {
-		case result := <-ctx.SubsystemResultCh:
+		case <-ctx.SubsystemResultCh:
 			// Subsystem has finished executing, close the channel and session.
-			ctx.Debugf("Subsystem execution result: %v", result.Err)
 			return
 		case req := <-in:
 			if req == nil {
 				// The client has closed or dropped the connection.
-				ctx.Debugf("Client %v disconnected", s.sconn.RemoteAddr())
 				return
 			}
 			if err := s.dispatch(ch, req, ctx); err != nil {
@@ -737,8 +725,6 @@ func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 				req.Reply(true, nil)
 			}
 		case result := <-ctx.ExecResultCh:
-			ctx.Debugf("Exec request (%q) complete: %v", result.Command, result.Code)
-
 			// The exec process has finished and delivered the execution result, send
 			// the result back to the client, and close the session and channel.
 			_, err := ch.SendRequest("exit-status", false, ssh.Marshal(struct{ C uint32 }{C: uint32(result.Code)}))
@@ -752,8 +738,6 @@ func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 }
 
 func (s *Server) dispatch(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
-	ctx.Debugf("Handling request %v, want reply %v.", req.Type, req.WantReply)
-
 	switch req.Type {
 	case sshutils.ExecRequest:
 		return s.termHandlers.HandleExec(ch, req, ctx)

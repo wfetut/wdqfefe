@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 
@@ -523,29 +522,16 @@ func (a *AuthWithRoles) GetNodes(namespace string, opts ...services.MarshalOptio
 	}
 
 	// Fetch full list of nodes in the backend.
-	startFetch := time.Now()
 	nodes, err := a.authServer.GetNodes(namespace, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	elapsedFetch := time.Since(startFetch)
 
 	// Filter nodes to return the ones for the connected identity.
-	startFilter := time.Now()
 	filteredNodes, err := a.filterNodes(nodes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	elapsedFilter := time.Since(startFilter)
-
-	log.WithFields(logrus.Fields{
-		"user":           a.user.GetName(),
-		"elapsed_fetch":  elapsedFetch,
-		"elapsed_filter": elapsedFilter,
-	}).Debugf(
-		"GetServers(%v->%v) in %v.",
-		len(nodes), len(filteredNodes), elapsedFetch+elapsedFilter)
-
 	return filteredNodes, nil
 }
 

@@ -106,8 +106,6 @@ func (s *SessionRegistry) Close() {
 	for _, se := range s.sessions {
 		se.Close()
 	}
-
-	s.log.Debugf("Closing Session Registry.")
 }
 
 // emitSessionJoinEvent emits a session join event to both the Audit Log as
@@ -135,23 +133,20 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 	for _, p := range s.getParties(ctx.session) {
 		eventPayload, err := json.Marshal(sessionJoinEvent)
 		if err != nil {
-			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			s.log.WithError(err).Warnf("Unable to marshal %v for %v.", events.SessionJoinEvent, p.sconn.RemoteAddr())
 			continue
 		}
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
-			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			s.log.WithError(err).Warnf("Unable to send %v to %v.", events.SessionJoinEvent, p.sconn.RemoteAddr())
 			continue
 		}
-		s.log.Debugf("Sent %v to %v.", events.SessionJoinEvent, p.sconn.RemoteAddr())
 	}
 }
 
 // OpenSession either joins an existing session or starts a new session.
 func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
 	if ctx.session != nil {
-		ctx.Infof("Joining existing session %v.", ctx.session.id)
-
 		// Update the in-memory data structure that a party member has joined.
 		_, err := ctx.session.join(ch, req, ctx)
 		if err != nil {
@@ -178,7 +173,6 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 	}
 	ctx.session = sess
 	s.addSession(sess)
-	ctx.Infof("Creating session %v.", sid)
 
 	if err := sess.start(ch, ctx); err != nil {
 		sess.Close()
@@ -206,15 +200,14 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 	for _, p := range s.getParties(party.s) {
 		eventPayload, err := json.Marshal(sessionLeaveEvent)
 		if err != nil {
-			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			s.log.WithError(err).Warnf("Unable to marshal %v for %v.", events.SessionJoinEvent, p.sconn.RemoteAddr())
 			continue
 		}
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
-			s.log.Warnf("Unable to send %v to %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
+			s.log.WithError(err).Warnf("Unable to send %v to %v.", events.SessionJoinEvent, p.sconn.RemoteAddr())
 			continue
 		}
-		s.log.Debugf("Sent %v to %v.", events.SessionJoinEvent, p.sconn.RemoteAddr())
 	}
 }
 
@@ -244,10 +237,8 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		// not lingering anymore? someone reconnected? cool then... no need
 		// to die...
 		if !sess.isLingering() {
-			s.log.Infof("Session %v has become active again.", sess.id)
 			return
 		}
-		s.log.Infof("Session %v will be garbage collected.", sess.id)
 
 		// no more people left? Need to end the session!
 		s.Lock()
@@ -267,16 +258,16 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		sess.recorder.Close()
 
 		if err := sess.Close(); err != nil {
-			s.log.Errorf("Unable to close session %v: %v", sess.id, err)
+			s.log.WithError(err).Errorf("Unable to close session %v.", sess.id)
 		}
 
 		// Remove the session from the backend.
 		if s.srv.GetSessionServer() != nil {
 			err := s.srv.GetSessionServer().DeleteSession(s.srv.GetNamespace(), sess.id)
 			if err != nil {
-				s.log.Errorf("Failed to remove active session: %v: %v. "+
+				s.log.WithError(err).Errorf("Failed to remove active session: %v. "+
 					"Access to backend may be degraded, check connectivity to backend.",
-					sess.id, err)
+					sess.id)
 			}
 		}
 	}
@@ -308,7 +299,6 @@ func (s *SessionRegistry) getParties(sess *session) []*party {
 // is the responsibility of the client to update it's window size upon receipt.
 func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *ServerContext) error {
 	if ctx.session == nil {
-		s.log.Debugf("Unable to update window size, no session found in context.")
 		return nil
 	}
 	sid := ctx.session.id
@@ -352,17 +342,16 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 
 		eventPayload, err := json.Marshal(resizeEvent)
 		if err != nil {
-			s.log.Warnf("Unable to marshal resize event for %v: %v.", p.sconn.RemoteAddr(), err)
+			s.log.WithError(err).Warnf("Unable to marshal resize event for %v.", p.sconn.RemoteAddr())
 			continue
 		}
 
 		// Send the message as a global request.
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
-			s.log.Warnf("Unable to resize event to %v: %v.", p.sconn.RemoteAddr(), err)
+			s.log.WithError(err).Warnf("Unable to resize event to %v.", p.sconn.RemoteAddr())
 			continue
 		}
-		s.log.Debugf("Sent resize event %v to %v.", params, p.sconn.RemoteAddr())
 	}
 
 	return nil
@@ -512,7 +501,6 @@ func (s *session) Close() error {
 		// (session writer) will try to close this session, causing a deadlock
 		// because of closeOnce
 		go func() {
-			s.log.Infof("Closing session %v", s.id)
 			if s.term != nil {
 				s.term.Close()
 			}
@@ -521,8 +509,7 @@ func (s *session) Close() error {
 			// close all writers in our multi-writer
 			s.writer.Lock()
 			defer s.writer.Unlock()
-			for writerName, writer := range s.writer.writers {
-				s.log.Infof("Closing session writer: %v", writerName)
+			for _, writer := range s.writer.writers {
 				closer, ok := io.Writer(writer).(io.WriteCloser)
 				if ok {
 					closer.Close()
@@ -642,9 +629,7 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 	go func() {
 		defer s.term.AddParty(-1)
 
-		_, err := io.Copy(s.writer, s.term.PTY())
-		s.log.Debugf("Copying from PTY to writer completed with error %v.", err)
-
+		io.Copy(s.writer, s.term.PTY())
 		// once everything has been copied, notify the goroutine below. if this code
 		// is running in a teleport node, when the exec.Cmd is done it will close
 		// the PTY, allowing io.Copy to return. if this is a teleport forwarding
@@ -672,17 +657,16 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 		if ctx.srv.Component() == teleport.ComponentNode {
 			conf, err := s.registry.srv.GetPAM()
 			if err != nil {
-				ctx.Errorf("Unable to get PAM configuration from server: %v", err)
+				ctx.WithError(err).Errorf("Unable to get PAM configuration from server.")
 				return
 			}
 
 			if conf.Enabled == true {
 				err = pamContext.Close()
 				if err != nil {
-					ctx.Errorf("Unable to close PAM context for session: %v: %v", s.id, err)
+					ctx.WithError(err).Errorf("Unable to close PAM context for session: %v.", s.id)
 					return
 				}
-				ctx.Debugf("Closing PAM context for session: %v.", s.id)
 			}
 		}
 
@@ -690,7 +674,7 @@ func (s *session) start(ch ssh.Channel, ctx *ServerContext) error {
 			s.registry.broadcastResult(s.id, *result)
 		}
 		if err != nil {
-			s.log.Infof("Shell exited with error: %v", err)
+			s.log.WithError(err).Warningf("Shell exited with error.")
 		} else {
 			// no error? this means the command exited cleanly: no need
 			// for this session to "linger" after this.
@@ -728,8 +712,6 @@ func (s *session) removePartyMember(party *party) {
 // removeParty removes the party from the in-memory map that holds all party
 // members.
 func (s *session) removeParty(p *party) error {
-	p.ctx.Infof("Removing party %v from session %v", p, s.id)
-
 	// Removes participant from in-memory map of party members.
 	s.removePartyMember(p)
 
@@ -793,9 +775,6 @@ func (s *session) heartbeat(ctx *ServerContext) {
 		return
 	}
 
-	s.log.Debugf("Starting poll and sync of terminal size to all parties.")
-	defer s.log.Debugf("Stopping poll and sync of terminal size to all parties.")
-
 	tickerCh := time.NewTicker(defaults.SessionRefreshPeriod)
 	defer tickerCh.Stop()
 
@@ -811,7 +790,7 @@ func (s *session) heartbeat(ctx *ServerContext) {
 				Parties:   &partyList,
 			})
 			if err != nil {
-				s.log.Warnf("Unable to update session %v as active: %v", s.id, err)
+				s.log.WithError(err).Warnf("Unable to update session %v as active.", s.id)
 			}
 		case <-s.closeC:
 			return
@@ -857,16 +836,13 @@ func (s *session) addParty(p *party) error {
 	p.ctx.AddCloser(p)
 	s.term.AddParty(1)
 
-	s.log.Infof("New party %v joined session: %v", p.String(), s.id)
-
 	// This goroutine keeps pumping party's input into the session.
 	go func() {
 		defer s.term.AddParty(-1)
 		_, err := io.Copy(s.term.PTY(), p)
 		if err != nil {
-			s.log.Errorf("Party member %v left session %v due an error: %v", p.id, s.id, err)
+			s.log.WithError(err).Errorf("Party member %v left session %v.", p.id, s.id)
 		}
-		s.log.Infof("Party member %v left session %v.", p.id, s.id)
 	}()
 	return nil
 }
@@ -1018,7 +994,6 @@ func (p *party) String() string {
 
 func (p *party) Close() (err error) {
 	p.closeOnce.Do(func() {
-		p.log.Infof("Closing party %v", p.id)
 		if err = p.s.registry.leaveSession(p); err != nil {
 			p.ctx.Error(err)
 		}

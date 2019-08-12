@@ -137,8 +137,6 @@ func (t *TermHandlers) HandlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *Serve
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx.Debugf("Requested terminal %q of size %v", ptyRequest.Env, *params)
-
 	// get an existing terminal or create a new one
 	term := ctx.GetTerm()
 	if term == nil {
@@ -155,7 +153,7 @@ func (t *TermHandlers) HandlePTYReq(ch ssh.Channel, req *ssh.Request, ctx *Serve
 
 	// update the session
 	if err := t.SessionRegistry.NotifyWinChange(*params, ctx); err != nil {
-		ctx.Errorf("Unable to update session: %v", err)
+		ctx.WithError(err).Errorf("Unable to update session.")
 	}
 
 	return nil

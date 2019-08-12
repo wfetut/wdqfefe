@@ -177,7 +177,6 @@ func (e *Event) String() string {
 }
 
 func (s *LocalSupervisor) Register(srv Service) {
-	log.WithFields(logrus.Fields{"service": srv.Name(), trace.Component: teleport.ComponentProcess}).Debugf("Adding service to supervisor.")
 	s.Lock()
 	defer s.Unlock()
 	s.services = append(s.services, srv)
@@ -209,17 +208,14 @@ func (s *LocalSupervisor) RegisterCriticalFunc(name string, fn ServiceFunc) {
 
 // RemoveService removes service from supervisor tracking list
 func (s *LocalSupervisor) RemoveService(srv Service) error {
-	l := logrus.WithFields(logrus.Fields{"service": srv.Name(), trace.Component: teleport.Component(teleport.ComponentProcess, s.id)})
 	s.Lock()
 	defer s.Unlock()
 	for i, el := range s.services {
 		if el == srv {
 			s.services = append(s.services[:i], s.services[i+1:]...)
-			l.Debugf("Service is completed and removed.")
 			return nil
 		}
 	}
-	l.Warningf("Service is completed but not found.")
 	return trace.NotFound("service %v is not found", srv)
 }
 
@@ -238,13 +234,12 @@ func (s *LocalSupervisor) serve(srv Service) {
 		defer s.wg.Done()
 		defer s.RemoveService(srv)
 		l := log.WithFields(logrus.Fields{"service": srv.Name(), trace.Component: teleport.Component(teleport.ComponentProcess, s.id)})
-		l.Debugf("Service has started.")
 		err := srv.Serve()
 		if err != nil {
 			if err == ErrTeleportExited {
 				l.Infof("Teleport process has shut down.")
 			} else {
-				l.Warningf("Teleport process has exited with error: %v", err)
+				l.WithError(err).Warningf("Teleport process has exited with error.")
 				s.BroadcastEvent(Event{
 					Name:    ServiceExitedWithErrorEvent,
 					Payload: ServiceExit{Service: srv, Error: err},
@@ -323,12 +318,6 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 
 	s.events[event.Name] = event
 
-	// Log all events other than recovered events to prevent the logs from
-	// being flooded.
-	if event.String() != TeleportOKEvent {
-		log.WithFields(logrus.Fields{"event": event.String(), trace.Component: teleport.Component(teleport.ComponentProcess, s.id)}).Debugf("Broadcasting event.")
-	}
-
 	go func() {
 		select {
 		case s.eventsC <- event:
@@ -348,7 +337,6 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 					return
 				}
 			}(mappedEvent)
-			log.WithFields(logrus.Fields{"in": event.String(), "out": m.String(), trace.Component: teleport.Component(teleport.ComponentProcess, s.id)}).Debugf("Broadcasting mapped event.")
 		}
 	}
 }

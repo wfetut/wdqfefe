@@ -167,11 +167,9 @@ func (m *AgentPool) processDiscoveryRequests() {
 	for {
 		select {
 		case <-m.ctx.Done():
-			m.Debugf("Closing.")
 			return
 		case req := <-m.discoveryC:
 			if req == nil {
-				m.Debugf("Channel closed.")
 				return
 			}
 
@@ -213,7 +211,6 @@ func (m *AgentPool) tryDiscover(req discoveryRequest) {
 			filtered = append(filtered, proxy)
 		}
 	}
-	m.Debugf("TryDiscover original(%v) -> filtered(%v).", proxies, filtered)
 	// nothing to do
 	if len(filtered) == 0 {
 		return
@@ -227,7 +224,6 @@ func (m *AgentPool) tryDiscover(req discoveryRequest) {
 		}
 		if filtered.Equal(agent.DiscoverProxies) {
 			foundAgent = true
-			agent.Debugf("Agent is already discovering the same proxies as requested in %v.", filtered)
 			return false
 		}
 		return true
@@ -281,7 +277,6 @@ func filterAndClose(agents []*Agent, matchAgent matchAgentFn) []*Agent {
 	for i := range agents {
 		agent := agents[i]
 		if matchAgent(agent) {
-			agent.Debugf("Pool is closing agent.")
 			agent.Close()
 		} else {
 			filtered = append(filtered, agent)
@@ -307,12 +302,11 @@ func (m *AgentPool) pollAndSyncAgents() {
 			m.withLock(func() {
 				m.closeAgents(nil)
 			})
-			m.Debugf("Closing.")
 			return
 		case <-ticker.C:
 			err := m.FetchAndSyncAgents()
 			if err != nil {
-				m.Warningf("Failed to get reverse tunnels: %v.", err)
+				m.WithError(err).Warningf("Failed to get reverse tunnels.")
 				continue
 			}
 		}
@@ -347,7 +341,6 @@ func (m *AgentPool) addAgent(key agentKey, discoverProxies []services.Server) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	m.Debugf("Adding %v.", agent)
 	// start the agent in a goroutine. no need to handle Start() errors: Start() will be
 	// retrying itself until the agent is closed
 	go agent.Start()
@@ -403,12 +396,6 @@ func (m *AgentPool) reportStats() {
 	}
 
 	for key, agents := range m.agents {
-		tunnelID := key.clusterName
-		if m.cfg.Component == teleport.ComponentNode {
-			tunnelID = m.cfg.HostUUID
-		}
-		m.Debugf("Outbound tunnel for %v connected to %v proxies.", tunnelID, len(agents))
-
 		countPerState := map[string]int{
 			agentStateConnecting:   0,
 			agentStateDiscovering:  0,
@@ -422,7 +409,6 @@ func (m *AgentPool) reportStats() {
 		for state, count := range countPerState {
 			gauge, err := trustedClustersStats.GetMetricWithLabelValues(key.clusterName, state)
 			if err != nil {
-				m.Warningf("Failed to get gauge: %v.", err)
 				continue
 			}
 			gauge.Set(float64(count))

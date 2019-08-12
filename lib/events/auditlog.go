@@ -591,14 +591,12 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 	_, err := os.Stat(tarballPath)
 	err = trace.ConvertSystemError(err)
 	if err == nil {
-		l.Debugf("Recording %v is already downloaded and unpacked to %v.", sid, tarballPath)
 		return nil
 	}
 	if !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 	start := time.Now()
-	l.Debugf("Starting download of %v.", sid)
 	tarball, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -631,10 +629,9 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 			return trace.Wrap(err)
 		}
 		if err := reader.Close(); err != nil {
-			l.Warningf("Failed to close file: %v.", err)
+			l.WithError(err).Warningf("Failed to close file.")
 		}
 	}
-	l.WithFields(log.Fields{"duration": time.Now().Sub(start)}).Debugf("Unpacked %v to %v.", tarballPath, l.playbackDir)
 	return nil
 }
 
@@ -725,8 +722,6 @@ func (l *AuditLog) unpackFile(fileName string) (readSeekCloser, error) {
 			return os.OpenFile(unpackedFile, os.O_RDONLY, 0640)
 		}
 	}
-
-	start := l.Clock.Now()
 	dest, err := os.OpenFile(unpackedFile, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -754,7 +749,6 @@ func (l *AuditLog) unpackFile(fileName string) (readSeekCloser, error) {
 		dest.Close()
 		return nil, trace.Wrap(err)
 	}
-	l.Debugf("Uncompressed %v into %v in %v", fileName, unpackedFile, l.Clock.Now().Sub(start))
 	return dest, nil
 }
 
@@ -793,7 +787,6 @@ func (l *AuditLog) getSessionChunk(namespace string, sid session.ID, offsetBytes
 // This function is usually used in conjunction with GetSessionReader to
 // replay recorded session streams.
 func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]EventFields, error) {
-	l.WithFields(log.Fields{"sid": string(sid), "afterN": afterN, "printEvents": includePrintEvents}).Debugf("GetSessionEvents.")
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
@@ -925,7 +918,6 @@ func (l *AuditLog) auditDirs() ([]string, error) {
 // SearchEvents finds events. Results show up sorted by date (newest first),
 // limit is used when set to value > 0
 func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
-	l.Debugf("SearchEvents(%v, %v, query=%v, limit=%v)", fromUTC, toUTC, query, limit)
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
@@ -940,8 +932,6 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit in
 
 // SearchSessionEvents searches for session related events. Used to find completed sessions.
 func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]EventFields, error) {
-	l.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
-
 	if l.ExternalLog != nil {
 		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit)
 	}
@@ -953,7 +943,7 @@ func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]E
 func (l *AuditLog) Close() error {
 	if l.ExternalLog != nil {
 		if err := l.ExternalLog.Close(); err != nil {
-			log.Warningf("Close failure: %v", err)
+			log.WithError(err).Warningf("Close failure.")
 		}
 	}
 	l.cancel()
@@ -962,7 +952,7 @@ func (l *AuditLog) Close() error {
 
 	if l.localLog != nil {
 		if err := l.localLog.Close(); err != nil {
-			log.Warningf("Close failure: %v", err)
+			log.WithError(err).Warningf("Close failure.")
 		}
 		l.localLog = nil
 	}
@@ -979,7 +969,7 @@ func (l *AuditLog) periodicCleanupPlaybacks() {
 			return
 		case <-ticker.C:
 			if err := l.cleanupOldPlaybacks(); err != nil {
-				l.Warningf("Error while cleaning up playback files: %v.", err)
+				l.WithError(err).Warningf("Error while cleaning up playback files.")
 			}
 		}
 	}

@@ -224,9 +224,6 @@ func (a *AuthServer) establishTrust(trustedCluster services.TrustedCluster) ([]s
 		CAs:   localCertAuthorities,
 	}
 
-	// log the local certificate authorities that we are sending
-	log.Debugf("Sending validate request; token=%v, CAs=%v", validateRequest.Token, validateRequest.CAs)
-
 	// send the request to the remote auth server via the proxy
 	validateResponse, err := a.sendValidateRequestToProxy(trustedCluster.GetProxyAddress(), &validateRequest)
 	if err != nil {
@@ -236,9 +233,6 @@ func (a *AuthServer) establishTrust(trustedCluster services.TrustedCluster) ([]s
 		}
 		return nil, trace.Wrap(err)
 	}
-
-	// log the remote certificate authorities we are adding
-	log.Debugf("Received validate response; CAs=%v", validateResponse.CAs)
 
 	for _, ca := range validateResponse.CAs {
 		for _, keyPair := range ca.GetTLSKeyPairs() {
@@ -390,9 +384,6 @@ func (a *AuthServer) validateTrustedCluster(validateRequest *ValidateTrustedClus
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// log the remote certificate authorities we are adding
-	log.Debugf("Received validate request: token=%v, CAs=%v", validateRequest.Token, validateRequest.CAs)
 
 	// add remote cluster resource to keep track of the remote cluster
 	var remoteClusterName string

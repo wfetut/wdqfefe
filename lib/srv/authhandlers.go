@@ -19,7 +19,6 @@ package srv
 import (
 	"fmt"
 	"net"
-	"os"
 	"os/user"
 	"time"
 
@@ -145,21 +144,14 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		},
 	})
 
-	cid := fmt.Sprintf("conn(%v->%v, user=%v)", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
-	h.Debugf("%v auth attempt", cid)
-
 	cert, ok := key.(*ssh.Certificate)
-	h.Debugf("%v auth attempt with key %v, %#v", cid, fingerprint, cert)
 	if !ok {
-		h.Debugf("auth attempt, unsupported key type")
 		return nil, trace.BadParameter("unsupported key type: %v", fingerprint)
 	}
 	if len(cert.ValidPrincipals) == 0 {
-		h.Debugf("need a valid principal for key")
 		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
 	}
 	if len(cert.KeyId) == 0 {
-		h.Debugf("need a valid key ID for key")
 		return nil, trace.BadParameter("need a valid key for key %v", fingerprint)
 	}
 	teleportUser := cert.KeyId
@@ -171,7 +163,6 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 			events.AuthAttemptSuccess: false,
 			events.AuthAttemptErr:     err.Error(),
 		}
-		h.Warnf("failed login attempt %#v", fields)
 		h.AuditLog.EmitAuditEvent(events.AuthAttemptFailure, fields)
 	}
 
@@ -189,16 +180,12 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
-	h.Debugf("Successfully authenticated")
 
 	// see if the host user is valid, we only do this when logging into a teleport node
 	if h.isTeleportNode() {
 		_, err = user.Lookup(conn.User())
 		if err != nil {
-			host, _ := os.Hostname()
-			h.Warnf("host '%s' does not have OS user '%s'", host, conn.User())
-			h.Errorf("no such user")
-			return nil, trace.AccessDenied("no such user: '%s'", conn.User())
+			return nil, trace.AccessDenied("no such user: %q", conn.User())
 		}
 	}
 
@@ -225,7 +212,6 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		err = h.canLoginWithRBAC(cert, clusterName.GetClusterName(), teleportUser, conn.User())
 	}
 	if err != nil {
-		h.Errorf("Permission denied: %v", err)
 		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
@@ -301,7 +287,6 @@ func (h *AuthHandlers) IsUserAuthority(cert ssh.PublicKey) bool {
 // Teleport CA.
 func (h *AuthHandlers) IsHostAuthority(cert ssh.PublicKey, address string) bool {
 	if _, err := h.authorityForCert(services.HostCA, cert); err != nil {
-		h.Entry.Debugf("Unable to find SSH host CA: %v.", err)
 		return false
 	}
 	return true
@@ -311,8 +296,6 @@ func (h *AuthHandlers) IsHostAuthority(cert ssh.PublicKey, address string) bool 
 // client) to see if this certificate can be allowed to login as user:login
 // pair to requested server.
 func (h *AuthHandlers) canLoginWithoutRBAC(cert *ssh.Certificate, clusterName string, teleportUser, osUser string) error {
-	h.Debugf("Checking permissions for (%v,%v) to login to node without RBAC checks.", teleportUser, osUser)
-
 	// check if the ca that signed the certificate is known to the cluster
 	_, err := h.authorityForCert(services.UserCA, cert.SignatureKey)
 	if err != nil {
@@ -326,8 +309,6 @@ func (h *AuthHandlers) canLoginWithoutRBAC(cert *ssh.Certificate, clusterName st
 // client) to see if this certificate can be allowed to login as user:login
 // pair to requested server and if RBAC rules allow login.
 func (h *AuthHandlers) canLoginWithRBAC(cert *ssh.Certificate, clusterName string, teleportUser, osUser string) error {
-	h.Debugf("Checking permissions for (%v,%v) to login to node with RBAC checks.", teleportUser, osUser)
-
 	// get the ca that signd the users certificate
 	ca, err := h.authorityForCert(services.UserCA, cert.SignatureKey)
 	if err != nil {
@@ -392,7 +373,6 @@ func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.Pu
 	// get all certificate authorities for given type
 	cas, err := h.AccessPoint.GetCertAuthorities(caType, false)
 	if err != nil {
-		h.Warnf("%v", trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
 
@@ -401,7 +381,6 @@ func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.Pu
 	for i := range cas {
 		checkers, err := cas[i].Checkers()
 		if err != nil {
-			h.Warnf("%v", err)
 			return nil, trace.Wrap(err)
 		}
 		for _, checker := range checkers {

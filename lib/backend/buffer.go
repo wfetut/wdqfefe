@@ -72,7 +72,6 @@ func (c *CircularBuffer) Reset() {
 	defer c.Unlock()
 	// could close mulitple times
 	c.watchers.walk(func(w *BufferWatcher) {
-		c.Debugf("Closing watcher %p via reset.", w)
 		w.closeWatcher()
 	})
 	c.watchers = newWatcherTree()
@@ -231,13 +230,11 @@ func (c *CircularBuffer) NewWatcher(ctx context.Context, watch Watch) (Watcher, 
 		cancel:   cancel,
 		capacity: watch.QueueSize,
 	}
-	c.Debugf("Add %v.", w)
 	select {
 	case w.eventsC <- Event{Type: OpInit}:
 	case <-c.ctx.Done():
 		return nil, trace.BadParameter("buffer is closed")
 	default:
-		c.Warningf("Closing %v, buffer overflow.", w)
 		w.Close()
 		return nil, trace.BadParameter("buffer overflow")
 	}
@@ -249,14 +246,10 @@ func (c *CircularBuffer) removeWatcherWithLock(watcher *BufferWatcher) {
 	c.Lock()
 	defer c.Unlock()
 	if watcher == nil {
-		c.Warningf("Internal logic error: %v.", trace.DebugReport(trace.BadParameter("empty watcher")))
+		c.WithError(trace.BadParameter("empty watcher")).Warningf("Internal logic problem.")
 		return
 	}
-	c.Debugf("Removed watcher %p via external close.", watcher)
-	found := c.watchers.rm(watcher)
-	if !found {
-		c.Debugf("Could not find watcher %v.", watcher)
-	}
+	c.watchers.rm(watcher)
 }
 
 func max(a, b int) int {

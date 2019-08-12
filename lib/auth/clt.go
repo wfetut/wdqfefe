@@ -146,7 +146,6 @@ func NewAddrDialer(addrs []utils.NetAddr, keepAliveInterval time.Duration) Conte
 			if err == nil {
 				return conn, nil
 			}
-			log.Errorf("Failed to dial auth server %v: %v.", addr.Addr, err)
 		}
 		// not wrapping on purpose to preserve the original error
 		return nil, err
@@ -284,15 +283,10 @@ func (c *Client) grpc() (proto.AuthServiceClient, error) {
 		if c.isClosed() {
 			return nil, trace.ConnectionProblem(nil, "client is closed")
 		}
-		c, err := c.Dialer.DialContext(context.TODO(), "tcp", addr)
-		if err != nil {
-			log.Debugf("Dial to addr %v failed: %v.", addr, err)
-		}
-		return c, err
+		return c.Dialer.DialContext(context.TODO(), "tcp", addr)
 	})
 	tlsConfig := c.TLS.Clone()
 	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
-	log.Debugf("GRPC(): keep alive %v count: %v.", c.KeepAlivePeriod, c.KeepAliveCount)
 	conn, err := grpc.Dial(teleport.APIDomain,
 		dialer,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),

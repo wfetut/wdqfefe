@@ -408,7 +408,6 @@ func parseFileTime(filename string) (time.Time, error) {
 //
 // You can pass multiple types like "event=session.start&event=session.end"
 func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int) ([]EventFields, error) {
-	l.Debugf("Called findInFile(%s, %v).", fn, query)
 	retval := make([]EventFields, 0)
 
 	eventFilter, ok := query[EventType]

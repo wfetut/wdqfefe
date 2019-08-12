@@ -193,8 +193,6 @@ func (a *Agent) getLastStateChange() time.Time {
 func (a *Agent) setStateAndPrincipals(state string, principals []string) {
 	a.Lock()
 	defer a.Unlock()
-	prev := a.state
-	a.Debugf("Changing state %v -> %v.", prev, state)
 	a.state = state
 	a.stateChange = a.Clock.Now().UTC()
 	a.principals = principals
@@ -202,8 +200,6 @@ func (a *Agent) setStateAndPrincipals(state string, principals []string) {
 func (a *Agent) setState(state string) {
 	a.Lock()
 	defer a.Unlock()
-	prev := a.state
-	a.Debugf("Changing state %v -> %v.", prev, state)
 	a.state = state
 	a.stateChange = a.Clock.Now().UTC()
 }
@@ -321,7 +317,6 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 		dialer := proxy.DialerFromEnvironment(a.Addr.Addr)
 		pconn, err := dialer.DialTimeout(a.Addr.AddrNetwork, a.Addr.Addr, defaults.DefaultDialTimeout)
 		if err != nil {
-			a.Debugf("Dial to %v failed: %v.", a.Addr.Addr, err)
 			continue
 		}
 
@@ -334,7 +329,6 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 			Timeout:         defaults.DefaultDialTimeout,
 		})
 		if err != nil {
-			a.Debugf("Failed to create client to %v: %v.", a.Addr.Addr, err)
 			continue
 		}
 
@@ -404,25 +398,20 @@ func (a *Agent) run() {
 	// Try and connect to remote cluster.
 	conn, err := a.connect()
 	if err != nil || conn == nil {
-		a.Warningf("Failed to create remote tunnel: %v, conn: %v.", err, conn)
 		return
 	}
 
 	// Successfully connected to remote cluster.
-	a.Infof("Connected to %s", conn.RemoteAddr())
+	a.Infof("Connected to %s.", conn.RemoteAddr())
 	if len(a.DiscoverProxies) != 0 {
 		// If not connected to a proxy in the discover list (which means we
 		// connected to a proxy we already have a connection to), try again.
 		if !a.connectedToRightProxy() {
-			a.Debugf("Missed, connected to %v instead of %v.", a.getPrincipalsList(), Proxies(a.DiscoverProxies))
-
 			conn.Close()
 			return
 		}
-		a.Debugf("Agent discovered proxy: %v.", a.getPrincipalsList())
 		a.setState(agentStateDiscovered)
 	} else {
-		a.Debugf("Agent connected to proxy: %v.", a.getPrincipalsList())
 		a.setState(agentStateConnected)
 	}
 
@@ -431,7 +420,6 @@ func (a *Agent) run() {
 		select {
 		case a.EventsC <- ConnectedEvent:
 		case <-a.ctx.Done():
-			a.Debug("Context is closing.")
 			return
 		default:
 		}
@@ -443,7 +431,7 @@ func (a *Agent) run() {
 	// or permanent loss of a proxy.
 	err = a.processRequests(conn)
 	if err != nil {
-		a.Warnf("Unable to continue processesing requests: %v.", err)
+		a.WithError(err).Warnf("Unable to continue processesing requests.")
 		return
 	}
 }
@@ -488,7 +476,6 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				a.Error(err)
 				return trace.Wrap(err)
 			}
-			a.Debugf("Ping -> %v.", conn.RemoteAddr())
 		// ssh channel closed:
 		case req := <-reqC:
 			if req == nil {
@@ -499,10 +486,9 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 			if nch == nil {
 				continue
 			}
-			a.Debugf("Transport request: %v.", nch.ChannelType())
 			ch, req, err := nch.Accept()
 			if err != nil {
-				a.Warningf("Failed to accept transport request: %v.", err)
+				a.WithError(err).Warningf("Failed to accept transport request.", err)
 				continue
 			}
 
@@ -525,10 +511,9 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 			if nch == nil {
 				continue
 			}
-			a.Debugf("Discovery request channel opened: %v.", nch.ChannelType())
 			ch, req, err := nch.Accept()
 			if err != nil {
-				a.Warningf("Failed to accept discovery channel request: %v.", err)
+				a.WithError(err).Warningf("Failed to accept discovery channel request.")
 				continue
 			}
 			go a.handleDiscovery(ch, req)
@@ -543,30 +528,26 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 // ch   : SSH channel which received "teleport-transport" out-of-band request
 // reqC : request payload
 func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
-	a.Debugf("handleDiscovery requests channel.")
 	defer ch.Close()
 
 	for {
 		var req *ssh.Request
 		select {
 		case <-a.ctx.Done():
-			a.Infof("Closed, returning.")
 			return
 		case req = <-reqC:
 			if req == nil {
-				a.Infof("Connection closed, returning")
 				return
 			}
 			r, err := unmarshalDiscoveryRequest(req.Payload)
 			if err != nil {
-				a.Warningf("Bad payload: %v.", err)
+				a.WithError(err).Warningf("Bad payload.")
 				return
 			}
 			r.ClusterAddr = a.Addr
 			select {
 			case a.DiscoveryC <- r:
 			case <-a.ctx.Done():
-				a.Infof("Closed, returning.")
 				return
 			default:
 			}

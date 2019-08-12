@@ -169,7 +169,6 @@ func NewWithConfig(ctx context.Context, cfg Config) (*LiteBackend, error) {
 		watchStarted:     watchStarted,
 		signalWatchStart: signalWatchStart,
 	}
-	l.Debugf("Connected to: %v, poll stream period: %v", connectorURL, cfg.PollStreamPeriod)
 	if err := l.createSchema(); err != nil {
 		return nil, trace.Wrap(err, "error creating schema: %v", connectorURL)
 	}
@@ -216,7 +215,6 @@ func (l *LiteBackend) showPragmas() error {
 		if err := row.Scan(&timeoutValue); err != nil {
 			return trace.Wrap(err)
 		}
-		l.Debugf("Synchronous: %v, busy timeout: %v", syncValue, timeoutValue)
 		return nil
 	})
 }
@@ -250,7 +248,6 @@ func (l *LiteBackend) createSchema() error {
 
 	for _, schema := range schemas {
 		if _, err := l.db.ExecContext(l.ctx, schema); err != nil {
-			l.Errorf("Failing schema step: %v, %v.", schema, err)
 			return trace.Wrap(err)
 		}
 	}

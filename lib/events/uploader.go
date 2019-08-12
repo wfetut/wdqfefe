@@ -145,12 +145,11 @@ func (u *Uploader) Serve() error {
 	for {
 		select {
 		case <-u.ctx.Done():
-			u.Debugf("Uploader is exiting.")
 			return nil
 		case <-t.C:
 			if err := u.Scan(); err != nil {
 				if trace.Unwrap(err) != errContext {
-					u.Warningf("Uploader scan failed: %v", trace.DebugReport(err))
+					u.WithError(err).Warningf("Uploader scan failed.")
 				}
 			}
 		}
@@ -164,7 +163,6 @@ func (u *Uploader) takeSemaphore() error {
 	case u.semaphore <- struct{}{}:
 		return nil
 	case <-u.ctx.Done():
-		u.Debugf("Context is closing.")
 		return errContext
 	}
 }
@@ -174,7 +172,6 @@ func (u *Uploader) releaseSemaphore() error {
 	case <-u.semaphore:
 		return nil
 	case <-u.ctx.Done():
-		u.Debugf("Context is closing.")
 		return errContext
 	}
 }
@@ -199,9 +196,8 @@ func (u *Uploader) removeFiles(sessionID session.ID) error {
 		}
 		path := filepath.Join(u.scanDir, fi.Name())
 		if err := os.Remove(path); err != nil {
-			u.Warningf("Failed to remove %v: %v.", path, trace.DebugReport(err))
+			u.WithError(err).Warningf("Failed to remove %v.", path)
 		}
-		u.Debugf("Removed %v.", path)
 	}
 	return nil
 }
@@ -253,7 +249,6 @@ func (u *Uploader) uploadFile(lockFilePath string, sessionID session.ID) error {
 			u.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": sessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
 			return
 		}
-		u.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": sessionID}).Debugf("Session upload completed.")
 		u.emitEvent(UploadEvent{
 			SessionID: string(sessionID),
 		})

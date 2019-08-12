@@ -344,21 +344,17 @@ func (s *Server) acceptConnections() {
 	defer s.closeFunc()
 	backoffTimer := time.NewTicker(5 * time.Second)
 	defer backoffTimer.Stop()
-	addr := s.Addr()
-	s.Debugf("Listening on %v.", addr)
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if s.isClosed() {
-				s.Debugf("Server %v has closed.", addr)
 				return
 			}
 			select {
 			case <-s.closeContext.Done():
-				s.Debugf("Server %v has closed.", addr)
 				return
 			case <-backoffTimer.C:
-				s.Debugf("Backoff on network error: %v.", err)
+				s.WithError(err).Debugf("Backoff on network error.")
 			}
 		} else {
 			go s.HandleConnection(conn)
@@ -383,7 +379,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// in case of error as ssh server takes care of this
 	remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
 	if err != nil {
-		log.Errorf(err.Error())
+		log.WithError(err).Errorf("Failed to parse conn addr.")
 	}
 	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
 		log.Errorf(err.Error())
@@ -417,14 +413,6 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	// Connection successfully initiated
-	s.Debugf("Incoming connection %v -> %v vesion: %v.",
-		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
-
-	// will be called when the connection is closed
-	connClosed := func() {
-		s.Debugf("Closed connection %v.", sconn.RemoteAddr())
-	}
 
 	// The keepalive ticket will ensure that SSH keepalive requests are being sent
 	// to the client at an interval much shorter than idle connection kill switch
@@ -437,17 +425,14 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		// handle out of band ssh requests
 		case req := <-reqs:
 			if req == nil {
-				connClosed()
 				return
 			}
-			s.Debugf("Received out-of-band request: %+v.", req)
 			if s.reqHandler != nil {
 				go s.reqHandler.HandleRequest(req)
 			}
 			// handle channels:
 		case nch := <-chans:
 			if nch == nil {
-				connClosed()
 				return
 			}
 			go s.newChanHandler.HandleNewChan(wconn, sconn, nch)

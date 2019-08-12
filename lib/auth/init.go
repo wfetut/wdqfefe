@@ -164,7 +164,6 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 		if err := asrv.UpsertRole(role); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		log.Infof("Created role: %v.", role)
 	}
 	for i := range cfg.Authorities {
 		ca := cfg.Authorities[i]
@@ -179,8 +178,6 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 			if !trace.IsAlreadyExists(err) {
 				return nil, trace.Wrap(err)
 			}
-		} else {
-			log.Infof("Created trusted certificate authority: %q, type: %q.", ca.GetName(), ca.GetType())
 		}
 	}
 	for _, tunnel := range cfg.ReverseTunnels {
@@ -395,10 +392,7 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 	}
 
 	if !cfg.SkipPeriodicOperations {
-		log.Infof("Auth server is running periodic operations.")
 		go asrv.runPeriodicOperations()
-	} else {
-		log.Infof("Auth server is skipping periodic operations.")
 	}
 
 	return asrv, nil

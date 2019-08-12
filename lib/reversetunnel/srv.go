@@ -342,12 +342,11 @@ func (s *server) periodicFunctions() {
 	defer ticker.Stop()
 
 	if err := s.fetchClusterPeers(); err != nil {
-		s.Warningf("Failed to fetch cluster peers: %v.", err)
+		s.WithError(err).Warningf("Failed to fetch cluster peers.")
 	}
 	for {
 		select {
 		case <-s.ctx.Done():
-			s.Debugf("Closing.")
 			return
 		// Proxies have been updated, notify connected agents about the update.
 		case proxies := <-s.proxyWatcher.ProxiesC:
@@ -355,15 +354,15 @@ func (s *server) periodicFunctions() {
 		case <-ticker.C:
 			err := s.fetchClusterPeers()
 			if err != nil {
-				s.Warningf("Failed to fetch cluster peers: %v.", err)
+				s.WithError(err).Warningf("Failed to fetch cluster peers.")
 			}
 			err = s.disconnectClusters()
 			if err != nil {
-				s.Warningf("Failed to disconnect clusters: %v.", err)
+				s.WithError(err).Warningf("Failed to disconnect clusters.")
 			}
 			err = s.reportClusterStats()
 			if err != nil {
-				s.Warningf("Failed to report cluster stats: %v.", err)
+				s.WithError(err).Warningf("Failed to report cluster stats.")
 			}
 		}
 	}
@@ -580,7 +579,6 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 }
 
 func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	s.Debugf("New tunnel from %v.", sconn.RemoteAddr())
 	if sconn.Permissions.Extensions[extCertType] != extCertTypeHost {
 		s.Error(trace.BadParameter("can't retrieve certificate type in certType"))
 		return
@@ -590,7 +588,6 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	// nodes it's a node dialing back.
 	val, ok := sconn.Permissions.Extensions[extCertRole]
 	if !ok {
-		log.Errorf("Failed to accept connection, unknown role: %v.", val)
 		nch.Reject(ssh.ConnectionFailed, "unknown role")
 	}
 	switch {
@@ -606,14 +603,14 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 func (s *server) handleNewNode(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	cluster, rconn, err := s.upsertNode(conn, sconn)
 	if err != nil {
-		log.Errorf("Failed to upsert node: %v.", err)
+		log.WithError(err).Errorf("Failed to upsert node.")
 		sconn.Close()
 		return
 	}
 
 	ch, req, err := nch.Accept()
 	if err != nil {
-		log.Errorf("Failed to accept on channel: %v.", err)
+		log.WithError(err).Errorf("Failed to accept on channel.")
 		sconn.Close()
 		return
 	}

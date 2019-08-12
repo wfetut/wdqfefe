@@ -143,7 +143,6 @@ func (p *ProxyWatcher) setCurrent(proxies []Server) {
 	for _, proxy := range proxies {
 		names = append(names, proxy.GetName())
 	}
-	p.Debugf("List of known proxies updated: %q.", names)
 
 	p.current = proxies
 }
@@ -175,16 +174,11 @@ func (p *ProxyWatcher) watchProxies() {
 		// Reload period is here to protect against
 		// unknown cache going out of sync problems
 		// that we did not predict.
-		err := p.watch()
-		if err != nil {
-			p.Warningf("Re-init the watcher on error: %v.", trace.Unwrap(err))
-		}
-		p.Debugf("Reloading %v.", p.retry)
+		p.watch()
 		select {
 		case <-p.retry.After():
 			p.retry.Inc()
 		case <-p.ctx.Done():
-			p.Debugf("Closed, returning from update loop.")
 			return
 		}
 	}

@@ -1156,7 +1156,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 // SCP securely copies file(s) from one SSH server to another
 func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recursive bool, quiet bool) (err error) {
 	if len(args) < 2 {
-		return trace.Errorf("Need at least two arguments for scp")
+		return trace.BadParameter("please provide at least two arguments for scp")
 	}
 	first := args[0]
 	last := args[len(args)-1]
@@ -1169,7 +1169,6 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
 	}
-	log.Infof("Connecting to proxy to copy (recursively=%v)...", recursive)
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1482,10 +1481,8 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 			clientAddr:      tc.ClientAddr,
 		}
 	}
-	successMsg := fmt.Sprintf("Successful auth with proxy %v", sshProxyAddr)
 	// try to authenticate using every non interactive auth method we have:
-	for i, m := range tc.authMethods() {
-		log.Infof("Connecting proxy=%v login='%v' method=%d", sshProxyAddr, sshConfig.User, i)
+	for _, m := range tc.authMethods() {
 		var sshClient *ssh.Client
 
 		sshConfig.Auth = []ssh.AuthMethod{m}
@@ -1493,7 +1490,6 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		log.Infof(successMsg)
 		return makeProxyClient(sshClient, m), nil
 	}
 	// we have exhausted all auth existing auth methods and local login
@@ -1927,12 +1923,11 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 		}
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			log.Debugf("could not parse cert in: %v, err: %v", certPath, err)
+			log.WithError(err).Warningf("Could not parse cert in: %v.", certPath)
 			return nil
 		}
 		certPool.AddCert(cert)
 	}
-	log.Debugf("using local pool for loopback proxy: %v, err: %v", certPath, err)
 	return certPool
 }
 
@@ -1941,11 +1936,10 @@ func connectToSSHAgent() agent.Agent {
 	socketPath := os.Getenv(teleport.SSHAuthSock)
 	conn, err := agentconn.Dial(socketPath)
 	if err != nil {
-		log.Errorf("[KEY AGENT] Unable to connect to SSH agent on socket: %q.", socketPath)
+		log.WithError(err).Errorf("[KEY AGENT] Unable to connect to SSH agent on socket: %q.", socketPath)
 		return nil
 	}
 
-	log.Infof("[KEY AGENT] Connected to the system agent: %q", socketPath)
 	return agent.NewClient(conn)
 }
 

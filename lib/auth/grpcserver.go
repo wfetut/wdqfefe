@@ -53,15 +53,12 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
-	g.Debugf("Got heartbeat connection from %v.", auth.User.GetName())
 	for {
 		keepAlive, err := stream.Recv()
 		if err == io.EOF {
-			g.Debugf("Connection closed.")
 			return nil
 		}
 		if err != nil {
-			g.Debugf("Failed to receive heartbeat: %v", err)
 			return trail.ToGRPC(err)
 		}
 		err = auth.KeepAliveNode(stream.Context(), *keepAlive)
@@ -162,9 +159,9 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			return nil, trace.ConnectionProblem(err, "[10] failed to connect to the database")
 		} else if trace.IsAccessDenied(err) {
 			// don't print stack trace, just log the warning
-			log.Warn(err)
+			log.WithError(err).Warn("access denied")
 		} else {
-			log.Warn(trace.DebugReport(err))
+			log.WithError(err).Warn("access denied")
 		}
 		return nil, trace.AccessDenied("[10] access denied")
 	}

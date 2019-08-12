@@ -234,7 +234,6 @@ func (a *AuthServer) runPeriodicOperations() {
 	// to update the same resources.
 	r := rand.New(rand.NewSource(a.GetClock().Now().UnixNano()))
 	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
-	log.Debugf("Ticking with period: %v.", period)
 	ticker := time.NewTicker(period)
 	defer ticker.Stop()
 	for {
@@ -244,10 +243,8 @@ func (a *AuthServer) runPeriodicOperations() {
 		case <-ticker.C:
 			err := a.autoRotateCertAuthorities()
 			if err != nil {
-				if trace.IsCompareFailed(err) {
-					log.Debugf("Cert authority has been updated concurrently: %v.", err)
-				} else {
-					log.Errorf("Failed to perform cert rotation check: %v.", err)
+				if !trace.IsCompareFailed(err) {
+					log.WithError(err).Errorf("Failed to perform cert rotation check.")
 				}
 			}
 		}

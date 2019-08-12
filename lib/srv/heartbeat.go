@@ -236,15 +236,11 @@ func (h *Heartbeat) Run() error {
 		h.checkTicker.Stop()
 	}()
 	for {
-		if err := h.fetchAndAnnounce(); err != nil {
-			h.Warningf("Heartbeat failed %v.", err)
-		}
+		h.fetchAndAnnounce()
 		select {
 		case <-h.checkTicker.C:
 		case <-h.sendC:
-			h.Debugf("Asked check out of cycle")
 		case <-h.cancelCtx.Done():
-			h.Debugf("Heartbeat exited.")
 			return nil
 		}
 	}

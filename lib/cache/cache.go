@@ -322,7 +322,7 @@ func (c *Cache) update() {
 		Max:  c.RetryPeriod,
 	})
 	if err != nil {
-		c.Errorf("Bad retry parameters: %v", err)
+		c.WithError(err).Errorf("Bad retry parameters.")
 		return
 	}
 	for {
@@ -332,9 +332,6 @@ func (c *Cache) update() {
 		err := c.fetchAndWatch(retry, time.After(c.ReloadPeriod))
 		if err != nil {
 			c.setCacheState(err)
-			if !c.isClosed() {
-				c.Warningf("Re-init the cache on error: %v.", trace.Unwrap(err))
-			}
 		}
 		// if cache is reloading,
 		// all watchers will be out of sync, because
@@ -342,12 +339,10 @@ func (c *Cache) update() {
 		// so signal closure to reset the watchers
 		c.Backend.CloseWatchers()
 		// events cache should be closed as well
-		c.Debugf("Reloading %v.", retry)
 		select {
 		case <-retry.After():
 			retry.Inc()
 		case <-c.ctx.Done():
-			c.Debugf("Closed, returning from update loop.")
 			return
 		}
 	}

@@ -52,19 +52,17 @@ func (process *TeleportProcess) reconnectToAuthService(role teleport.Role) (*Con
 				if err == nil {
 					return connector, nil
 				}
-				process.Debugf("Connected client %v failed to execute test call: %v. Node or proxy credentials are out of sync.", role, err)
 				if err := connector.Client.Close(); err != nil {
 					process.Debugf("Failed to close the client: %v.", err)
 				}
 			}
 		}
-		process.Errorf("%v failed to establish connection to cluster: %v.", role, err)
+		process.WithError(err).Errorf("%v failed to establish connection to cluster.", role)
 
 		// Wait in between attempts, but return if teleport is shutting down
 		select {
 		case <-time.After(retryTime):
 		case <-process.ExitContext().Done():
-			process.Infof("%v stopping connection attempts, teleport is shutting down.", role)
 			return nil, ErrTeleportExited
 		}
 	}
@@ -77,10 +75,7 @@ func (process *TeleportProcess) connectToAuthService(role teleport.Role) (*Conne
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process.Debugf("Connected client: %v", connector.ClientIdentity)
-	process.Debugf("Connected server: %v", connector.ServerIdentity)
 	process.addConnector(connector)
-
 	return connector, nil
 }
 
@@ -94,8 +89,6 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 		// process will try to connect with the security token.
 		return process.firstTimeConnect(role)
 	}
-	process.Debugf("Connected state: %v.", state.Spec.Rotation.String())
-
 	identity, err := process.GetIdentity(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -238,7 +231,6 @@ type KeyPair struct {
 func (process *TeleportProcess) deleteKeyPair(role teleport.Role, reason string) {
 	process.keyMutex.Lock()
 	defer process.keyMutex.Unlock()
-	process.Debugf("Deleted generated key pair %v %v.", role, reason)
 	delete(process.keyPairs, keyPairKey{role: role, reason: reason})
 }
 
@@ -249,10 +241,8 @@ func (process *TeleportProcess) generateKeyPair(role teleport.Role, reason strin
 	mapKey := keyPairKey{role: role, reason: reason}
 	keyPair, ok := process.keyPairs[mapKey]
 	if ok {
-		process.Debugf("Returning existing key pair for %v %v.", role, reason)
 		return &keyPair, nil
 	}
-	process.Debugf("Generating new key pair for %v %v.", role, reason)
 	privPEM, pubSSH, err := process.Config.Keygen.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -334,7 +324,6 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 	if process.getLocalAuth() != nil {
 		// Auth service is on the same host, no need to go though the invitation
 		// procedure.
-		process.Debugf("This server has local Auth server started, using it to add role to the cluster.")
 		identity, err = auth.LocalRegister(id, process.getLocalAuth(), additionalPrincipals, dnsNames, process.Config.AdvertiseIP)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -371,8 +360,6 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 		}
 		process.deleteKeyPair(role, reason)
 	}
-
-	log.Infof("%v has obtained credentials to connect to cluster.", role)
 	var connector *Connector
 	if role == teleport.RoleAdmin || role == teleport.RoleAuth {
 		connector = &Connector{
@@ -402,7 +389,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 
 	err = process.storage.WriteIdentity(auth.IdentityCurrent, *identity)
 	if err != nil {
-		process.Warningf("Failed to write %v identity: %v.", role, err)
+		process.WithError(err).Warningf("Failed to write %v identity.", role)
 	}
 
 	err = process.storage.WriteState(role, auth.StateV2{
@@ -413,7 +400,6 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	process.Infof("The process has successfully wrote credentials and state of %v to disk.", role)
 	return connector, nil
 }
 
@@ -437,7 +423,7 @@ func (process *TeleportProcess) periodicSyncRotationState() error {
 		if err == nil {
 			return nil
 		}
-		process.Warningf("Sync rotation state cycle failed: %v, going to retry after %v.", err, defaults.HighResPollingPeriod)
+		process.WithError(err).Warningf("Sync rotation state cycle failed, going to retry after %v.", defaults.HighResPollingPeriod)
 		select {
 		case <-retryTicker.C:
 		case <-process.ExitContext().Done():
@@ -488,15 +474,12 @@ func (process *TeleportProcess) syncRotationStateCycle() error {
 			}
 			ca, ok := event.Resource.(services.CertAuthority)
 			if !ok {
-				process.Debugf("Skipping event %v for %v", event.Type, event.Resource.GetName())
 				continue
 			}
 			if ca.GetType() != services.HostCA && ca.GetClusterName() != conn.ClientIdentity.ClusterName {
-				process.Debugf("Skipping event for %v %v", ca.GetType(), ca.GetClusterName())
 				continue
 			}
 			if status.ca.GetResourceID() > ca.GetResourceID() {
-				process.Debugf("Skipping stale event %v, latest object version is %v.", ca.GetResourceID(), status.ca.GetResourceID())
 				continue
 			}
 			status, err := process.syncRotationStateAndBroadcast(conn)
@@ -791,24 +774,19 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 
 	// Try and connect to the Auth Server. If the request fails, try and
 	// connect through a tunnel.
-	log.Debugf("Attempting to connect to Auth Server directly.")
 	_, err = directClient.GetLocalClusterName()
 	if err != nil {
 		// Only attempt to connect through the proxy for nodes.
 		if identity.ID.Role != teleport.RoleNode {
 			return nil, trace.Unwrap(err)
 		}
-
-		log.Debugf("Attempting to connect to Auth Server through tunnel.")
 		tunnelClient, err := process.newClientThroughTunnel(authServers, identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		log.Debugf("Connected to Auth Server through tunnel.")
 		return tunnelClient, nil
 	}
-
 	log.Debugf("Connected to Auth Server with direct connection.")
 	return directClient, nil
 }

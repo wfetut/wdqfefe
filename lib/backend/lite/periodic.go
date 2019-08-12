@@ -41,22 +41,19 @@ func (l *LiteBackend) runPeriodicOperations() {
 			err := l.removeExpiredKeys()
 			if err != nil {
 				// connection problem means that database is closed
-				// or is closing, downgrade the log to debug
-				// to avoid polluting logs in production
-				if trace.IsConnectionProblem(err) {
-					l.Debugf("Failed to run remove expired keys: %v", err)
-				} else {
-					l.Warningf("Failed to run remove expired keys: %v", err)
+				// or is closing, avoid polluting logs in production
+				if !trace.IsConnectionProblem(err) {
+					l.WithError(err).Warningf("Failed to run remove expired keys.")
 				}
 			}
 			if !l.EventsOff {
 				err = l.removeOldEvents()
 				if err != nil {
-					l.Warningf("Failed to run remove old events: %v", err)
+					l.WithError(err).Warningf("Failed to run remove old events.")
 				}
 				rowid, err = l.pollEvents(rowid)
 				if err != nil {
-					l.Warningf("Failed to run poll events: %v", err)
+					l.WithError(err).Warningf("Failed to run poll events.")
 				}
 			}
 		}
@@ -139,7 +136,6 @@ func (l *LiteBackend) pollEvents(rowid int64) (int64, error) {
 		if err != nil {
 			return rowid, trace.Wrap(err)
 		}
-		l.Debugf("Initialized event ID iterator to %v", rowid)
 		l.signalWatchStart()
 	}
 

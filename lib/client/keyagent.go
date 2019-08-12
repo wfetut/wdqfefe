@@ -234,7 +234,6 @@ func (a *LocalKeyAgent) AddHostSignersToCache(certAuthorities []auth.TrustedCert
 			a.log.Error(err)
 			return trace.Wrap(err)
 		}
-		a.log.Debugf("Adding CA key for %s", ca.ClusterName)
 		err = a.keyStore.AddKnownHostKeys(ca.ClusterName, publicKeys)
 		if err != nil {
 			return trace.Wrap(err)
@@ -273,10 +272,8 @@ func (a *LocalKeyAgent) CheckHostSignature(addr string, remote net.Addr, key ssh
 	}
 	err := certChecker.CheckHostKey(addr, remote, key)
 	if err != nil {
-		a.log.Debugf("Host validation failed: %v.", err)
 		return trace.Wrap(err)
 	}
-	a.log.Debugf("Validated host %v.", addr)
 	return nil
 }
 
@@ -288,7 +285,7 @@ func (a *LocalKeyAgent) checkHostCertificate(key ssh.PublicKey, addr string) boo
 	// see if any of them match.
 	keys, err := a.keyStore.GetKnownHostKeys("")
 	if err != nil {
-		a.log.Errorf("Unable to fetch certificate authorities: %v.", err)
+		a.log.WithError(err).Errorf("Unable to fetch certificate authorities.")
 		return false
 	}
 	for i := range keys {
@@ -315,7 +312,6 @@ func (a *LocalKeyAgent) checkHostKey(addr string, remote net.Addr, key ssh.Publi
 	// Check if this exact host is in the local cache.
 	keys, _ := a.keyStore.GetKnownHostKeys(addr)
 	if len(keys) > 0 && sshutils.KeysEqual(key, keys[0]) {
-		a.log.Debugf("Verified host %s.", addr)
 		return nil
 	}
 
@@ -334,7 +330,7 @@ func (a *LocalKeyAgent) checkHostKey(addr string, remote net.Addr, key ssh.Publi
 	// cache ~/.tsh/known_hosts.
 	err = a.keyStore.AddKnownHostKeys(addr, []ssh.PublicKey{key})
 	if err != nil {
-		a.log.Warnf("Failed to save the host key: %v.", err)
+		a.log.WithError(err).Warnf("Failed to save the host key.")
 		return trace.Wrap(err)
 	}
 	return nil

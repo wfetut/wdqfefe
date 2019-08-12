@@ -243,7 +243,7 @@ func (t *terminal) Close() error {
 
 func (t *terminal) closeTTY() {
 	if err := t.tty.Close(); err != nil {
-		t.log.Warnf("Failed to close TTY: %v", err)
+		t.log.WithError(err).Warnf("Failed to close TTY.")
 	}
 	t.tty = nil
 }
@@ -251,7 +251,6 @@ func (t *terminal) closeTTY() {
 func (t *terminal) closePTY() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	defer t.log.Debugf("Closed PTY")
 
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
@@ -366,9 +365,6 @@ func (t *terminal) setOwner() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	log.Debugf("Set permissions on %v to %v:%v with mode %v.", t.tty.Name(), uid, gid, mode)
-
 	return nil
 }
 
@@ -453,17 +449,13 @@ func (t *remoteTerminal) Run() error {
 
 	// we want to run a "exec" command within a pty
 	if t.ctx.ExecRequest.GetCommand() != "" {
-		t.log.Debugf("Running exec request within a PTY")
-
 		if err := t.session.Start(t.ctx.ExecRequest.GetCommand()); err != nil {
 			return trace.Wrap(err)
 		}
-
 		return nil
 	}
 
 	// we want an interactive shell
-	t.log.Debugf("Requesting an interactive terminal of type %v", t.termType)
 	if err := t.session.Shell(); err != nil {
 		return trace.Wrap(err)
 	}

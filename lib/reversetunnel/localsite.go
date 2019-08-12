@@ -184,8 +184,6 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 }
 
 func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
-	s.log.Debugf("Dialing from %v to %v.", params.From, params.To)
-
 	conn, _, err := s.getConn(params)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -195,8 +193,6 @@ func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
 }
 
 func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
-	s.log.Debugf("Dialing with an agent from %v to %v.", params.From, params.To)
-
 	// If server ID matches a node that has self registered itself over the tunnel,
 	// return a connection to that node. Otherwise net.Dial to the target host.
 	targetConn, useTunnel, err := s.getConn(params)
@@ -337,13 +333,11 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 				Proxies:     proxies,
 			}
 			if err := rconn.sendDiscoveryRequest(req); err != nil {
-				s.log.Debugf("Marking connection invalid on error: %v.", err)
 				rconn.markInvalid(err)
 				return
 			}
 		case req := <-reqC:
 			if req == nil {
-				s.log.Infof("Cluster agent disconnected.")
 				rconn.markInvalid(trace.ConnectionProblem(nil, "agent disconnected"))
 				return
 			}
@@ -355,18 +349,6 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 					rconn.updateProxies(current)
 				}
 				firstHeartbeat = false
-			}
-			var timeSent time.Time
-			var roundtrip time.Duration
-			if req.Payload != nil {
-				if err := timeSent.UnmarshalText(req.Payload); err == nil {
-					roundtrip = s.srv.Clock.Now().Sub(timeSent)
-				}
-			}
-			if roundtrip != 0 {
-				s.log.WithFields(log.Fields{"latency": roundtrip}).Debugf("Ping <- %v.", rconn.conn.RemoteAddr())
-			} else {
-				log.Debugf("Ping <- %v.", rconn.conn.RemoteAddr())
 			}
 			tm := time.Now().UTC()
 			rconn.setLastHeartbeat(tm)
@@ -401,7 +383,6 @@ func (s *localSite) getRemoteConn(addr string) (*remoteConn, error) {
 }
 
 func (s *localSite) chanTransportConn(rconn *remoteConn) (net.Conn, error) {
-	s.log.Debugf("Connecting to %v through tunnel.", rconn.conn.RemoteAddr())
 
 	conn, markInvalid, err := connectProxyTransport(rconn.sconn, &dialReq{
 		Address: LocalNode,

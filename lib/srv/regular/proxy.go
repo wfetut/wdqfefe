@@ -62,7 +62,6 @@ type proxySubsys struct {
 //  "proxy:host:22@clustername" - Teleport request to connect to host:22 on cluster 'clustername'
 //  "proxy:host:22@namespace@clustername"
 func parseProxySubsys(request string, srv *Server, ctx *srv.ServerContext) (*proxySubsys, error) {
-	log.Debugf("parse_proxy_subsys(%q)", request)
 	var (
 		clusterName  string
 		targetHost   string
@@ -142,9 +141,6 @@ func (p *proxySubsysConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter context")
 	}
 	if p.clusterName == "" && p.ctx.Identity.RouteToCluster != "" {
-		log.Debugf("Proxy subsystem: routing user %q to cluster %q based on the route to cluster extension.",
-			p.ctx.Identity.TeleportUser, p.ctx.Identity.RouteToCluster,
-		)
 		p.clusterName = p.ctx.Identity.RouteToCluster
 	}
 	if p.clusterName != "" && p.srv.proxyTun != nil {
@@ -164,7 +160,6 @@ func newProxySubsys(cfg proxySubsysConfig) (*proxySubsys, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("newProxySubsys(%v).", cfg)
 	return &proxySubsys{
 		proxySubsysConfig: cfg,
 		log: logrus.WithFields(logrus.Fields{
@@ -193,8 +188,6 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 			"dst": sconn.LocalAddr().String(),
 		},
 	})
-	t.log.Debugf("Starting subsystem")
-
 	var (
 		site       reversetunnel.RemoteSite
 		err        error
@@ -231,7 +224,6 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 			}
 			site = sites[0]
 			t.clusterName = site.GetName()
-			t.log.Debugf("Cluster not specified. connecting to default='%s'", site.GetName())
 		}
 		return t.proxyToHost(ctx, site, clientAddr, ch)
 	}
@@ -248,8 +240,6 @@ func (t *proxySubsys) proxyToSite(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	t.log.Infof("Connected to auth server: %v", conn.RemoteAddr())
-
 	go func() {
 		var err error
 		defer func() {
@@ -311,7 +301,6 @@ func (t *proxySubsys) proxyToHost(
 	// which port to use
 	specifiedPort := len(t.port) > 0 && t.port != "0"
 	ips, _ := net.LookupHost(t.host)
-	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v", t.host, t.port, specifiedPort)
 
 	// enumerate and try to find a server with self-registered with a matching name/IP:
 	var server services.Server
@@ -327,7 +316,7 @@ func (t *proxySubsys) proxyToHost(
 
 		ip, port, err := net.SplitHostPort(servers[i].GetAddr())
 		if err != nil {
-			t.log.Errorf("Failed to parse address %q: %v.", servers[i].GetAddr(), err)
+			t.log.WithError(err).Errorf("Failed to parse address %q.", servers[i].GetAddr())
 			continue
 		}
 		if t.host == ip || t.host == servers[i].GetHostname() || utils.SliceContainsStr(ips, ip) {
@@ -367,7 +356,7 @@ func (t *proxySubsys) proxyToHost(
 			t.port = strconv.Itoa(defaults.SSHServerListenPort)
 		}
 		serverAddr = net.JoinHostPort(t.host, t.port)
-		t.log.Warnf("server lookup failed: using default=%v", serverAddr)
+		t.log.Warnf("Server lookup has failed: using default=%v.", serverAddr)
 	}
 
 	// Pass the agent along to the site. If the proxy is in recording mode, this

@@ -538,10 +538,8 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 		if len(cfg.Identities) != 0 {
 			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
-			log.Infof("Taking host UUID from first identity: %v.", cfg.HostUUID)
 		} else {
 			cfg.HostUUID = uuid.New()
-			log.Infof("Generating new host UUID: %v.", cfg.HostUUID)
 		}
 		if err := utils.WriteHostUUID(cfg.DataDir, cfg.HostUUID); err != nil {
 			return nil, trace.Wrap(err)
@@ -691,7 +689,6 @@ func (process *TeleportProcess) notifyParent() {
 		if !trace.IsNotFound(err) {
 			process.Warningf("Failed to import signal pipe")
 		}
-		process.Debugf("No signal pipe to import, must be first Teleport process.")
 		return
 	}
 	defer signalPipe.Close()
@@ -707,13 +704,13 @@ func (process *TeleportProcess) notifyParent() {
 	case <-ctx.Done():
 		process.Errorf("Timeout waiting for a forked process to start: %v. Initiating self-shutdown.", ctx.Err())
 		if err := process.Close(); err != nil {
-			process.Warningf("Failed to shutdown process: %v.", err)
+			process.WithError(err).Warningf("Failed to shutdown process.")
 		}
 		return
 	}
 
 	if err := process.writeToSignalPipe(signalPipe, fmt.Sprintf("Process %v has started.", os.Getpid())); err != nil {
-		process.Warningf("Failed to write to signal pipe: %v", err)
+		process.WithError(err).Warningf("Failed to write to signal pipe.")
 		// despite the failure, it's ok to proceed,
 		// it could mean that the parent process has crashed and the pipe
 		// is no longer valid.
@@ -1162,14 +1159,11 @@ func (process *TeleportProcess) initAuthService() error {
 			warnOnErr(listener.Close())
 		}
 		if payload == nil {
-			log.Info("Shutting down immediately.")
 			warnOnErr(tlsServer.Close())
 		} else {
-			log.Info("Shutting down gracefully.")
 			ctx := payloadContext(payload)
 			warnOnErr(tlsServer.Shutdown(ctx))
 		}
-		log.Info("Exited.")
 	})
 	return nil
 }
@@ -1179,7 +1173,7 @@ func payloadContext(payload interface{}) context.Context {
 	if ok {
 		return ctx
 	}
-	log.Errorf("expected context, got %T", payload)
+	log.Errorf("Expected context, got %T.", payload)
 	return context.TODO()
 }
 
@@ -1363,9 +1357,7 @@ func (process *TeleportProcess) initSSH() error {
 
 		select {
 		case event = <-eventsC:
-			log.Debugf("Received event %q.", event.Name)
 		case <-process.ExitContext().Done():
-			log.Debugf("Process is exiting.")
 			return nil
 		}
 
@@ -1501,20 +1493,16 @@ func (process *TeleportProcess) initSSH() error {
 		if conn.UseTunnel() {
 			agentPool.Wait()
 		}
-
-		log.Infof("Exited.")
 		return nil
 	})
 
 	// Execute this when process is asked to exit.
 	process.onExit("ssh.shutdown", func(payload interface{}) {
 		if payload == nil {
-			log.Infof("Shutting down immediately.")
 			if s != nil {
 				warnOnErr(s.Close())
 			}
 		} else {
-			log.Infof("Shutting down gracefully.")
 			if s != nil {
 				warnOnErr(s.Shutdown(payloadContext(payload)))
 			}
@@ -1522,8 +1510,6 @@ func (process *TeleportProcess) initSSH() error {
 		if conn.UseTunnel() {
 			agentPool.Stop()
 		}
-
-		log.Infof("Exited.")
 	})
 
 	return nil
@@ -1540,10 +1526,9 @@ func (process *TeleportProcess) registerWithAuthServer(role teleport.Role, event
 			return trace.Wrap(err)
 		}
 		process.onExit(fmt.Sprintf("auth.client.%v", serviceName), func(interface{}) {
-			process.Debugf("Closed client for %v.", role)
 			err := connector.Client.Close()
 			if err != nil {
-				process.Debugf("Failed to close client: %v", err)
+				process.WithError(err).Debugf("Failed to close client.")
 			}
 		})
 		process.BroadcastEvent(Event{Name: eventName, Payload: connector})
@@ -1565,7 +1550,6 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 	path := []string{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.SessionLogsDir, defaults.Namespace}
 	for i := 1; i < len(path); i++ {
 		dir := filepath.Join(path[:i+1]...)
-		log.Infof("Creating directory %v.", dir)
 		err := os.Mkdir(dir, 0755)
 		err = trace.ConvertSystemError(err)
 		if err != nil {
@@ -1574,7 +1558,6 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 			}
 		}
 		if uid != nil && gid != nil {
-			log.Infof("Setting directory %v owner to %v:%v.", dir, *uid, *gid)
 			err := os.Chown(dir, *uid, *gid)
 			if err != nil {
 				return trace.ConvertSystemError(err)
@@ -1595,15 +1578,13 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 	process.RegisterFunc("uploader.service", func() error {
 		err := uploader.Serve()
 		if err != nil {
-			log.Errorf("Uploader server exited with error: %v.", err)
+			log.WithError(err).Errorf("Uploader server exited with error.")
 		}
 		return nil
 	})
 
 	process.onExit("uploader.shutdown", func(payload interface{}) {
-		log.Infof("Shutting down.")
 		warnOnErr(uploader.Stop())
-		log.Infof("Exited.")
 	})
 	return nil
 }
@@ -1786,9 +1767,7 @@ func (process *TeleportProcess) initProxy() error {
 		var event Event
 		select {
 		case event = <-eventsC:
-			process.Debugf("Received event %q.", event.Name)
 		case <-process.ExitContext().Done():
-			process.Debugf("Process is exiting.")
 			return nil
 		}
 
@@ -2062,7 +2041,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if err := webServer.Serve(listeners.web); err != nil && err != http.ErrServerClosed {
 				log.Warningf("Error while serving web requests: %v", err)
 			}
-			log.Infof("Exited.")
 			return nil
 		})
 	} else {
@@ -2194,7 +2172,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			listeners.kube.Close()
 		}
 		if payload == nil {
-			log.Infof("Shutting down immediately.")
 			if tsrv != nil {
 				warnOnErr(tsrv.Close())
 			}
@@ -2209,7 +2186,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(kubeServer.Close())
 			}
 		} else {
-			log.Infof("Shutting down gracefully.")
 			ctx := payloadContext(payload)
 			if tsrv != nil {
 				warnOnErr(tsrv.Shutdown(ctx))
@@ -2225,7 +2201,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				warnOnErr(webHandler.Close())
 			}
 		}
-		log.Infof("Exited.")
 	})
 	if err := process.initUploaderService(accessPoint, conn.Client); err != nil {
 		return trace.Wrap(err)
@@ -2309,7 +2284,6 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	go func() {
 		defer cancel()
 		process.Supervisor.Wait()
-		process.Debugf("All supervisor functions are completed.")
 		localAuth := process.getLocalAuth()
 		if localAuth != nil {
 			if err := process.localAuth.Close(); err != nil {
