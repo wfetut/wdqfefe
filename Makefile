@@ -125,12 +125,12 @@ run-simple: install
              -log=console\
              -logSeverity=INFO\
              -dataDir=/var/lib/teleport\
-             -fqdn=auth.gravitational.io\
+             -fqdn=localhost\
              -ssh\
-             -authServer=tcp://auth.gravitational.io:33000\
+             -authServer=tcp://localhost:33000\
 			 -cp\
              -cpAssetsDir=$(GOPATH)/src/github.com/gravitational/teleport\
-             -cpDomain=gravitational.io
+             -cpDomain=localhost
 
 run-ssh2: install
 	tctl token generate --output=/tmp/token -fqdn=node1.gravitational.io
