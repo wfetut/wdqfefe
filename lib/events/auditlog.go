@@ -322,6 +322,9 @@ func (l *SessionRecording) CheckAndSetDefaults() error {
 	if l.Namespace == "" {
 		l.Namespace = defaults.Namespace
 	}
+
+	// TODO: Make sure if a context has not been set, we create a background context. This is for when old clients talk to new auth servers.
+
 	return nil
 }
 

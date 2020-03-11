@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -44,6 +45,9 @@ type GRPCServer struct {
 	httpHandler http.Handler
 	// grpcHandler is golang GRPC handler
 	grpcHandler *grpc.Server
+
+	// manager is used to create and control streams.
+	manager *events.StreamManager
 }
 
 // SendKeepAlives allows node to send a stream of keep alive requests
@@ -185,6 +189,42 @@ func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthServi
 	return nil
 }
 
+func (g *GRPCServer) StreamSessionRecording(stream proto.AuthService_StreamSessionRecordingServer) error {
+	defer stream.SendAndClose(&empty.Empty{})
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	// Create a stream building state machine. This state machine will validate
+	// session events, construct the session archive, and upload it to the
+	// storage layer.
+	sb, err := g.manager.NewStream(auth)
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	for {
+		chunk, err := stream.Recv()
+		if err == io.EOF {
+			// TODO: Do we need to do anything here if we already received an
+			// explicit close state? Maybe close any open context?
+			return nil
+		}
+		if err != nil {
+			return trail.ToGRPC(err)
+		}
+
+		// Send the stream chunk to the state machine to be processed.
+		err = sb.Process(chunk)
+		if err != nil {
+			return trail.ToGRPC(err)
+		}
+	}
+
+	return nil
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles
@@ -229,6 +269,8 @@ func NewGRPCServer(cfg APIConfig) http.Handler {
 		}),
 		httpHandler: NewAPIServer(&cfg),
 		grpcHandler: grpc.NewServer(),
+		// TODO(russjones): Propagate a cancelation context from the parent here.
+		manager: events.NewStreamManger(context.Background()),
 	}
 	proto.RegisterAuthServiceServer(authServer.grpcHandler, authServer)
 	return authServer
