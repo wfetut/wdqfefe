@@ -303,6 +303,8 @@ func (l *AuditLog) WaitForDelivery(context.Context) error {
 
 // SessionRecording is a recording of a live session
 type SessionRecording struct {
+	// CancelContext is used to cancel upload of a session.
+	CancelContext context.Context
 	// Namespace is a session namespace
 	Namespace string
 	// SessionID is a session ID

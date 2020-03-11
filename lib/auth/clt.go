@@ -2093,6 +2093,14 @@ func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, 
 
 // UploadSessionRecording uploads session recording to the audit server
 func (c *Client) UploadSessionRecording(r events.SessionRecording) error {
+	err := c.grpcStreamSessionRecording(r)
+	if err == nil {
+		return nil
+	}
+	if grpc.Code(err) != codes.Unimplemented {
+		return trace.Wrap(err)
+	}
+
 	file := roundtrip.File{
 		Name:     "recording",
 		Filename: "recording",
@@ -2102,10 +2110,31 @@ func (c *Client) UploadSessionRecording(r events.SessionRecording) error {
 		"sid":       []string{string(r.SessionID)},
 		"namespace": []string{r.Namespace},
 	}
-	_, err := c.PostForm(c.Endpoint("namespaces", r.Namespace, "sessions", string(r.SessionID), "recording"), values, file)
+	_, err = c.PostForm(c.Endpoint("namespaces", r.Namespace, "sessions", string(r.SessionID), "recording"), values, file)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func (c *Client) grpcStreamSessionRecording(r events.SessionRecording) error {
+	// Get GRPC client to stream session recording.
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	stream, err := clt.StreamSessionRecording(context.Background())
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	// Stream the session recording.
+	err = events.StreamSessionRecording(stream, r)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("--> Client: grpcStreamSessionRecording complete.\n")
 	return nil
 }
 

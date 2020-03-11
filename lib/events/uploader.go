@@ -239,31 +239,31 @@ func (u *Uploader) uploadFile(lockFilePath string, sessionID session.ID) error {
 		defer lockFile.Close()
 		defer utils.FSUnlock(lockFile)
 
-		//start := time.Now()
-		//err := u.AuditLog.UploadSessionRecording(SessionRecording{
-		//	Namespace: u.Namespace,
-		//	SessionID: sessionID,
-		//	Recording: reader,
-		//})
-		//if err != nil {
-		//	u.emitEvent(UploadEvent{
-		//		SessionID: string(sessionID),
-		//		Error:     err,
-		//	})
-		//	u.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": sessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
-		//	return
-		//}
-		//u.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": sessionID}).Debugf("Session upload completed.")
-		//u.emitEvent(UploadEvent{
-		//	SessionID: string(sessionID),
-		//})
-		//if err != nil {
-		//	u.Warningf("Failed to post upload event: %v. Will retry next time.", trace.DebugReport(err))
-		//	return
-		//}
-		//if err := u.removeFiles(sessionID); err != nil {
-		//	u.Warningf("Failed to remove files: %v.", err)
-		//}
+		start := time.Now()
+		err := u.AuditLog.UploadSessionRecording(SessionRecording{
+			Namespace: u.Namespace,
+			SessionID: sessionID,
+			Recording: reader,
+		})
+		if err != nil {
+			u.emitEvent(UploadEvent{
+				SessionID: string(sessionID),
+				Error:     err,
+			})
+			u.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": sessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
+			return
+		}
+		u.WithFields(log.Fields{"duration": time.Now().Sub(start), "session-id": sessionID}).Debugf("Session upload completed.")
+		u.emitEvent(UploadEvent{
+			SessionID: string(sessionID),
+		})
+		if err != nil {
+			u.Warningf("Failed to post upload event: %v. Will retry next time.", trace.DebugReport(err))
+			return
+		}
+		if err := u.removeFiles(sessionID); err != nil {
+			u.Warningf("Failed to remove files: %v.", err)
+		}
 	}()
 	return nil
 }

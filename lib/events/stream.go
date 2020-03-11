@@ -19,21 +19,29 @@ package events
 import (
 	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
+	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"sync/atomic"
 
 	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/session"
 
+	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
+
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	stateInit  = 0
-	stateOpen  = 1
-	stateClose = 2
+	stateInit     = 0
+	stateOpen     = 1
+	stateChunk    = 2
+	stateClose    = 3
+	stateComplete = 4
 )
 
 const (
@@ -58,10 +66,16 @@ type Stream struct {
 	uploader SessionUploader
 
 	// tarWriter is used to create the archive itself.
-	tarWriter io.Writer
+	tarWriter *tar.Writer
+
+	// zipBuffer
+	zipBuffer bytes.Buffer
 
 	// zipWriter is used to create the zip files within the archive.
-	zipWriter io.Writer
+	zipWriter *gzip.Writer
+
+	closeContext context.Context
+	closeCancel  context.CancelFunc
 }
 
 func NewStreamManger(ctx context.Context) *StreamManager {
@@ -79,17 +93,24 @@ func NewStreamManger(ctx context.Context) *StreamManager {
 	}
 }
 
-func (s *StreamManager) NewStream(uploader SessionUploader) (*Stream, error) {
+func (s *StreamManager) NewStream(ctx context.Context, uploader SessionUploader) (*Stream, error) {
+	ctx, cancel := context.WithCancel(ctx)
 	return &Stream{
-		manager:  s,
-		state:    stateInit,
-		uploader: uploader,
+		manager:      s,
+		state:        stateInit,
+		uploader:     uploader,
+		closeContext: ctx,
+		closeCancel:  cancel,
 	}, nil
 }
 
 func (s *Stream) Process(chunk *proto.SessionChunk) error {
+	var err error
+
 	switch chunk.GetState() {
 	case stateInit:
+		fmt.Printf("--> Process: stateInit.\n")
+
 		// Create a reader/writer pipe to reduce overall memory usage. In the
 		// previous version of Teleport the entire archive was read in, expanded,
 		// validated, then uploaded. Now instead chunks are validated and uploaded
@@ -98,24 +119,41 @@ func (s *Stream) Process(chunk *proto.SessionChunk) error {
 		s.tarWriter = tar.NewWriter(pw)
 
 		// Start uploading data as it's written to the pipe.
-		go s.upload(chunk.GetNamespace(), session.ID(chunk.GetSessionID()), r)
+		go s.upload(chunk.GetNamespace(), session.ID(chunk.GetSessionID()), pr)
 	case stateOpen:
-		//// TODO: Use a sync.Pool here.
-		//zw := gzip.NewWriter(&buf)
-
-		//zw.Name = "a-new-hope.txt"
-		//zw.Comment = "an epic space opera by George Lucas"
-		//zw.ModTime = time.Date(1977, time.May, 25, 0, 0, 0, 0, time.UTC)
-
-		//_, err := zw.Write([]byte("A long time ago in a galaxy far, far away..."))
-		//if err != nil {
-		//	log.Fatal(err)
-		//}
-
-		//if err := zw.Close(); err != nil {
-		//	log.Fatal(err)
-		//}
+		// TODO: Use a sync.Pool here.
+		s.zipWriter = gzip.NewWriter(&s.zipBuffer)
+	case stateChunk:
+		// If the chunk is an events chunk, then validate it.
+		switch {
+		case strings.Contains(chunk.GetType(), "events.gz"):
+			// TODO: Validate event.
+			_, err = s.zipWriter.Write(append(chunk.GetPayload(), '\n'))
+		default:
+			_, err = s.zipWriter.Write(chunk.GetPayload())
+		}
 	case stateClose:
+		err = s.zipWriter.Close()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err := s.tarWriter.WriteHeader(&tar.Header{
+			Name: chunk.GetFilename(),
+			Mode: 0600,
+			Size: int64(s.zipBuffer.Len()),
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = io.Copy(s.tarWriter, &s.zipBuffer)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	case stateComplete:
+		err = s.tarWriter.Close()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }
@@ -128,15 +166,38 @@ func (s *Stream) Reader() io.Reader {
 	return nil
 }
 
+func (s *Stream) Close() error {
+	s.closeCancel()
+	return nil
+}
+
 func (s *Stream) upload(namespace string, sessionID session.ID, reader io.Reader) {
-	err := s.uploader.UploadSessionRecording(&SessionRecording{
-		SessionID: session.ID(chunk.GetSessionID()),
-		Namespace: chunk.Namespace,
-		Recording: pr,
+	err := s.uploader.UploadSessionRecording(SessionRecording{
+		CancelContext: s.closeContext,
+		SessionID:     sessionID,
+		Namespace:     namespace,
+		Recording:     reader,
 	})
 	if err != nil {
 		s.manager.log.Warnf("Failed to upload session recording: %v.", err)
 	}
+}
+
+func StreamSessionRecording(stream proto.AuthService_StreamSessionRecordingClient, r SessionRecording) error {
+	err := stream.Send(&proto.SessionChunk{
+		State: stateInit,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	// All done, send a complete message and close the stream.
+	// TODO: Send the close message.
+	err = stream.CloseSend()
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
 }
 
 //func Log(w io.Writer, key, val string) {

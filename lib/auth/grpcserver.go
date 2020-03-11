@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -48,6 +49,8 @@ type GRPCServer struct {
 
 	// manager is used to create and control streams.
 	manager *events.StreamManager
+
+	// TODO Propagate context from parent here.
 }
 
 // SendKeepAlives allows node to send a stream of keep alive requests
@@ -199,16 +202,16 @@ func (g *GRPCServer) StreamSessionRecording(stream proto.AuthService_StreamSessi
 	// Create a stream building state machine. This state machine will validate
 	// session events, construct the session archive, and upload it to the
 	// storage layer.
-	sb, err := g.manager.NewStream(auth)
+	sb, err := g.manager.NewStream(context.Background(), auth)
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
+	defer sb.Close()
 
 	for {
 		chunk, err := stream.Recv()
 		if err == io.EOF {
-			// TODO: Do we need to do anything here if we already received an
-			// explicit close state? Maybe close any open context?
+			fmt.Printf("--> GRPCServer: StreamSessionRecording: io.EOF.\n")
 			return nil
 		}
 		if err != nil {
