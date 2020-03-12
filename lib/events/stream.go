@@ -47,7 +47,7 @@ const (
 )
 
 const (
-	concurrentStreams = 10
+	concurrentStreams = 2
 )
 
 type SessionUploader interface {
@@ -71,7 +71,7 @@ type Stream struct {
 	tarWriter *tar.Writer
 
 	// zipBuffer
-	zipBuffer bytes.Buffer
+	zipBuffer *bytes.Buffer
 
 	// zipWriter is used to create the zip files within the archive.
 	zipWriter *gzip.Writer
@@ -106,6 +106,24 @@ func (s *StreamManager) NewStream(ctx context.Context, uploader SessionUploader)
 	}, nil
 }
 
+func (s *StreamManager) takeSemaphore() error {
+	select {
+	case s.semaphore <- struct{}{}:
+		return nil
+	case <-s.closeContext.Done():
+		return errContext
+	}
+}
+
+func (s *StreamManager) releaseSemaphore() error {
+	select {
+	case <-s.semaphore:
+		return nil
+	case <-s.closeContext.Done():
+		return errContext
+	}
+}
+
 func (s *Stream) Process(chunk *proto.SessionChunk) error {
 	var err error
 
@@ -125,8 +143,20 @@ func (s *Stream) Process(chunk *proto.SessionChunk) error {
 	case stateOpen:
 		fmt.Printf("--> Process: stateOpen.\n")
 
-		// TODO: Use a sync.Pool here.
-		s.zipWriter = gzip.NewWriter(&s.zipBuffer)
+		err = s.manager.takeSemaphore()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		//// Get a buffer from the pool.
+		s.zipBuffer = s.manager.pool.Get().(*bytes.Buffer)
+
+		//s.zipWriter = gzip.NewWriter(s.zipBuffer)
+		s.zipWriter, err = gzip.NewWriterLevel(s.zipBuffer, gzip.BestSpeed)
+		//s.zipWriter, err = gzip.NewWriterLevel(&s.zipBuffer, gzip.BestSpeed)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	case stateChunk:
 		fmt.Printf("--> Process: stateChunk.\n")
 
@@ -134,10 +164,17 @@ func (s *Stream) Process(chunk *proto.SessionChunk) error {
 		switch {
 		case strings.Contains(chunk.GetType(), "events"):
 			// TODO: Validate event.
-			fmt.Printf("--> Process: stateChunk: %v.\n", string(chunk.GetPayload()))
+			//fmt.Printf("--> Process: stateChunk: %v.\n", string(chunk.GetPayload()))
+
 			_, err = s.zipWriter.Write(append(chunk.GetPayload(), '\n'))
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		default:
 			_, err = s.zipWriter.Write(chunk.GetPayload())
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	case stateClose:
 		fmt.Printf("--> Process: stateClose. Filename: %v, Len: %v.\n", chunk.GetFilename(), s.zipBuffer.Len())
@@ -154,12 +191,18 @@ func (s *Stream) Process(chunk *proto.SessionChunk) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		_, err = io.Copy(s.tarWriter, &s.zipBuffer)
+		_, err = io.Copy(s.tarWriter, s.zipBuffer)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		s.zipBuffer.Reset()
+		s.manager.pool.Put(s.zipBuffer)
+
+		err = s.manager.releaseSemaphore()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	case stateComplete:
 		fmt.Printf("--> Process: stateComplete.\n")
 
