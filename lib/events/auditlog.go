@@ -341,6 +341,7 @@ func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 	// (for example, not going to S3) then unarchive it to Auth Server disk.
 	if l.UploadHandler == nil {
 		err := utils.Extract(r.Recording, filepath.Join(l.DataDir, l.ServerID, SessionLogsDir, r.Namespace))
+		fmt.Printf("--> AuditLog UploadSessionRecording: %v.\n", err)
 		return trace.Wrap(err)
 	}
 
