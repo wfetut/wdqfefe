@@ -2095,11 +2095,14 @@ func (c *Client) GetSessionChunk(namespace string, sid session.ID, offsetBytes, 
 func (c *Client) UploadSessionRecording(r events.SessionRecording) error {
 	err := c.grpcStreamSessionRecording(r)
 	if err == nil {
+		fmt.Printf("--> No error!\n")
 		return nil
 	}
 	if grpc.Code(err) != codes.Unimplemented {
 		return trace.Wrap(err)
 	}
+
+	fmt.Printf("--> ENTER HERE.\n")
 
 	file := roundtrip.File{
 		Name:     "recording",

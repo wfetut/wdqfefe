@@ -129,7 +129,7 @@ func (s *Stream) Process(chunk *proto.SessionChunk) error {
 
 	switch chunk.GetState() {
 	case stateInit:
-		fmt.Printf("--> Process: stateInit.\n")
+		//fmt.Printf("--> Process: stateInit.\n")
 
 		// Create a reader/writer pipe to reduce overall memory usage. In the
 		// previous version of Teleport the entire archive was read in, expanded,
@@ -141,12 +141,12 @@ func (s *Stream) Process(chunk *proto.SessionChunk) error {
 		// Start uploading data as it's written to the pipe.
 		go s.upload(chunk.GetNamespace(), session.ID(chunk.GetSessionID()), pr)
 	case stateOpen:
-		fmt.Printf("--> Process: stateOpen.\n")
+		//fmt.Printf("--> Process: stateOpen.\n")
 
-		err = s.manager.takeSemaphore()
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		//err = s.manager.takeSemaphore()
+		//if err != nil {
+		//	return trace.Wrap(err)
+		//}
 
 		//// Get a buffer from the pool.
 		s.zipBuffer = s.manager.pool.Get().(*bytes.Buffer)
@@ -158,7 +158,7 @@ func (s *Stream) Process(chunk *proto.SessionChunk) error {
 			return trace.Wrap(err)
 		}
 	case stateChunk:
-		fmt.Printf("--> Process: stateChunk.\n")
+		//fmt.Printf("--> Process: stateChunk.\n")
 
 		// If the chunk is an events chunk, then validate it.
 		switch {
@@ -177,7 +177,7 @@ func (s *Stream) Process(chunk *proto.SessionChunk) error {
 			}
 		}
 	case stateClose:
-		fmt.Printf("--> Process: stateClose. Filename: %v, Len: %v.\n", chunk.GetFilename(), s.zipBuffer.Len())
+		//fmt.Printf("--> Process: stateClose. Filename: %v, Len: %v.\n", chunk.GetFilename(), s.zipBuffer.Len())
 
 		err = s.zipWriter.Close()
 		if err != nil {
@@ -199,17 +199,20 @@ func (s *Stream) Process(chunk *proto.SessionChunk) error {
 		s.zipBuffer.Reset()
 		s.manager.pool.Put(s.zipBuffer)
 
-		err = s.manager.releaseSemaphore()
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		//err = s.manager.releaseSemaphore()
+		//if err != nil {
+		//	return trace.Wrap(err)
+		//}
 	case stateComplete:
-		fmt.Printf("--> Process: stateComplete.\n")
+		//fmt.Printf("--> Process: stateComplete.\n")
 
 		err = s.tarWriter.Close()
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		return fmt.Errorf("blahblah")
+
 	}
 	return nil
 }
@@ -324,6 +327,7 @@ func StreamSessionRecording(stream proto.AuthService_StreamSessionRecordingClien
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	fmt.Printf("--> Client: Complete.\n")
 
 	// All done, send a complete message and close the stream.
 	err = stream.CloseSend()
