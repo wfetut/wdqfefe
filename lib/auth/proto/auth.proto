@@ -124,6 +124,7 @@ message SessionChunk {
     string Filename = 4 [(gogoproto.jsontag) = "filename"];
     string Type = 5  [(gogoproto.jsontag) = "type"];
     bytes Payload = 6 [(gogoproto.jsontag) = "payload"];
+    int64 TotalSize = 7 [(gogoproto.jsontag) = "total_size"];
 }
 
 // AuthService is authentication/authorization service implementation

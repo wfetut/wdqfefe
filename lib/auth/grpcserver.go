@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/proto"
@@ -207,7 +208,10 @@ func (g *GRPCServer) StreamSessionRecording(stream proto.AuthService_StreamSessi
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
-	defer sb.Close()
+	defer func() {
+		time.Sleep(2 * time.Second)
+		sb.Close()
+	}()
 
 	for {
 		chunk, err := stream.Recv()

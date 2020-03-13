@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	//"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -37,6 +38,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 )
+
+var sss = 0
 
 const (
 	stateInit     = 0
@@ -141,63 +144,58 @@ func (s *Stream) Process(chunk *proto.SessionChunk) error {
 		// Start uploading data as it's written to the pipe.
 		go s.upload(chunk.GetNamespace(), session.ID(chunk.GetSessionID()), pr)
 	case stateOpen:
-		//fmt.Printf("--> Process: stateOpen.\n")
-
-		//err = s.manager.takeSemaphore()
-		//if err != nil {
-		//	return trace.Wrap(err)
-		//}
-
-		//// Get a buffer from the pool.
-		s.zipBuffer = s.manager.pool.Get().(*bytes.Buffer)
-
-		//s.zipWriter = gzip.NewWriter(s.zipBuffer)
-		s.zipWriter, err = gzip.NewWriterLevel(s.zipBuffer, gzip.BestSpeed)
-		//s.zipWriter, err = gzip.NewWriterLevel(&s.zipBuffer, gzip.BestSpeed)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	case stateChunk:
-		//fmt.Printf("--> Process: stateChunk.\n")
-
-		// If the chunk is an events chunk, then validate it.
-		switch {
-		case strings.Contains(chunk.GetType(), "events"):
-			// TODO: Validate event.
-			//fmt.Printf("--> Process: stateChunk: %v.\n", string(chunk.GetPayload()))
-
-			_, err = s.zipWriter.Write(append(chunk.GetPayload(), '\n'))
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		default:
-			_, err = s.zipWriter.Write(chunk.GetPayload())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	case stateClose:
-		//fmt.Printf("--> Process: stateClose. Filename: %v, Len: %v.\n", chunk.GetFilename(), s.zipBuffer.Len())
-
-		err = s.zipWriter.Close()
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		err := s.tarWriter.WriteHeader(&tar.Header{
 			Name: chunk.GetFilename(),
 			Mode: 0600,
-			Size: int64(s.zipBuffer.Len()),
+			Size: int64(chunk.GetTotalSize()),
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		_, err = io.Copy(s.tarWriter, s.zipBuffer)
+		// sss = 0
+	case stateChunk:
+		//fmt.Printf("--> Process: stateChunk.\n")
+
+		// If the chunk is an events chunk, then validate it.
+		//switch {
+		//case strings.Contains(chunk.GetType(), "events"):
+		//	// TODO: Validate event.
+		//	//fmt.Printf("--> Process: stateChunk: %v.\n", string(chunk.GetPayload()))
+
+		//	_, err = s.zipWriter.Write(append(chunk.GetPayload(), '\n'))
+		//	if err != nil {
+		//		return trace.Wrap(err)
+		//	}
+		//default:
+		//	_, err = s.zipWriter.Write(chunk.GetPayload())
+		//	if err != nil {
+		//		return trace.Wrap(err)
+		//	}
+		//}
+		//sss += len(chunk.GetPayload())
+		//fmt.Printf("--> Got %v: %v.\n", sss, string(chunk.GetPayload()))
+		_, err := s.tarWriter.Write(append(chunk.GetPayload(), '\n'))
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	case stateClose:
+		//fmt.Printf("--> Process: stateClose. Filename: %v, Len: %v.\n", chunk.GetFilename(), s.zipBuffer.Len())
 
-		s.zipBuffer.Reset()
-		s.manager.pool.Put(s.zipBuffer)
+		//err := s.tarWriter.WriteHeader(&tar.Header{
+		//	Name: chunk.GetFilename(),
+		//	Mode: 0600,
+		//	Size: int64(s.zipBuffer.Len()),
+		//})
+		//if err != nil {
+		//	return trace.Wrap(err)
+		//}
+		//_, err = io.Copy(s.tarWriter, s.zipBuffer)
+		//if err != nil {
+		//	return trace.Wrap(err)
+		//}
+
+		//s.zipBuffer.Reset()
+		//s.manager.pool.Put(s.zipBuffer)
 
 		//err = s.manager.releaseSemaphore()
 		//if err != nil {
@@ -263,17 +261,7 @@ func StreamSessionRecording(stream proto.AuthService_StreamSessionRecordingClien
 			return trace.Wrap(err)
 		}
 
-		// Send file open event.
-		err = stream.Send(&proto.SessionChunk{
-			State: stateOpen,
-		})
-		if err != nil {
-			return trail.FromGRPC(err)
-		}
-
-		fmt.Printf("--> hdr.Name: %v.\n", hdr.Name)
-
-		if !strings.Contains(hdr.Name, "gz") {
+		if !strings.Contains(hdr.Name, "events.gz") {
 			_, err = io.Copy(ioutil.Discard, tr)
 			if err != nil {
 				return trace.Wrap(err)
@@ -281,13 +269,48 @@ func StreamSessionRecording(stream proto.AuthService_StreamSessionRecordingClien
 			continue
 		}
 
-		zr, err := gzip.NewReader(tr)
+		var buf bytes.Buffer
+		_, err = io.Copy(&buf, tr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		zr, err := gzip.NewReader(bytes.NewReader(buf.Bytes()))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		var buf2 bytes.Buffer
+		_, err = io.Copy(&buf2, zr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		zr.Close()
+
+		//fmt.Printf("--> sending length: %v.\n", buf2.Len())
+		//fmt.Printf("--> %v\n", buf.Bytes())
+
+		// Send file open event.
+		err = stream.Send(&proto.SessionChunk{
+			State:     stateOpen,
+			Filename:  hdr.Name,
+			TotalSize: int64(buf2.Len()),
+		})
+		if err != nil {
+			return trail.FromGRPC(err)
+		}
+
+		//eee := 0
+
+		//zr, err := gzip.NewReader(&buf)
+		//if err != nil {
+		//	return trace.Wrap(err)
+		//}
 		if strings.Contains(hdr.Name, "events.gz") {
-			scanner := bufio.NewScanner(zr)
+			scanner := bufio.NewScanner(&buf2)
 			for scanner.Scan() {
+
+				//eee += len(scanner.Bytes())
+				//fmt.Printf("--> scanner: %v %v.\n", eee, string(scanner.Bytes()))
 				// Send chunk.
 				err = stream.Send(&proto.SessionChunk{
 					State:   stateChunk,
@@ -304,19 +327,6 @@ func StreamSessionRecording(stream proto.AuthService_StreamSessionRecordingClien
 			if err != nil {
 				return trace.Wrap(err)
 			}
-		}
-		err = zr.Close()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Send file close event.
-		err = stream.Send(&proto.SessionChunk{
-			State:    stateClose,
-			Filename: hdr.Name,
-		})
-		if err != nil {
-			return trace.Wrap(err)
 		}
 	}
 

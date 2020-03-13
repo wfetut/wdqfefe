@@ -103,10 +103,14 @@ func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 		return "", trace.ConvertSystemError(err)
 	}
 	defer f.Close()
-	_, err = io.Copy(f, reader)
-	if err != nil {
-		return "", trace.Wrap(err)
+
+	for {
+		_, err = io.CopyN(f, reader, 1000)
+		if err != nil && err != io.EOF {
+			return "", trace.Wrap(err)
+		}
 	}
+
 	return fmt.Sprintf("%v://%v", teleport.SchemeFile, path), nil
 }
 
