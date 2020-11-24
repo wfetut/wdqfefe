@@ -341,7 +341,7 @@ roles.
 This RBAC integration works exactly like the [integration for SSH
 nodes](enterprise/ssh-rbac.md).
 
-First, set the set of Kubernetes labels a user can access on their roles:
+First, define a set of Kubernetes labels a user can access on their roles:
 
 ```yaml
 # role-admin.yaml
@@ -353,8 +353,8 @@ spec:
   allow:
     logins: ['{% raw %}{{internal.logins}}{% endraw %}']
     # Define the Kubernetes users and groups mapped to users with this role.
-    kubernetes_users: ["{% raw %}{{internal.kubernetes_users}}{% endraw %}"]]
-    kubernetes_groups: ["some-group", "{% raw %}{{internal.kubernetes_groups}}{% endraw %}"]]
+    kubernetes_users: ["{% raw %}{{internal.kubernetes_users}}{% endraw %}"]
+    kubernetes_groups: ["some-group", "{% raw %}{{internal.kubernetes_groups}}{% endraw %}"]
 
     # List of kubernetes labels a user will be allowed to connect to:
     kubernetes_labels:
@@ -390,6 +390,6 @@ kubernetes_service:
     period: 1h
 ```
 
-Users with a role that matches a specific Kubernetes cluster labels will be
+Users with a role that matches specific Kubernetes cluster labels will be
 able to see and connect to that cluster. Other users will neither see nor
 be able to connect to it.
