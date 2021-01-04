@@ -189,6 +189,7 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionRequest{
 			AppSessionRequest: e,
 		}
+<<<<<<< HEAD:api/types/events/oneof.go
 	case *DatabaseSessionStart:
 		out.Event = &OneOf_DatabaseSessionStart{
 			DatabaseSessionStart: e,
@@ -200,10 +201,11 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *DatabaseSessionQuery:
 		out.Event = &OneOf_DatabaseSessionQuery{
 			DatabaseSessionQuery: e,
-		}
+=======
 	case *SessionUpload:
 		out.Event = &OneOf_SessionUpload{
 			SessionUpload: e,
+>>>>>>> 693e68de4... emit session upload to disk:lib/events/convert.go
 		}
 	default:
 		return nil, trace.BadParameter("event type %T is not supported", in)
@@ -291,13 +293,15 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 		return e, nil
 	} else if e := in.GetAppSessionRequest(); e != nil {
 		return e, nil
+<<<<<<< HEAD:api/types/events/oneof.go
 	} else if e := in.GetDatabaseSessionStart(); e != nil {
 		return e, nil
 	} else if e := in.GetDatabaseSessionEnd(); e != nil {
 		return e, nil
 	} else if e := in.GetDatabaseSessionQuery(); e != nil {
-		return e, nil
+=======
 	} else if e := in.GetSessionUpload(); e != nil {
+>>>>>>> 693e68de4... emit session upload to disk:lib/events/convert.go
 		return e, nil
 	} else {
 		if in.Event == nil {

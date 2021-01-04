@@ -1930,6 +1930,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
 		ScanDir:  filepath.Join(streamingDir...),
 		Streamer: accessPoint,
+		AuditLog: auditLog,
 		EventsC:  process.Config.UploadEventsC,
 	})
 	if err != nil {

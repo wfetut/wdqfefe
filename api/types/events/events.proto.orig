@@ -1216,10 +1216,13 @@ message OneOf {
         events.AppSessionStart AppSessionStart = 37;
         events.AppSessionChunk AppSessionChunk = 38;
         events.AppSessionRequest AppSessionRequest = 39;
+<<<<<<< HEAD:api/types/events/events.proto
         events.DatabaseSessionStart DatabaseSessionStart = 40;
         events.DatabaseSessionEnd DatabaseSessionEnd = 41;
         events.DatabaseSessionQuery DatabaseSessionQuery = 42;
-        events.SessionUpload SessionUpload = 43;
+=======
+        events.SessionUpload SessionUpload = 40;
+>>>>>>> 693e68de4... emit session upload to disk:lib/events/events.proto
     }
 }
 
