@@ -809,12 +809,7 @@ func executeAccessRequest(cf *CLIConf) error {
 	req.SetRequestReason(cf.RequestReason)
 	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
 
-	var res services.AccessRequest
-	// always create access request against the root cluster
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		res, err = getRequestResolution(cf, clt, req)
-		return trace.Wrap(err)
-	})
+	res, err := getRequestResolution(cf, tc, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1453,13 +1448,13 @@ func host(in string) string {
 }
 
 // getRequestResolution registers an access request with the auth server and waits for it to be resolved.
-func getRequestResolution(cf *CLIConf, clt auth.ClientI, req services.AccessRequest) (services.AccessRequest, error) {
+func getRequestResolution(cf *CLIConf, tc *client.TeleportClient, req services.AccessRequest) (services.AccessRequest, error) {
 	// set up request watcher before submitting the request to the admin server
 	// in order to avoid potential race.
 	filter := services.AccessRequestFilter{
-		User: req.GetUser(),
+		User: tc.Username,
 	}
-	watcher, err := clt.NewWatcher(cf.Context, services.Watch{
+	watcher, err := tc.NewWatcher(cf.Context, services.Watch{
 		Name: "await-request-approval",
 		Kinds: []services.WatchKind{
 			services.WatchKind{
@@ -1472,7 +1467,7 @@ func getRequestResolution(cf *CLIConf, clt auth.ClientI, req services.AccessRequ
 		return nil, trace.Wrap(err)
 	}
 	defer watcher.Close()
-	if err := clt.CreateAccessRequest(cf.Context, req); err != nil {
+	if err := tc.CreateAccessRequest(cf.Context, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 Loop:
