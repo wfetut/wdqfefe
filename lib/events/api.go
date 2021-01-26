@@ -489,6 +489,14 @@ type MultipartUploader interface {
 	// ListUploads lists uploads that have been initiated but not completed with
 	// earlier uploads returned first
 	ListUploads(ctx context.Context) ([]StreamUpload, error)
+	// GetUploadMetadata gets the upload metadata
+	GetUploadMetadata(sessionID session.ID) *UploadMetadata
+}
+
+// UploadMetadata contains data about the session upload
+type UploadMetadata struct {
+	URL       string
+	SessionID session.ID
 }
 
 // StreamWriter implements io.Writer to be plugged into the multi-writer
@@ -518,7 +526,7 @@ type IAuditLog interface {
 
 	// EmitAuditEvent emits audit event
 	EmitAuditEvent(context.Context, AuditEvent) error
-	
+
 	// DELETE IN: 2.7.0
 	// This method is no longer necessary as nodes and proxies >= 2.7.0
 	// use UploadSessionRecording method.
