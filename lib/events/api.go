@@ -439,6 +439,8 @@ type Streamer interface {
 	// ResumeAuditStream resumes the stream for session upload that
 	// has not been completed yet.
 	ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error)
+
+	UploadMetadataGetter
 }
 
 // StreamPart represents uploaded stream part
@@ -495,8 +497,16 @@ type MultipartUploader interface {
 
 // UploadMetadata contains data about the session upload
 type UploadMetadata struct {
-	URL       string
+	// URL is the url at which the session recording is located
+	// it is free-form and uploader-specific
+	URL string
+	// SessionID is the event session ID
 	SessionID session.ID
+}
+
+// UploadMetadataGetter gets the metadata for session upload
+type UploadMetadataGetter interface {
+	GetUploadMetadata(sid session.ID) UploadMetadata
 }
 
 // StreamWriter implements io.Writer to be plugged into the multi-writer
@@ -613,7 +623,7 @@ func (f EventFields) GetString(key string) string {
 	return v
 }
 
-// GetString returns an int representation of a logged field
+// GetInt returns an int representation of a logged field
 func (f EventFields) GetInt(key string) int {
 	val, found := f[key]
 	if !found {
@@ -629,7 +639,7 @@ func (f EventFields) GetInt(key string) int {
 	return v
 }
 
-// GetString returns an int representation of a logged field
+// GetTime returns an int representation of a logged field
 func (f EventFields) GetTime(key string) time.Time {
 	val, found := f[key]
 	if !found {
