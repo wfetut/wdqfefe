@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -177,27 +178,25 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			if err != nil {
 				return trail.ToGRPC(err)
 			}
-			sessionData := g.APIConfig.MetadataGetter.GetUploadMetadata(sessionID)
-
-			session := &events.SessionUpload{
-				Metadata: events.Metadata{
-					Type:        events.SessionUploadEvent,
-					Code:        events.SessionUploadCode,
-					Index:       events.SessionUploadIndex,
-					ClusterName: h.GetClusterName(),
-				},
-				SessionMetadata: events.SessionMetadata{
-					SessionID: string(sessionData.SessionID),
-				},
-				SessionURL: sessionData.URL,
-			}
-			if err := g.Emitter.EmitAuditEvent(auth.CloseContext(), session); err != nil {
-				return trail.ToGRPC(err)
+			if g.APIConfig.MetadataGetter != nil {
+				sessionData := g.APIConfig.MetadataGetter.GetUploadMetadata(sessionID)
+				event := &apievents.SessionUpload{
+					Metadata: events.Metadata{
+						Type:        events.SessionUploadEvent,
+						Code:        events.SessionUploadCode,
+						Index:       events.SessionUploadIndex,
+						ClusterName: h.GetClusterName(),
+					},
+					SessionMetadata: events.SessionMetadata{
+						SessionID: string(sessionData.SessionID),
+					},
+					SessionURL: sessionData.URL,
+				}
+				if err := g.Emitter.EmitAuditEvent(auth.CloseContext(), event); err != nil {
+					return trail.ToGRPC(err)
+				}
 			}
 			g.Debugf("Completed stream: %v.", err)
-			if err != nil {
-				return trail.ToGRPC(err)
-			}
 			return nil
 		} else if flushAndClose := request.GetFlushAndCloseStream(); flushAndClose != nil {
 			if eventStream == nil {

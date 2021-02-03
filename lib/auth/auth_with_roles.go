@@ -2336,9 +2336,6 @@ func (a *ServerWithRoles) DeleteAllKubeServices(ctx context.Context) error {
 	return a.authServer.DeleteAllKubeServices(ctx)
 }
 
-func (a *ServerWithRoles) GetUploadMetadata(sid session.ID) events.UploadMetadata {
-	return events.UploadMetadata{}
-}
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {

@@ -439,8 +439,6 @@ type Streamer interface {
 	// ResumeAuditStream resumes the stream for session upload that
 	// has not been completed yet.
 	ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error)
-
-	UploadMetadataGetter
 }
 
 // StreamPart represents uploaded stream part
@@ -492,10 +490,10 @@ type MultipartUploader interface {
 	// earlier uploads returned first
 	ListUploads(ctx context.Context) ([]StreamUpload, error)
 	// GetUploadMetadata gets the upload metadata
-	GetUploadMetadata(sessionID session.ID) *UploadMetadata
+	GetUploadMetadata(sessionID session.ID) UploadMetadata
 }
 
-// UploadMetadata contains data about the session upload
+// UploadMtadata contains data about tte session upload
 type UploadMetadata struct {
 	// URL is the url at which the session recording is located
 	// it is free-form and uploader-specific
