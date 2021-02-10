@@ -19,6 +19,7 @@ package testlog
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -36,7 +37,10 @@ func FailureOnly(t TestingInterface) utils.Logger {
 
 	// Register a cleanup callback which prints buf iff t has failed.
 	t.Cleanup(func() {
+		// Prevent writes to the closed buffer after the test completes.
+		logger.SetOutput(ioutil.Discard)
 		if !t.Failed() {
+			buf.Close()
 			return
 		}
 		fmt.Fprintln(os.Stderr, buf.String())
