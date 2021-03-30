@@ -253,7 +253,7 @@ type server struct {
 	clock            clockwork.Clock
 }
 
-// New returns new session server that uses sqlite to manage
+// New returns new session server that uses the specified backend to manage
 // active sessions
 func New(bk backend.Backend) (Service, error) {
 	s := &server{
@@ -391,6 +391,9 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 	for i := 0; i < sessionUpdateAttempts; i++ {
 		item, err := s.bk.Get(context.TODO(), key)
 		if err != nil {
+			if trace.IsNotFound(err) {
+				return trace.NotFound("session(%v, %v) is not found", req.Namespace, req.ID)
+			}
 			return trace.Wrap(err)
 		}
 
@@ -425,7 +428,7 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 		}
 		return nil
 	}
-	return trace.ConnectionProblem(nil, "failed concurrently update the session")
+	return trace.ConnectionProblem(nil, "failed to concurrently update the session")
 }
 
 // DeleteSession removes an active session from the backend.
@@ -440,6 +443,9 @@ func (s *server) DeleteSession(namespace string, id ID) error {
 
 	err = s.bk.Delete(context.TODO(), activeKey(namespace, string(id)))
 	if err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("session(%v, %v) is not found", namespace, id)
+		}
 		return trace.Wrap(err)
 	}
 

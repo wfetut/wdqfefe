@@ -1183,6 +1183,11 @@ func (s *session) heartbeat(ctx *ServerContext) {
 				Parties:   &partyList,
 			})
 			if err != nil {
+				if trace.IsNotFound(err) {
+					// No need to update the session that has already been removed
+					// or has expired
+					return
+				}
 				s.log.Warnf("Unable to update session %v as active: %v", s.id, err)
 			}
 		case <-s.closeC:
