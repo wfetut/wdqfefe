@@ -17,9 +17,11 @@ limitations under the License.
 package services
 
 import (
+	"crypto/md5"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/xml"
 	"fmt"
 	"net/http"
@@ -172,10 +174,18 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 	encryptionKeyStore := signingKeyStore
 	encryptionKeyPair := sc.GetEncryptionKeyPair()
 	if encryptionKeyPair != nil {
+		certHash := getHash(encryptionKeyPair.Cert)
+		keyHash := getHash(encryptionKeyPair.PrivateKey)
+		certEncoded := getEncoded(encryptionKeyPair.Cert)
+		keyEncoded := getEncoded(encryptionKeyPair.PrivateKey)
+		log.Debugf("Discovered assertion keypair during connector creation with a hash of %s, %s and a base64 of %s, %s", certHash, keyHash, certEncoded, keyEncoded)
+
 		encryptionKeyStore, err = utils.ParseSigningKeyStorePEM(encryptionKeyPair.PrivateKey, encryptionKeyPair.Cert)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse certificate defined in assertion_key_pair")
 		}
+	} else {
+		log.Debug("No assertion keypair found during connector creation. Falling back to signing key pair for encryption. SAML Token Encryption may not work.")
 	}
 
 	sp := &saml2.SAMLServiceProvider{
@@ -211,6 +221,16 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 	}
 
 	return sp, nil
+}
+
+func getHash(value string) string {
+	hasher := md5.New()
+	checksum := hasher.Sum([]byte(value))
+	return hex.EncodeToString(checksum)
+}
+
+func getEncoded(value string) string {
+	return base64.StdEncoding.EncodeToString([]byte(value))
 }
 
 // SAMLConnectorV2SchemaTemplate is a template JSON Schema for SAMLConnector
