@@ -142,7 +142,8 @@
             { "title": "Second Factor - U2F", "slug": "/access-controls/guides/u2f/" },
             { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },
             { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
-            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" }
+            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" },
+            { "title": "Slack Integration", "slug": "/access-controls/guides/access-requests-slack/" }
           ]
         },
         { "title": "Reference", "slug": "/access-controls/reference/" },
@@ -322,6 +323,11 @@
     {
       "source": "/quickstart-docker/",
       "destination": "/setup/guides/docker-compose/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/workflow/ssh-approval-slack/",
+      "destination": "/access-controls/guides/access-requests-slack/",
       "permanent": true
     }
   ]
