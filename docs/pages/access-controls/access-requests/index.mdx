@@ -1,16 +1,26 @@
 ---
-title: Access Requests for SSH and Kubernetes Access
-description: How to customize SSH and Kubernetes access using Teleport.
+title: Teleport Access Requests
+description: How to use Teleport Access Requests and Plugins.
 h1: Teleport Access Requests
 ---
 
-#### Approving Requests using an external integration
-
-- [Integrating Teleport with Slack](../../access-controls/guides/access-requests-slack.mdx)
-- [Integrating Teleport with Mattermost](ssh-approval-mattermost.mdx)
-- [Integrating Teleport with Jira Cloud](ssh-approval-jira-cloud.mdx)
-- [Integrating Teleport with Jira Server](ssh-approval-jira-server.mdx)
-- [Integrating Teleport with PagerDuty](ssh-approval-pagerduty.mdx)
+<TileSet>
+  <Tile icon="lock" title="Jira Cloud Plugin" href="./jira-cloud.mdx">
+    Jira Cloud Plugin.
+  </Tile>
+  <Tile icon="lock" title="Jira Server Plugin" href="./jira-server.mdx">
+    Jira Server Plugin.
+  </Tile>
+  <Tile icon="lock" title="Mattermost Plugin" href="./mattermost.mdx">
+    Mattermost Plugin.
+  </Tile>
+  <Tile icon="lock" title="PagerDuty Plugin" href="./pagerduty.mdx">
+    PagerDuty Plugin.
+  </Tile>
+  <Tile icon="lock" title="Slack Plugin" href="./slack.mdx">
+    Slack Plugin.
+  </Tile>
+</TileSet>
 
 ## Access Requests setup
 
@@ -239,8 +249,8 @@ tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 ri
 
 | Integration | Feature | Type | Setup Instructions |
 | - | - | - | - |
-| Slack | | Chatbot | [Setup Slack](../../access-controls/guides/access-requests-slack.mdx) |
-| Mattermost | | Chatbot | [Setup Mattermost](ssh-approval-mattermost.mdx) |
-| Jira Server | | Project Board | [Setup Jira Server](ssh-approval-jira-server.mdx) |
-| Jira Cloud | | Project Board | [Setup Jira Cloud](ssh-approval-jira-cloud.mdx) |
-| PagerDuty | | Schedule | [Setup PagerDuty](ssh-approval-pagerduty.mdx) |
+| Slack | | Chatbot | [Setup Slack](../access-requests/slack.mdx) |
+| Mattermost | | Chatbot | [Setup Mattermost](mattermost.mdx) |
+| Jira Server | | Project Board | [Setup Jira Server](jira-server.mdx) |
+| Jira Cloud | | Project Board | [Setup Jira Cloud](jira-cloud.mdx) |
+| PagerDuty | | Schedule | [Setup PagerDuty](pagerduty.mdx) |

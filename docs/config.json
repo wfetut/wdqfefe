@@ -142,8 +142,32 @@
             { "title": "Second Factor - U2F", "slug": "/access-controls/guides/u2f/" },
             { "title": "Per-session MFA", "slug": "/access-controls/guides/per-session-mfa/" },
             { "title": "Dual Authorization", "slug": "/access-controls/guides/dual-authz/" },
-            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" },
-            { "title": "Access Requests with Slack", "slug": "/access-controls/guides/access-requests-slack/" }
+            { "title": "Impersonation", "slug": "/access-controls/guides/impersonation/" }
+          ]
+        },
+        { 
+          "title": "Single Sign-On (SSO)", 
+          "slug": "/access-controls/single-sign-on/index/",
+          "entries": [
+            { "title": "ADFS", "slug": "/access-controls/single-sign-on/adfs/" },
+            { "title": "Azure AD", "slug": "/access-controls/single-sign-on/azuread/" },
+            { "title": "GitLab", "slug": "/access-controls/single-sign-on/gitlab/" },
+            { "title": "Google Workspace", "slug": "/access-controls/single-sign-on/google-workspace/" },
+            { "title": "OIDC", "slug": "/access-controls/single-sign-on/oidc/" },
+            { "title": "Okta", "slug": "/access-controls/single-sign-on/okta/" },
+            { "title": "One-Login", "slug": "/access-controls/single-sign-on/one-login/" },
+            { "title": "GitHub", "slug": "/access-controls/single-sign-on/github/" }
+          ]
+        },
+        { 
+          "title": "Access Requests", 
+          "slug": "/access-controls/access-requests/index/",
+          "entries": [
+            { "title": "Slack Plugin", "slug": "/access-controls/access-requests/slack/" },
+            { "title": "PagerDuty Plugin", "slug": "/access-controls/access-requests/pagerduty/" },
+            { "title": "Mattermostlack Plugin", "slug": "/access-controls/access-requests/mattermost/" },
+            { "title": "Jira Cloud Plugin", "slug": "/access-controls/access-requests/jira-cloud/" },
+            { "title": "Jira Server Plugin", "slug": "/access-controls/access-requests/jira-server/" }
           ]
         },
         { "title": "Reference", "slug": "/access-controls/reference/" },
@@ -176,8 +200,6 @@
           "title": "Quick Start Guide",
           "slug": "/enterprise/quickstart-enterprise/"
         },
-        { "title": "Single Sign-On (SSO)", "slug": "/enterprise/sso/ssh-sso/" },
-        { "title": "Access Requests", "slug": "/enterprise/workflow/" },
         {
           "title": "FedRAMP for SSH & K8s",
           "slug": "/enterprise/ssh-kubernetes-fedramp/"
@@ -328,6 +350,101 @@
     {
       "source": "/enterprise/workflow/ssh-approval-slack/",
       "destination": "/access-controls/guides/access-requests-slack/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/workflow/",
+      "destination": "/access-controls/access-requests/index/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/workflow/",
+      "destination": "/access-controls/access-requests/index/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/workflow/index/",
+      "destination": "/access-controls/access-requests/index/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/workflow/ssh-approval-jira-cloud/",
+      "destination": "/access-controls/access-requests/jira-cloud/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/workflow/ssh-approval-jira-server/",
+      "destination": "/access-controls/access-requests/jira-server/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/workflow/ssh-approval-mattermost/",
+      "destination": "/access-controls/access-requests/mattermost/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/workflow/ssh-approval-pagerduty/",
+      "destination": "/access-controls/access-requests/pagerduty/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/workflow/ssh-approval-pagerduty/",
+      "destination": "/access-controls/access-requests/pagerduty/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/access-requests-slack/",
+      "destination": "/access-controls/access-requests/slack/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/workflow/ssh-approval-slack/",
+      "destination": "/access-controls/access-requests/slack/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/",
+      "destination": "/access-controls/single-sign-on/index/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-sso/",
+      "destination": "/access-controls/single-sign-on/index/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/gitlab/",
+      "destination": "/access-controls/single-sign-on/gitlab/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-adfs/",
+      "destination": "/access-controls/single-sign-on/adfs/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-azuread/",
+      "destination": "/access-controls/single-sign-on/azuread/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/oidc/",
+      "destination": "/access-controls/single-sign-on/oidc/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-okta/",
+      "destination": "/access-controls/single-sign-on/okta/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-one-login/",
+      "destination": "/access-controls/single-sign-on/one-login/",
+      "permanent": true
+    },
+    {
+      "source": "/enterprise/sso/ssh-google-workspace/",
+      "destination": "/access-controls/single-sign-on/google-workspace/",
       "permanent": true
     }
   ]

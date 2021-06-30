@@ -14,7 +14,7 @@ The table below summarizes the benefits of the Teleport Enterprise Edition.
 | - | - |
 | [Role Based Access Control (RBAC)](#role-based-access-control) | Allows Teleport administrators to define User Roles and restrict each role to specific actions. RBAC also allows administrators to partition cluster nodes into groups with different access permissions. |
 | [Single Sign-On (SSO)](#single-sign-on) | Allows Teleport to integrate with existing enterprise identity systems. Examples include Active Directory, Github, Google Apps, and numerous identity middleware solutions like Auth0, Okta, and so on. Teleport supports SAML and OAuth/OpenID Connect protocols to interact with them. |
-| [Approval Plugins](workflow/index.mdx) | Plugins to approve or deny escalated RBAC requests. |
+| [Approval Plugins](../access-controls/access-requests/index.mdx) | Plugins to approve or deny escalated RBAC requests. |
 | [FedRAMP/FIPS](#fedrampfips) | Teleport lays the foundation to help Teleport Enterprise customers build and meet the requirements in a FedRAMP System Security Plan (SSP). This includes a FIPS 140-2 friendly build of Teleport Enterprise as well as a variety of improvements to aid in complying with security controls even in FedRAMP High environments. |
 | Commercial Support | In addition to these features, Teleport Enterprise also comes with a premium support SLA with guaranteed response times. |
 
@@ -88,7 +88,7 @@ valid credentials, Teleport will issue an SSH certificate.
 
 Moreover, SSO can be used in combination with role-based access control (RBAC)
 to enforce SSH access policies like *"developers must not touch production data"*.
-See the [SSO for SSH](sso/ssh-sso.mdx) chapter for more details.
+See the [SSO for SSH](../access-controls/single-sign-on/index.mdx) chapter for more details.
 
 <Admonition
   type="tip"
@@ -114,4 +114,4 @@ See our [FedRAMP for SSH and Kubernetes](ssh-kubernetes-fedramp.mdx) guide for m
 
 With Teleport we've introduced the ability for users to request additional roles. The Access Request API makes it easy to dynamically approve or deny these requests.
 
-Read the [Access Requests Guide for more information](workflow/index.mdx) for more information.
+Read the [Access Requests Guide for more information](../access-controls/access-requests/index.mdx) for more information.
