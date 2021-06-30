@@ -147,7 +147,7 @@
         },
         { 
           "title": "Single Sign-On (SSO)", 
-          "slug": "/access-controls/single-sign-on/index/",
+          "slug": "/access-controls/single-sign-on/",
           "entries": [
             { "title": "ADFS", "slug": "/access-controls/single-sign-on/adfs/" },
             { "title": "Azure AD", "slug": "/access-controls/single-sign-on/azuread/" },
@@ -161,7 +161,7 @@
         },
         { 
           "title": "Access Requests", 
-          "slug": "/access-controls/access-requests/index/",
+          "slug": "/access-controls/access-requests/",
           "entries": [
             { "title": "Slack Plugin", "slug": "/access-controls/access-requests/slack/" },
             { "title": "PagerDuty Plugin", "slug": "/access-controls/access-requests/pagerduty/" },
@@ -354,17 +354,17 @@
     },
     {
       "source": "/enterprise/workflow/",
-      "destination": "/access-controls/access-requests/index/",
+      "destination": "/access-controls/access-requests/",
       "permanent": true
     },
     {
       "source": "/enterprise/workflow/",
-      "destination": "/access-controls/access-requests/index/",
+      "destination": "/access-controls/access-requests/",
       "permanent": true
     },
     {
-      "source": "/enterprise/workflow/index/",
-      "destination": "/access-controls/access-requests/index/",
+      "source": "/enterprise/workflow/",
+      "destination": "/access-controls/access-requests/",
       "permanent": true
     },
     {
@@ -404,12 +404,12 @@
     },
     {
       "source": "/enterprise/sso/",
-      "destination": "/access-controls/single-sign-on/index/",
+      "destination": "/access-controls/single-sign-on/",
       "permanent": true
     },
     {
       "source": "/enterprise/sso/ssh-sso/",
-      "destination": "/access-controls/single-sign-on/index/",
+      "destination": "/access-controls/single-sign-on/",
       "permanent": true
     },
     {
