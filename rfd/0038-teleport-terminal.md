@@ -43,9 +43,6 @@ There will be two ways to create proxy connections: TCP on localhost and Unix Do
 The first one will require creating a TCP connection on localhost with a random port. This will allow clients to establish connections using (https://127.0.0.1:XXX) addresses.
 These connections will not be accessible from local networks by default but it should be possible to white-list IP addresses to allow incoming connections.
 
-Unix Domain Sockets will use local files under current user account. File permissions will be use to restrict access.
-Domain Sockets will be a preferable way of creating connections for clients that support it (psql).
-
 In both cases the service will perform SNI/ALPN routing to Teleport resources.
 
 #### Client API
@@ -92,9 +89,10 @@ GET  /clusters/:name/apps
 Bellow request will create a local proxy connection to remote database.
 
 ```
-POST  /gateways/cluster/:name/db/
+POST  /gateways/
 
 request {
+  resourceURI: string; (clusters/:name/db/)
   proto: tcp | unix;
   tcp: {
     port?: number
@@ -113,7 +111,7 @@ response {
 To terminate a connection
 
 ```
-DELETE /gateway/:id
+DELETE /gateways/:id
 ```
 
 To retrieve a list of existing connections
@@ -162,8 +160,8 @@ It will have the following features:
                       ^                          | |
                       |                          | |
   +---------------+   | tls/tcp on localhost     | |
-  |    local      |   |         or               | |
-  | user profile  |   |     domain socket        v v
+  |    local      |   |                          | |
+  | user profile  |   |                          v v
   |   (files)     |   |                   +------+-+-------------------+
   +-------^-------+   |                   |                            |
           ^           +-------------------+      Terminal Daemon       |
@@ -172,7 +170,7 @@ It will have the following features:
           |                               +-------------+--------------+
  +--------+-----------------+                           ^
  |         Terminal         |                           |
- |    Electron Main Process |                           |        rest API
+ |    Electron Main Process |                           |       rest API
  +-----------+--------------+                           |     (domain socket)
              ^                                          |
              |                                          |
@@ -195,5 +193,4 @@ It will have the following features:
  |  +cluster2             |                                             |
  |  +cluster3             |                                             |
  +------------------------+---------------------------------------------+
-
 ```
