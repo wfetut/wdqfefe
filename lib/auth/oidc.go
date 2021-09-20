@@ -430,6 +430,10 @@ type OIDCAuthResponse struct {
 	HostSigners []types.CertAuthority `json:"host_signers"`
 }
 
+func expandGoogleGroupsTransitive(connector types.OIDCConnector, traits map[string][]string) {
+
+}
+
 func (a *Server) calculateOIDCUser(connector types.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *services.OIDCAuthRequest) (*createUserParams, error) {
 	var err error
 
@@ -439,6 +443,10 @@ func (a *Server) calculateOIDCUser(connector types.OIDCConnector, claims jose.Cl
 	}
 
 	p.traits = services.OIDCClaimsToTraits(claims)
+
+	if connector.GetIssuerURL() == teleport.GSuiteIssuerURL && (connector.GetGoogleServiceAccountURI() != "" || connector.GetGoogleServiceAccount() != "") {
+		expandGoogleGroupsTransitive(connector, p.traits)
+	}
 
 	var warnings []string
 	warnings, p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
