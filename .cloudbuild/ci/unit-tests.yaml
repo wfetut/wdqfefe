@@ -1,0 +1,11 @@
+steps:
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.0.1
+    id: unit-test
+    env:
+      - TELEPORT_ETCD_TEST="yes"
+    args: ['make', 'start-etcd', 'test']
+    timeout: 15m
+timeout: 15m
+options:
+  machineType: 'E2_HIGHCPU_32'
+  
