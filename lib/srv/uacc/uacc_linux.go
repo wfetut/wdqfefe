@@ -118,7 +118,7 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
 		if status != 0 {
-			return trace.Errorf("unknown error with errno %d", C.get_errno())
+			return trace.Errorf("unknown error with code %d, errno %d", status, C.get_errno())
 		}
 
 		return nil
