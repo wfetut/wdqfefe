@@ -572,33 +572,47 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, event
 
 	g.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Query completed.")
 	for _, docSnap := range docSnaps {
+		// extract raw event data from firestore object
 		var e event
 		err = docSnap.DataTo(&e)
 		if err != nil {
 			return nil, 0, "", firestorebk.ConvertGRPCError(err)
 		}
 
+		// unmarshal the serialized event into a dynamic object-like form
 		var fields events.EventFields
 		data := []byte(e.Fields)
 		if err := json.Unmarshal(data, &fields); err != nil {
 			return nil, 0, "", trace.Errorf("failed to unmarshal event %v", err)
 		}
-		var accepted bool
-		for i := range eventTypes {
-			if fields.GetString(events.EventType) == eventTypes[i] {
-				accepted = true
-				break
+
+		// run event filters (if type filters are passed)
+		accepted := !doFilter
+		if !accepted {
+			for i := range eventTypes {
+				if fields.GetString(events.EventType) == eventTypes[i] {
+					accepted = true
+					break
+				}
 			}
 		}
-		if accepted || !doFilter {
+
+		// if event is accepted, add it to the result
+		if accepted {
+			// abort if it'd exceed the size limit
 			if totalSize+len(data) >= spaceRemaining {
+				g.Debug("Aborted at size check 1")
 				break
 			}
 
+			// fetch the checkpoint key
 			lastKey = docSnap.Data()["createdAt"].(int64)
 			values = append(values, fields)
+
+			// update the size estimate
 			totalSize += len(data)
 			if limit > 0 && len(values) >= limit {
+				g.Debug("Aborted at size check 2")
 				break
 			}
 		}
