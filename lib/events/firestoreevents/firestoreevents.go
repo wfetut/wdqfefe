@@ -474,7 +474,7 @@ func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlc
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	var eventsArr []apievents.AuditEvent
+	var eventsArr []events.EventFields
 	var estimatedSize int
 	checkpoint := startKey
 	left := limit
@@ -495,10 +495,30 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 		}
 	}
 
-	return eventsArr, checkpoint, nil
+	var toSort sort.Interface
+	switch order {
+	case types.EventOrderAscending:
+		toSort = events.ByTimeAndIndex(eventsArr)
+	case types.EventOrderDescending:
+		toSort = sort.Reverse(events.ByTimeAndIndex(eventsArr))
+	default:
+		return nil, "", trace.BadParameter("invalid event order: %v", order)
+	}
+	sort.Sort(toSort)
+
+	values := make([]apievents.AuditEvent, 0, len(eventsArr))
+	for _, fields := range eventsArr {
+		event, err := events.FromEventFields(fields)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		values = append(values, event)
+	}
+
+	return values, checkpoint, nil
 }
 
-func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string, spaceRemaining int) ([]apievents.AuditEvent, int, string, error) {
+func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string, spaceRemaining int) ([]events.EventFields, int, string, error) {
 	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey})
 	doFilter := len(eventTypes) > 0
 
@@ -506,7 +526,6 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, event
 	var values []events.EventFields
 	var parsedStartKey int64
 	var err error
-	reachedEnd := false
 	totalSize := 0
 
 	if startKey != "" {
@@ -542,19 +561,11 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, event
 		OrderBy(createdAtDocProperty, firestoreOrdering)).
 		Limit(limit).
 		Documents(l.svcContext).GetAll()
+
 	batchReadLatencies.Observe(time.Since(start).Seconds())
 	batchReadRequests.Inc()
 	if err != nil {
 		return nil, 0, "", firestorebk.ConvertGRPCError(err)
-	}
-
-	// Correctly detecting if you've reached the end of a query in firestore is
-	// tricky since it doesn't set any flag when it finds that there are no further events.
-	// This solution here seems to be the most common, but I haven't been able to find
-	// any documented hard guarantees on firestore not early returning for some reason like response
-	// size like DynamoDB does. In short, this should work in all cases for lack of a better solution.
-	if len(docSnaps) < limit {
-		reachedEnd = true
 	}
 
 	g.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Query completed.")
@@ -591,32 +602,12 @@ func (l *Log) searchEventsOnce(fromUTC, toUTC time.Time, namespace string, event
 		}
 	}
 
-	var toSort sort.Interface
-	switch order {
-	case types.EventOrderAscending:
-		toSort = events.ByTimeAndIndex(values)
-	case types.EventOrderDescending:
-		toSort = sort.Reverse(events.ByTimeAndIndex(values))
-	default:
-		return nil, 0, "", trace.BadParameter("invalid event order: %v", order)
-	}
-	sort.Sort(toSort)
-
-	eventArr := make([]apievents.AuditEvent, 0, len(values))
-	for _, fields := range values {
-		event, err := events.FromEventFields(fields)
-		if err != nil {
-			return nil, 0, "", trace.Wrap(err)
-		}
-		eventArr = append(eventArr, event)
-	}
-
 	var lastKeyString string
-	if lastKey != 0 && !reachedEnd {
+	if len(docSnaps) >= limit {
 		lastKeyString = fmt.Sprintf("%d", lastKey)
 	}
 
-	return eventArr, totalSize, lastKeyString, nil
+	return values, totalSize, lastKeyString, nil
 }
 
 // SearchSessionEvents returns session related events only. This is used to
