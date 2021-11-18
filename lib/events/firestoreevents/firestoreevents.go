@@ -515,6 +515,8 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventType
 		values = append(values, event)
 	}
 
+	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Namespace": namespace, "EventTypes": eventTypes, "Limit": limit, "StartKey": startKey})
+	g.Debugf("Found %d events.", len(values))
 	return values, checkpoint, nil
 }
 
