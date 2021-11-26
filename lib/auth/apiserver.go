@@ -1158,6 +1158,7 @@ func (s *APIServer) changePasswordWithToken(auth ClientI, w http.ResponseWriter,
 	webSession, err := auth.ChangePasswordWithToken(r.Context(), req)
 	if err != nil {
 		log.Debugf("Failed to change user password with token: %v.", err)
+		log.Debugf("GH1079: request=%v,params=%v,version=%s", r, p, version)
 		return nil, trace.Wrap(err)
 	}
 

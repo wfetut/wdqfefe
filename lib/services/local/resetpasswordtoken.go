@@ -19,6 +19,7 @@ package local
 import (
 	"bytes"
 	"context"
+	"runtime/debug"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -29,6 +30,8 @@ import (
 
 // GetResetPasswordTokens returns all ResetPasswordTokens
 func (s *IdentityService) GetResetPasswordTokens(ctx context.Context) ([]types.ResetPasswordToken, error) {
+	s.log.Debugf("GH1079: GetResetPasswordTokens()")
+	debug.PrintStack()
 	startKey := backend.Key(passwordTokensPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
@@ -54,6 +57,8 @@ func (s *IdentityService) GetResetPasswordTokens(ctx context.Context) ([]types.R
 
 // DeleteResetPasswordToken deletes ResetPasswordToken by ID
 func (s *IdentityService) DeleteResetPasswordToken(ctx context.Context, tokenID string) error {
+	s.log.Debugf("GH1079: DeleteResetPasswordToken(%s)", tokenID)
+	debug.PrintStack()
 	_, err := s.GetResetPasswordToken(ctx, tokenID)
 	if err != nil {
 		return trace.Wrap(err)
@@ -66,6 +71,8 @@ func (s *IdentityService) DeleteResetPasswordToken(ctx context.Context, tokenID 
 
 // GetResetPasswordToken returns a token by its ID
 func (s *IdentityService) GetResetPasswordToken(ctx context.Context, tokenID string) (types.ResetPasswordToken, error) {
+	s.log.Debugf("GH1079: GetResetPasswordToken(%s)", tokenID)
+	debug.PrintStack()
 	item, err := s.Get(ctx, backend.Key(passwordTokensPrefix, tokenID, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -84,6 +91,8 @@ func (s *IdentityService) GetResetPasswordToken(ctx context.Context, tokenID str
 
 // CreateResetPasswordToken creates a token that is used for signups and resets
 func (s *IdentityService) CreateResetPasswordToken(ctx context.Context, token types.ResetPasswordToken) (types.ResetPasswordToken, error) {
+	s.log.Debugf("GH1079: CreateResetPasswordToken(%v)", token)
+	debug.PrintStack()
 	if err := token.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -108,6 +117,8 @@ func (s *IdentityService) CreateResetPasswordToken(ctx context.Context, token ty
 
 // GetResetPasswordTokenSecrets returns token secrets
 func (s *IdentityService) GetResetPasswordTokenSecrets(ctx context.Context, tokenID string) (types.ResetPasswordTokenSecrets, error) {
+	s.log.Debugf("GH1079: GetResetPasswordTokenSecrets(%s)", tokenID)
+	debug.PrintStack()
 	item, err := s.Get(ctx, backend.Key(passwordTokensPrefix, tokenID, secretsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -126,6 +137,8 @@ func (s *IdentityService) GetResetPasswordTokenSecrets(ctx context.Context, toke
 
 // UpsertResetPasswordTokenSecrets upserts token secrets
 func (s *IdentityService) UpsertResetPasswordTokenSecrets(ctx context.Context, secrets types.ResetPasswordTokenSecrets) error {
+	s.log.Debugf("GH1079: UpsertResetPasswordTokenSecrets(%v)", secrets)
+	debug.PrintStack()
 	if err := secrets.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}

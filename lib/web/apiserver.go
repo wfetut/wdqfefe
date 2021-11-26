@@ -1473,6 +1473,7 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) getResetPasswordTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	h.log.Infof("GH1079: getResetPasswordTokenHandle: r=%v,p=%v\n", r, p)
 	result, err := h.getResetPasswordToken(context.TODO(), p.ByName("token"))
 	if err != nil {
 		h.log.WithError(err).Warn("Failed to fetch a reset password token.")
@@ -1484,6 +1485,7 @@ func (h *Handler) getResetPasswordTokenHandle(w http.ResponseWriter, r *http.Req
 }
 
 func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (interface{}, error) {
+	h.log.Infof("GH1079: getResetPasswordToken: tokenID=%s\n", tokenID)
 	token, err := h.auth.proxyClient.GetResetPasswordToken(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -215,6 +215,7 @@ func formatAccountName(s proxyDomainGetter, username string, authHostname string
 // extract the OTP key from the QR code, then allow the user to signup with
 // the same OTP token.
 func (s *Server) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (types.ResetPasswordTokenSecrets, error) {
+	log.Infof("GH1079: RotateResetPasswordTokenSecrets")
 	token, err := s.GetResetPasswordToken(ctx, tokenID)
 	if err != nil {
 		return nil, trace.Wrap(err)

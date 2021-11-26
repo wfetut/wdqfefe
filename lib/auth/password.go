@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/subtle"
+	rtime "time"
 
 	"golang.org/x/crypto/bcrypt"
 
@@ -290,6 +291,10 @@ func (s *Server) checkTOTP(ctx context.Context, user, otpToken string, dev *type
 		Digits:    otp.DigitsSix,
 		Algorithm: otp.AlgorithmSHA1,
 	})
+	log.Debugf("GH1079: checking TOTP for user=%s, period=%d, skew=%d", user, teleport.TOTPValidityPeriod, teleport.TOTPSkew)
+	log.Debugf("GH1079: key=%s", dev.GetTotp().Key)
+	log.Debugf("GH1079: token: %s%s***%s\n", string([]rune(otpToken)[0]), string([]rune(otpToken)[1]), string([]rune(otpToken)[5]))
+	log.Debugf("GH1079: s.clock.Now()=%v,real=%v", s.clock.Now(), rtime.Now())
 	if err != nil {
 		return trace.AccessDenied("failed to validate TOTP code: %v", err)
 	}
@@ -352,20 +357,24 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 	// Get cluster configuration and check if local auth is allowed.
 	authPref, err := s.GetAuthPreference(ctx)
 	if err != nil {
+		log.Warningf("GH1079: Unable to get auth preference")
 		return nil, trace.Wrap(err)
 	}
 	if !authPref.GetAllowLocalAuth() {
+		log.Warningf("GH1079: not allowed local auth")
 		return nil, trace.AccessDenied(noLocalAuth)
 	}
 
 	err = services.VerifyPassword(req.Password)
 	if err != nil {
+		log.Warningf("GH1079: unable to verify password")
 		return nil, trace.Wrap(err)
 	}
 
 	// Check if token exists.
 	token, err := s.GetResetPasswordToken(ctx, req.TokenID)
 	if err != nil {
+		log.Warningf("GH1079: unable to get reset password token (tokenID: %v", req.TokenID)
 		return nil, trace.Wrap(err)
 	}
 
@@ -375,6 +384,7 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 
 	err = s.changeUserSecondFactor(req, token)
 	if err != nil {
+		log.Warningf("GH1079: unable to change user second factor")
 		return nil, trace.Wrap(err)
 	}
 
@@ -383,12 +393,14 @@ func (s *Server) changePasswordWithToken(ctx context.Context, req ChangePassword
 	// of partially updated user with still valid token.
 	err = s.deleteResetPasswordTokens(ctx, username)
 	if err != nil {
+		log.Warningf("GH1079: can't delete reset password token: %s", username)
 		return nil, trace.Wrap(err)
 	}
 
 	// Set a new password.
 	err = s.UpsertPassword(username, req.Password)
 	if err != nil {
+		log.Warningf("GH1079: can't upsert password for %s", username)
 		return nil, trace.Wrap(err)
 	}
 
