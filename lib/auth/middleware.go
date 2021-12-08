@@ -571,7 +571,7 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn *tls.Conn) (c
 	return requestWithContext, nil
 }
 
-// ClientCertPool returns trusted x509 cerificate authority pool
+// ClientCertPool returns trusted x509 certificate authority pool
 func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
 	var authorities []types.CertAuthority
@@ -584,8 +584,13 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		dbCAs, err := client.GetCertAuthorities(types.DatabaseCA, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		authorities = append(authorities, hostCAs...)
 		authorities = append(authorities, userCAs...)
+		authorities = append(authorities, dbCAs...)
 	} else {
 		hostCA, err := client.GetCertAuthority(
 			types.CertAuthID{Type: types.HostCA, DomainName: clusterName},
@@ -599,8 +604,15 @@ func ClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, err
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		dbCA, err := client.GetCertAuthority(
+			types.CertAuthID{Type: types.DatabaseCA, DomainName: clusterName},
+			false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		authorities = append(authorities, hostCA)
 		authorities = append(authorities, userCA)
+		authorities = append(authorities, dbCA)
 	}
 
 	for _, auth := range authorities {
