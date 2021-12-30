@@ -1540,11 +1540,11 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	}
 
 	siteA := a.GetSiteAPI(a.Secrets.SiteName)
-	require.Eventually(t, clientHasEvents(siteA, execCountSiteA), 5*time.Second, 500*time.Millisecond,
+	require.Eventually(t, clientHasEvents(siteA, execCountSiteA), 10*time.Second, 500*time.Millisecond,
 		"Failed to find %d events on Site A after 5s", execCountSiteA)
 
 	siteB := b.GetSiteAPI(b.Secrets.SiteName)
-	require.Eventually(t, clientHasEvents(siteB, execCountSiteB), 5*time.Second, 500*time.Millisecond,
+	require.Eventually(t, clientHasEvents(siteB, execCountSiteB), 10*time.Second, 500*time.Millisecond,
 		"Failed to find %d events on Site B after 5s", execCountSiteB)
 
 	// stop both sites for real
