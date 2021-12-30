@@ -239,6 +239,7 @@ func (s *Reporter) NewWatcher(ctx context.Context, watch Watch) (Watcher, error)
 
 // Close releases the resources taken up by this backend
 func (s *Reporter) Close() error {
+	return nil
 	return s.Backend.Close()
 }
 

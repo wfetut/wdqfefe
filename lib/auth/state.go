@@ -38,6 +38,7 @@ type ProcessStorage struct {
 
 // Close closes all resources used by process storage backend.
 func (p *ProcessStorage) Close() error {
+	return nil
 	return p.Backend.Close()
 }
 
