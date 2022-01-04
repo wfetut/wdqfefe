@@ -2527,6 +2527,8 @@ type dbListeners struct {
 	postgres net.Listener
 	// mysql serves MySQL clients.
 	mysql net.Listener
+	// redis serves Redis clients.
+	redis net.Listener
 	// mongo serves Mongo clients.
 	mongo net.Listener
 	// tls serves database clients that use plain TLS handshake.
@@ -2535,7 +2537,7 @@ type dbListeners struct {
 
 // Empty returns true if no database access listeners are initialized.
 func (l *dbListeners) Empty() bool {
-	return l.postgres == nil && l.mysql == nil && l.tls == nil
+	return l.postgres == nil && l.mysql == nil && l.tls == nil && l.mongo == nil && l.redis == nil
 }
 
 // Close closes all database access listeners.
@@ -2545,6 +2547,9 @@ func (l *dbListeners) Close() {
 	}
 	if l.mysql != nil {
 		l.mysql.Close()
+	}
+	if l.redis != nil {
+		l.redis.Close()
 	}
 	if l.tls != nil {
 		l.tls.Close()
@@ -2606,6 +2611,15 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.db.mysql = listener
+	}
+
+	if !cfg.Proxy.RedisAddr.IsEmpty() && !cfg.Proxy.DisableDatabaseProxy {
+		process.log.Debugf("Setup Proxy: Redis proxy address: %v.", cfg.Proxy.RedisAddr.Addr)
+		listener, err := process.importOrCreateListener(listenerProxyRedis, cfg.Proxy.RedisAddr.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		listeners.db.redis = listener
 	}
 
 	if !cfg.Proxy.MongoAddr.IsEmpty() && !cfg.Proxy.DisableDatabaseProxy {
@@ -3156,6 +3170,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				// extracted connection to ALPN Proxy DB TLS Handler.
 				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolMongoDB),
 			})
+			alpnRouter.Add(alpnproxy.HandlerDecs{
+				// Add MongoDB teleport ALPN protocol without setting custom Handler.
+				// ALPN Proxy will handle MongoDB connection internally (terminate wrapped TLS traffic) and route
+				// extracted connection to ALPN Proxy DB TLS Handler.
+				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolRedisDB),
+			})
 		}
 
 		log := process.log.WithField(trace.Component, teleport.Component(teleport.ComponentDatabase))
@@ -3173,6 +3193,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				log.Infof("Starting MySQL proxy server on %v.", cfg.Proxy.MySQLAddr.Addr)
 				if err := dbProxyServer.ServeMySQL(listeners.db.mysql); err != nil {
 					log.WithError(err).Warn("MySQL proxy server exited with error.")
+				}
+				return nil
+			})
+		}
+		if listeners.db.redis != nil {
+			process.RegisterCriticalFunc("proxy.db.redis", func() error {
+				log.Infof("Starting Redis proxy server on %v.", cfg.Proxy.RedisAddr.Addr)
+				if err := dbProxyServer.ServeRedis(listeners.db.redis, tlsConfigWeb.Clone()); err != nil {
+					log.WithError(err).Warn("Redis proxy server exited with error.")
 				}
 				return nil
 			})
