@@ -528,6 +528,13 @@ integration-root: $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
 		| $(RENDER_TESTS) -report-by test
 
+.PHONY: integration
+integration-kube: FLAGS ?= -v -race
+integration-kube: $(RENDER_TESTS)
+	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
+	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" $(FLAGS) -run "^TestKube.*"  ./integration \
+		| $(RENDER_TESTS) -report-by test
+
 #
 # Lint the source code.
 # By default lint scans the entire repo. Pass GO_LINT_FLAGS='--new' to only scan local

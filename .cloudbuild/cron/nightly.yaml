@@ -1,0 +1,19 @@
+options:
+  volumes:
+    - name: kubeconfig
+      path: /kube
+  env: 
+    - KUBECONFIG=/kube/config
+steps:
+  - name: "gcr.io/cloud-builders/gke-deploy"
+    id: kube-login
+    entrypoint: /bin/bash
+    args:
+      - -c
+      - gcloud container clusters get-credentials $_TEST_CLUSTER_NAME --zone=$_TEST_CLUSTER_ZONE --project=$PROJECT_ID
+  - name: "gcr.io/cloud-builders/gke-deploy"
+    id: kube-login
+    entrypoint: /bin/bash
+    args:
+      - -c
+      - cat $$KUBECONFIG
