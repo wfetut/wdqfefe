@@ -10,7 +10,7 @@ steps:
     entrypoint: /bin/bash
     args:
       - -c
-      - gcloud container clusters get-credentials $_TEST_CLUSTER_NAME --zone=$_TEST_CLUSTER_ZONE --project=$PROJECT_ID
+      - gcloud container clusters get-credentials $_TEST_CLUSTER_NAME --region=$_TEST_CLUSTER_REGION --project=$PROJECT_ID
   - name: "gcr.io/cloud-builders/gke-deploy"
     id: kube-test
     entrypoint: /bin/bash
