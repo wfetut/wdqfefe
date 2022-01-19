@@ -5,15 +5,17 @@ options:
   env: 
     - KUBECONFIG=/kube/config
 steps:
-  - name: "gcr.io/cloud-builders/gke-deploy"
+  - name: gcr.io/cloud-builders/gke-deploy
     id: kube-login
     entrypoint: /bin/bash
     args:
       - -c
       - gcloud container clusters get-credentials $_TEST_CLUSTER_NAME --region=$_TEST_CLUSTER_REGION --project=$PROJECT_ID
-  - name: "gcr.io/cloud-builders/gke-deploy"
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
     id: kube-test
     entrypoint: /bin/bash
+    env:
+      - TEST_KUBE=true
     args:
       - -c
-      - cat $$KUBECONFIG
+      - make integration-kube
