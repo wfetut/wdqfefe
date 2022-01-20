@@ -4,6 +4,7 @@ options:
   volumes:
     - name: kubeconfig
       path: /kube
+  logging: CLOUD_LOGGING_ONLY
   env: 
     - KUBECONFIG=/kube/config
 
