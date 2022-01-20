@@ -1,6 +1,7 @@
 timeout: 25m
 
 options:
+  machineType: E2_HIGHCPU_32
   volumes:
     - name: kubeconfig
       path: /kube
