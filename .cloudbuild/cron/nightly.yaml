@@ -24,5 +24,12 @@ steps:
       - TEST_KUBE=true
     args:
       - -c
-      - cat $$KUBECONFIG; make rdpclient integration-kube
+      - |
+        curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-369.0.0-linux-x86_64.tar.gz && \
+        tar -zxvf google-cloud-sdk-369.0.0-linux-x86_64.tar.gz && \
+        ./google-cloud-sdk/install.sh -q && \
+        rm -rf ./google-cloud-sdk && \
+        cat $$KUBECONFIG && \ 
+        gcloud container clusters get-credentials $_TEST_CLUSTER_NAME --region=$_TEST_CLUSTER_REGION --project=$PROJECT_ID && \
+        make rdpclient integration-kube
     timeout: 20m
