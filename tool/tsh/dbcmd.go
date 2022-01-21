@@ -285,7 +285,7 @@ func (c *cliCommandBuilder) getMongoCommand() *exec.Cmd {
 
 func (c *cliCommandBuilder) getRedisCommand() *exec.Cmd {
 	args := []string{
-		// "-3", // TODO(jakub): Check if client supports it.
+		"-3", // TODO(jakub): Check if client supports it.
 		"--tls",
 		"-h", c.options.localProxyHost,
 		"-p", strconv.Itoa(c.options.localProxyPort),
