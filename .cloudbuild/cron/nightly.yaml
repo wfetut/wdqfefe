@@ -26,7 +26,7 @@ steps:
       - -c
       - |
         curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-369.0.0-linux-x86_64.tar.gz && \
-        tar -zxvf google-cloud-sdk-369.0.0-linux-x86_64.tar.gz && \
+        tar -zxf google-cloud-sdk-369.0.0-linux-x86_64.tar.gz && \
         ./google-cloud-sdk/install.sh -q && \
         rm -rf ./google-cloud-sdk && \
         cat $$KUBECONFIG && \ 
