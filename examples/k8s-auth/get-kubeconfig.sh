@@ -48,59 +48,60 @@ else
     exit 1
 fi
 
-echo "Creating the Kubernetes Service Account with minimal RBAC permissions."
-kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: ${NAMESPACE}
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: ${TELEPORT_SA}
-  namespace: ${NAMESPACE}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: teleport-role
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - users
-  - groups
-  - serviceaccounts
-  verbs:
-  - impersonate
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - get
-- apiGroups:
-  - "authorization.k8s.io"
-  resources:
-  - selfsubjectaccessreviews
-  - selfsubjectrulesreviews
-  verbs:
-  - create
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: teleport-crb
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: teleport-role
-subjects:
-- kind: ServiceAccount
-  name: ${TELEPORT_SA}
-  namespace: ${NAMESPACE}
-EOF
+# echo "Creating the Kubernetes Service Account with minimal RBAC permissions."
+# kubectl apply -f - <<EOF
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: ${NAMESPACE}
+# ---
+# apiVersion: v1
+# kind: ServiceAccount
+# metadata:
+#   name: ${TELEPORT_SA}
+#   namespace: ${NAMESPACE}
+# ---
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRole
+# metadata:
+#   name: teleport-role
+# rules:
+# - apiGroups:
+#   - ""
+#   resources:
+#   - users
+#   - groups
+#   - serviceaccounts
+#   verbs:
+#   - impersonate
+# - apiGroups:
+#   - ""
+#   resources:
+#   - pods
+#   verbs:
+#   - get
+# - apiGroups:
+#   - "authorization.k8s.io"
+#   resources:
+#   - selfsubjectaccessreviews
+#   - selfsubjectrulesreviews
+#   verbs:
+#   - create
+# ---
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: ClusterRoleBinding
+# metadata:
+#   name: teleport-crb
+# roleRef:
+#   apiGroup: rbac.authorization.k8s.io
+#   kind: ClusterRole
+#   name: teleport-role
+# subjects:
+# - kind: ServiceAccount
+#   name: ${TELEPORT_SA}
+#   namespace: ${NAMESPACE}
+# EOF
+
 # Get the service account token and CA cert.
 SA_SECRET_NAME=$(kubectl get -n ${NAMESPACE} sa/${TELEPORT_SA} -o "jsonpath={.secrets[0]..name}")
 # Note: service account token is stored base64-encoded in the secret but must

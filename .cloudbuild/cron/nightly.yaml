@@ -9,27 +9,27 @@ options:
   env: 
     - KUBECONFIG=/kube/config
 
+availableSecrets:
+  secretManager:
+  - versionName: projects/771512790633/secrets/ci-test-cluster-config/versions/1
+    env: CI_KUBE_CONFIG
+
 steps:
-  - name: gcr.io/cloud-builders/gke-deploy
+  - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
     id: kube-login
     entrypoint: /bin/bash
+    secretEnv:
+      - CI_KUBE_CONFIG
     args:
       - -c
-      - gcloud container clusters get-credentials $_TEST_CLUSTER_NAME --region=$_TEST_CLUSTER_REGION --project=$PROJECT_ID
+      - echo $$CI_KUBE_CONFIG > $$KUBECONFIG
 
   - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
     id: kube-test
-    entrypoint: /bin/bash
     env:
       - TEST_KUBE=true
+    entrypoint: /bin/bash
     args:
       - -c
-      - |
-        curl -O https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-369.0.0-linux-x86_64.tar.gz && \
-        tar -zxf google-cloud-sdk-369.0.0-linux-x86_64.tar.gz && \
-        ./google-cloud-sdk/install.sh -q && \
-        rm -rf ./google-cloud-sdk && \
-        cat $$KUBECONFIG && \ 
-        gcloud container clusters get-credentials $_TEST_CLUSTER_NAME --region=$_TEST_CLUSTER_REGION --project=$PROJECT_ID && \
-        make rdpclient integration-kube
+      - make rdpclient integration-kube
     timeout: 20m
