@@ -49,12 +49,17 @@ type Engine struct {
 
 	clientReader *resp3.Reader
 	clientWriter *resp3.Writer
+
+	serverData chan *resp3.Value
+	errors     chan error
 }
 
 func (e *Engine) InitializeConnection(clientConn net.Conn, _ *common.Session) error {
 	e.proxyConn = clientConn
 	e.clientReader = resp3.NewReader(clientConn)
 	e.clientWriter = resp3.NewWriter(clientConn)
+	e.serverData = make(chan *resp3.Value)
+	e.errors = make(chan error)
 
 	return nil
 }
@@ -168,14 +173,24 @@ func (e *Engine) readClientCmd(ctx context.Context) (*resp3.Value, []byte, error
 	return val, data, nil
 }
 
-func (e *Engine) process(ctx context.Context, redisConn net.Conn) error {
-	redisReader := resp3.NewReader(redisConn)
-	redisWriter := resp3.NewWriter(redisConn)
+func (e *Engine) readFromServer(redisReader *resp3.Reader) {
+	for {
+		respVal, _, err := redisReader.ReadValue()
+		if err != nil {
+			e.errors <- err
+			return //trace.Wrap(err)
+		}
 
+		e.serverData <- respVal
+	}
+}
+
+func (e *Engine) readFromClient(ctx context.Context, redisWriter *resp3.Writer) {
 	for {
 		val, _, err := e.readClientCmd(ctx)
 		if err != nil {
-			return trace.Wrap(err)
+			e.errors <- err
+			return //trace.Wrap(err)
 		}
 
 		e.Log.Debugf("redis cmd: %s", val.ToRESP3String())
@@ -183,19 +198,31 @@ func (e *Engine) process(ctx context.Context, redisConn net.Conn) error {
 		// Here the command is sent to the DB.
 		_, err = redisWriter.WriteString(val.ToRESP3String())
 		if err != nil {
-			return trace.Wrap(err)
+			e.errors <- err
+			return //trace.Wrap(err)
 		}
 
 		if err := redisWriter.Flush(); err != nil {
-			return trace.Wrap(err)
+			e.errors <- err
+			return //trace.Wrap(err)
 		}
+	}
+}
 
-		respVal, _, err := redisReader.ReadValue()
-		if err != nil {
-			return trace.Wrap(err)
-		}
+func (e *Engine) process(ctx context.Context, redisConn net.Conn) error {
+	redisReader := resp3.NewReader(redisConn)
+	redisWriter := resp3.NewWriter(redisConn)
 
-		if err := e.sendToClient(respVal.ToRESP3String()); err != nil {
+	go e.readFromClient(ctx, redisWriter)
+	go e.readFromServer(redisReader)
+
+	for {
+		select {
+		case val := <-e.serverData:
+			if err := e.sendToClient(val.ToRESP3String()); err != nil {
+				return trace.Wrap(err)
+			}
+		case err := <-e.errors:
 			return trace.Wrap(err)
 		}
 	}
