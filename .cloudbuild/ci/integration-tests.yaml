@@ -13,7 +13,7 @@ steps:
   # detected in the PR
   - name: us-docker.pkg.dev/ci-account/teleport/buildbox-root:v0.1.0
     id: run-tests
-    dir: /workspace
+    dir: /workspace/.cloudbuild/scripts
     entrypoint: bash
     args: 
       - -c
