@@ -80,6 +80,14 @@ func (e *Engine) processCmd(ctx context.Context, redisClient redis.UniversalClie
 	default:
 		e.Audit.OnQuery(e.Context, e.sessionCtx, common.Query{Query: cmd.String()})
 
+		clusterCmd, err := processClusterCmd(ctx, redisClient, cmd)
+		if err != nil || clusterCmd != nil {
+			if clusterCmd != nil {
+				cmd = clusterCmd
+			}
+			return err
+		}
+
 		// Here the command is sent to the DB.
 		return redisClient.Process(ctx, cmd)
 	}
@@ -351,3 +359,93 @@ func writeInteger(wr *redis.Writer, val int64) error {
 	}
 	return nil
 }
+
+func processClusterCmd(ctx context.Context, redisClient redis.UniversalClient, cmd *redis.Cmd) (*redis.Cmd, error) {
+	client, ok := redisClient.(*redis.ClusterClient)
+	if !ok {
+		return nil, nil
+	}
+
+	switch strings.ToLower(cmd.Name()) {
+	case "dbsize":
+		res := client.DBSize(ctx)
+		cmd.SetVal(res.Val())
+
+		return cmd, res.Err()
+	case "scan":
+		var resultsKeys []string
+
+		if err := client.ForEachMaster(ctx, func(ctx context.Context, client *redis.Client) error {
+			scanCmd := redis.NewScanCmd(ctx, client.Process, cmd.Args()...)
+			err := client.Process(ctx, scanCmd)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			keys, _, err := scanCmd.Result()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			resultsKeys = append(resultsKeys, keys...)
+
+			return nil
+		}); err != nil {
+			return cmd, trace.Wrap(err)
+		}
+
+		cmd.SetVal(resultsKeys)
+
+		return cmd, nil
+	case "keys":
+		var resultsKeys []string
+
+		if err := client.ForEachMaster(ctx, func(ctx context.Context, client *redis.Client) error {
+			scanCmd := redis.NewStringSliceCmd(ctx, cmd.Args()...)
+			err := client.Process(ctx, scanCmd)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			keys, err := scanCmd.Result()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			resultsKeys = append(resultsKeys, keys...)
+
+			return nil
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cmd.SetVal(resultsKeys)
+
+		return cmd, nil
+	case "mget":
+		var resultsKeys []interface{}
+
+		keys := cmd.Args()[1:]
+		for _, k := range keys {
+			result := client.Get(ctx, k.(string))
+			if result.Err() == redis.Nil {
+				resultsKeys = append(resultsKeys, redis.Nil)
+				continue
+			}
+
+			if result.Err() != nil {
+				return nil, trace.Wrap(result.Err())
+			}
+
+			resultsKeys = append(resultsKeys, result.Val())
+		}
+
+		cmd.SetVal(resultsKeys)
+
+		return cmd, nil
+	}
+
+	return nil, nil
+}
+
+// TODO mset doesnt work
