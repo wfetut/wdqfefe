@@ -366,7 +366,9 @@ func processClusterCmd(ctx context.Context, redisClient redis.UniversalClient, c
 		return nil, nil
 	}
 
-	switch strings.ToLower(cmd.Name()) {
+	switch cmdName := strings.ToLower(cmd.Name()); cmdName {
+	case "multi", "exec":
+		return nil, trace.NotImplemented("%s is not supported in the cluster mode", cmdName)
 	case "dbsize":
 		res := client.DBSize(ctx)
 		cmd.SetVal(res.Val())
@@ -441,6 +443,23 @@ func processClusterCmd(ctx context.Context, redisClient redis.UniversalClient, c
 		}
 
 		cmd.SetVal(resultsKeys)
+
+		return cmd, nil
+	case "flushall", "flushdb":
+		if err := client.ForEachMaster(ctx, func(ctx context.Context, client *redis.Client) error {
+			singleCmd := redis.NewCmd(ctx, cmd.Args()...)
+			err := client.Process(ctx, singleCmd)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			// store the last response
+			cmd.SetVal(singleCmd.Val())
+
+			return nil
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		return cmd, nil
 	}
