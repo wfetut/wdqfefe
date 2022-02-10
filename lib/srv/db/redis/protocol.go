@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -367,7 +368,7 @@ func processClusterCmd(ctx context.Context, redisClient redis.UniversalClient, c
 	}
 
 	switch cmdName := strings.ToLower(cmd.Name()); cmdName {
-	case "multi", "exec":
+	case "multi", "exec", "watch":
 		return nil, trace.NotImplemented("%s is not supported in the cluster mode", cmdName)
 	case "dbsize":
 		res := client.DBSize(ctx)
@@ -376,6 +377,7 @@ func processClusterCmd(ctx context.Context, redisClient redis.UniversalClient, c
 		return cmd, res.Err()
 	case "scan":
 		var resultsKeys []string
+		var mtx sync.Mutex
 
 		if err := client.ForEachMaster(ctx, func(ctx context.Context, client *redis.Client) error {
 			scanCmd := redis.NewScanCmd(ctx, client.Process, cmd.Args()...)
@@ -389,11 +391,13 @@ func processClusterCmd(ctx context.Context, redisClient redis.UniversalClient, c
 				return trace.Wrap(err)
 			}
 
+			mtx.Lock()
 			resultsKeys = append(resultsKeys, keys...)
+			mtx.Unlock()
 
 			return nil
 		}); err != nil {
-			return cmd, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		cmd.SetVal(resultsKeys)
@@ -401,6 +405,7 @@ func processClusterCmd(ctx context.Context, redisClient redis.UniversalClient, c
 		return cmd, nil
 	case "keys":
 		var resultsKeys []string
+		var mtx sync.Mutex
 
 		if err := client.ForEachMaster(ctx, func(ctx context.Context, client *redis.Client) error {
 			scanCmd := redis.NewStringSliceCmd(ctx, cmd.Args()...)
@@ -414,7 +419,9 @@ func processClusterCmd(ctx context.Context, redisClient redis.UniversalClient, c
 				return trace.Wrap(err)
 			}
 
+			mtx.Lock()
 			resultsKeys = append(resultsKeys, keys...)
+			mtx.Unlock()
 
 			return nil
 		}); err != nil {
@@ -424,14 +431,22 @@ func processClusterCmd(ctx context.Context, redisClient redis.UniversalClient, c
 		cmd.SetVal(resultsKeys)
 
 		return cmd, nil
+		// TODO(jakub) mset may work, but without consistency guaranty
 	case "mget":
+		if len(cmd.Args()) == 1 {
+			return nil, trace.BadParameter("wrong number of arguments for 'script' command")
+		}
+
 		var resultsKeys []interface{}
+		var mtx sync.Mutex
 
 		keys := cmd.Args()[1:]
 		for _, k := range keys {
 			result := client.Get(ctx, k.(string))
 			if result.Err() == redis.Nil {
+				mtx.Lock()
 				resultsKeys = append(resultsKeys, redis.Nil)
+				mtx.Unlock()
 				continue
 			}
 
@@ -439,7 +454,9 @@ func processClusterCmd(ctx context.Context, redisClient redis.UniversalClient, c
 				return nil, trace.Wrap(result.Err())
 			}
 
+			mtx.Lock()
 			resultsKeys = append(resultsKeys, result.Val())
+			mtx.Unlock()
 		}
 
 		cmd.SetVal(resultsKeys)
@@ -453,7 +470,6 @@ func processClusterCmd(ctx context.Context, redisClient redis.UniversalClient, c
 				return trace.Wrap(err)
 			}
 
-			// store the last response
 			cmd.SetVal(singleCmd.Val())
 
 			return nil
@@ -466,5 +482,3 @@ func processClusterCmd(ctx context.Context, redisClient redis.UniversalClient, c
 
 	return nil, nil
 }
-
-// TODO mset doesnt work
