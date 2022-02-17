@@ -117,7 +117,7 @@ func Open(utmpPath, wtmpPath string, username, hostname string, remote [4]int32,
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
-		return decodeUnknownError(status)
+		return decodeUnknownError(int(status))
 	}
 }
 
@@ -173,7 +173,7 @@ func Close(utmpPath, wtmpPath string, tty *os.File) error {
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
-		return decodeUnknownError(status)
+		return decodeUnknownError(int(status))
 	}
 }
 
@@ -207,7 +207,7 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 	case C.UACC_UTMP_PATH_DOES_NOT_EXIST:
 		return trace.NotFound("user accounting files are missing from the system, running in a container?")
 	default:
-		return decodeUnknownError(status)
+		return decodeUnknownError(int(status))
 	}
 }
 
