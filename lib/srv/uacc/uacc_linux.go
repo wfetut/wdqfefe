@@ -211,7 +211,7 @@ func UserWithPtyInDatabase(utmpPath string, username string) error {
 	}
 }
 
-func decodeUnknownError(int status) error {
+func decodeUnknownError(status int) error {
 	if status != 0 {
 		if C.UACC_PATH_ERR != nil {
 			data := C.GoString(C.UACC_PATH_ERR)
