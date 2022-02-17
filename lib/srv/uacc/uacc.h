@@ -28,21 +28,6 @@ limitations under the License.
 
 #define UACC_UTMP_PATH "/var/run/utmp"
 #define UACC_WTMP_PATH "/var/run/wtmp"
-#define WITH_DB(f, args...) UACC_PATH_ERR = NULL; \
-                             const char* file = get_absolute_path_with_fallback(&resolved_utmp_buffer[0], utmp_path, UACC_UTMP_PATH); \
-                             int status = check_abs_path_err(file); \
-                             if (status != 0) { \
-                                 return status; \ 
-                             } \
-                             if (utmpname(file) < 0) {\
-                             return UACC_UTMP_FAILED_TO_SELECT_FILE;\
-                             } \
-                             status = f(##args); \
-                             if (status != 0) { \
-                                 return status; \
-                             } \
-                             endutent();
-                             
 
 int UACC_UTMP_MISSING_PERMISSIONS = 1;
 int UACC_UTMP_WRITE_ERROR = 2;
@@ -143,6 +128,7 @@ static int uacc_add_utmp_entry(const char *utmp_path, const char *wtmp_path, con
     errno = 0;
     setutent();
     if (errno > 0) {
+        endutent();
         return UACC_UTMP_FAILED_OPEN;
     }
     if (pututline(&entry) == NULL) {
@@ -197,6 +183,7 @@ static int uacc_mark_utmp_entry_dead(const char *utmp_path, const char *wtmp_pat
     errno = 0;
     setutent();
     if (errno != 0) {
+        endutent();
         return UACC_UTMP_FAILED_OPEN;
     }
     if (pututline(&entry) == NULL) {
@@ -230,6 +217,7 @@ static int uacc_has_entry_with_user(const char *utmp_path, const char *user) {
     errno = 0;
     setutent();
     if (errno != 0) {
+        endutent();
         return UACC_UTMP_FAILED_OPEN;
     }
     struct utmp *entry = getutent();
