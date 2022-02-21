@@ -376,7 +376,7 @@ func (w *fanoutWatcher) Done() <-chan struct{} {
 
 func (w *fanoutWatcher) Close() error {
 	w.cancel()
-	w.fanout.removeWatcherWithLock(w)
+	go w.fanout.removeWatcherWithLock(w)
 	return nil
 }
 
