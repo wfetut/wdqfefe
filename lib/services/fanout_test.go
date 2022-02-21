@@ -73,7 +73,7 @@ func TestFanoutInit(t *testing.T) {
 }
 
 /*
-goos: linux
+goos: darwin
 goarch: arm64
 pkg: github.com/gravitational/teleport/lib/services
 cpu: Apple M1
