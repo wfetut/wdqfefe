@@ -386,7 +386,7 @@ type Cache struct {
 	webSessionCache      types.WebSessionInterface
 	webTokenCache        types.WebTokenInterface
 	windowsDesktopsCache services.WindowsDesktops
-	eventsFanout         *services.FanoutSet
+	eventsFanout         *services.Fanout
 
 	// closed indicates that the cache has been closed
 	closed *atomic.Bool
@@ -687,7 +687,7 @@ func New(config Config) (*Cache, error) {
 		webSessionCache:      local.NewIdentityService(wrapper).WebSessions(),
 		webTokenCache:        local.NewIdentityService(wrapper).WebTokens(),
 		windowsDesktopsCache: local.NewWindowsDesktopService(wrapper),
-		eventsFanout:         services.NewFanoutSet(),
+		eventsFanout:         services.NewFanout(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),

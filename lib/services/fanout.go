@@ -19,12 +19,13 @@ package services
 import (
 	"context"
 	"sync"
+	"unsafe"
+
+	"sync/atomic"
 
 	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
-
-	"go.uber.org/atomic"
 )
 
 const defaultQueueSize = 64
@@ -32,14 +33,15 @@ const defaultQueueSize = 64
 type fanoutEntry struct {
 	kind    types.WatchKind
 	watcher *fanoutWatcher
+	closed  bool
 }
 
 // Fanout is a helper which allows a stream of events to be fanned-out to many
-// watchers.  Used by the cache layer to forward events.
+// watchers. Used by the cache layer to forward events.
 type Fanout struct {
-	mu           sync.Mutex
+	mu           sync.RWMutex
 	init, closed bool
-	watchers     map[string][]fanoutEntry
+	watchers     map[string]*watcherList
 	// eventsCh is used in tests
 	eventsCh chan FanoutEvent
 }
@@ -49,7 +51,7 @@ type Fanout struct {
 // events will be sent.
 func NewFanout(eventsCh ...chan FanoutEvent) *Fanout {
 	f := &Fanout{
-		watchers: make(map[string][]fanoutEntry),
+		watchers: make(map[string]*watcherList),
 	}
 	if len(eventsCh) != 0 {
 		f.eventsCh = eventsCh[0]
@@ -70,23 +72,28 @@ type FanoutEvent struct {
 
 // NewWatcher attaches a new watcher to this fanout instance.
 func (f *Fanout) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.mu.RLock()
+
 	if f.closed {
+		f.mu.RUnlock()
 		return nil, trace.Errorf("cannot register watcher, fanout system closed")
 	}
 
 	w, err := newFanoutWatcher(ctx, f, watch)
 	if err != nil {
+		f.mu.RUnlock()
 		return nil, trace.Wrap(err)
 	}
+
 	if f.init {
 		// fanout is already initialized; emit init event immediately.
 		if !w.init() {
 			w.cancel()
+			f.mu.RUnlock()
 			return nil, trace.BadParameter("failed to send init event")
 		}
 	}
+
 	f.addWatcher(w)
 	return w, nil
 }
@@ -99,13 +106,13 @@ func (f *Fanout) SetInit() {
 	if f.init {
 		return
 	}
-	for _, entries := range f.watchers {
+	for _, list := range f.watchers {
 		var remove []*fanoutWatcher
-		for _, entry := range entries {
+		list.iter(func(entry *fanoutEntry) {
 			if !entry.watcher.init() {
 				remove = append(remove, entry.watcher)
 			}
-		}
+		})
 		for _, w := range remove {
 			f.removeWatcher(w)
 			w.cancel()
@@ -125,11 +132,11 @@ func filterEventSecrets(event types.Event) types.Event {
 
 // Len returns a total count of watchers
 func (f *Fanout) Len() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 	var count int
 	for key := range f.watchers {
-		count += len(f.watchers[key])
+		count += f.watchers[key].len()
 	}
 	return count
 }
@@ -147,8 +154,9 @@ func (f *Fanout) trySendEvent(e FanoutEvent) {
 // Emit broadcasts events to all matching watchers that have been attached
 // to this fanout instance.
 func (f *Fanout) Emit(events ...types.Event) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
 	if !f.init {
 		panic("Emit called on uninitialized fanout instance")
 	}
@@ -159,24 +167,29 @@ func (f *Fanout) Emit(events ...types.Event) {
 		var remove []*fanoutWatcher
 		// If the event has no associated resource, emit it to all watchers.
 		if event.Resource == nil {
-			for _, entries := range f.watchers {
-				for _, entry := range entries {
+			for _, list := range f.watchers {
+				list.iter(func(entry *fanoutEntry) {
 					if err := entry.watcher.emit(event); err != nil {
 						entry.watcher.setError(err)
 						remove = append(remove, entry.watcher)
 					}
-				}
+				})
 			}
 		} else {
-			for _, entry := range f.watchers[event.Resource.GetKind()] {
+			list := f.watchers[event.Resource.GetKind()]
+			if list == nil {
+				continue
+			}
+
+			list.iter(func(entry *fanoutEntry) {
 				match, err := entry.kind.Matches(event)
 				if err != nil {
 					entry.watcher.setError(err)
 					remove = append(remove, entry.watcher)
-					continue
+					return
 				}
 				if !match {
-					continue
+					return
 				}
 				emitEvent := event
 				// if this entry loads secrets, emit the
@@ -188,12 +201,18 @@ func (f *Fanout) Emit(events ...types.Event) {
 					entry.watcher.setError(err)
 					remove = append(remove, entry.watcher)
 				}
+			})
+		}
+
+		go func() {
+			f.mu.Lock()
+			defer f.mu.Unlock()
+
+			for _, w := range remove {
+				f.removeWatcher(w)
+				w.cancel()
 			}
-		}
-		for _, w := range remove {
-			f.removeWatcher(w)
-			w.cancel()
-		}
+		}()
 	}
 }
 
@@ -220,8 +239,8 @@ func (f *Fanout) Close() {
 // for asynchronous cancellation and sets up a new empty mapping.
 func (f *Fanout) closeWatchersAsync() {
 	watchersToClose := f.watchers
-	f.watchers = make(map[string][]fanoutEntry)
-	// goroutines run with a "happens after" releationship to the
+	f.watchers = make(map[string]*watcherList)
+	// goroutines run with a "happens after" relationship to the
 	// expressions that create them.  since we move ownership of the
 	// old watcher mapping prior to spawning this goroutine, we are
 	// "safe" to modify it without worrying about locking.  because
@@ -231,22 +250,41 @@ func (f *Fanout) closeWatchersAsync() {
 	// the aformentioned move guarantees that these old watchers aren't
 	// going to observe any of the new state transitions.
 	go func() {
-		for _, entries := range watchersToClose {
-			for _, entry := range entries {
+		for _, list := range watchersToClose {
+			list.iter(func(entry *fanoutEntry) {
 				entry.watcher.cancel()
-			}
+			})
 		}
 	}()
 }
 
 func (f *Fanout) addWatcher(w *fanoutWatcher) {
+	upgraded := false
+	defer func() {
+		if upgraded {
+			f.mu.Unlock()
+		} else {
+			f.mu.RUnlock()
+		}
+	}()
+
 	for _, kind := range w.watch.Kinds {
-		entries := f.watchers[kind.Kind]
-		entries = append(entries, fanoutEntry{
+		list := f.watchers[kind.Kind]
+		if list == nil {
+			if !upgraded {
+				f.mu.RUnlock()
+				f.mu.Lock()
+				upgraded = true
+			}
+
+			list = newWatcherList()
+			f.watchers[kind.Kind] = list
+		}
+
+		list.add(fanoutEntry{
 			kind:    kind,
 			watcher: w,
 		})
-		f.watchers[kind.Kind] = entries
 	}
 }
 
@@ -261,20 +299,16 @@ func (f *Fanout) removeWatcherWithLock(w *fanoutWatcher) {
 
 func (f *Fanout) removeWatcher(w *fanoutWatcher) {
 	for _, kind := range w.watch.Kinds {
-		entries := f.watchers[kind.Kind]
-	Inner:
-		for i, entry := range entries {
-			if entry.watcher == w {
-				entries = append(entries[:i], entries[i+1:]...)
+		list := f.watchers[kind.Kind]
+
+		if list != nil {
+			if list.remove(w) {
 				f.trySendEvent(FanoutEvent{Kind: EventWatcherRemoved})
-				break Inner
 			}
-		}
-		switch len(entries) {
-		case 0:
-			delete(f.watchers, kind.Kind)
-		default:
-			f.watchers[kind.Kind] = entries
+
+			if list.len() == 0 {
+				delete(f.watchers, kind.Kind)
+			}
 		}
 	}
 }
@@ -369,85 +403,120 @@ func (w *fanoutWatcher) Error() error {
 	}
 }
 
-// fanoutSetSize is the number of members in a fanout set.  selected based on some experimentation with
-// the FanoutSetRegistration benchmark.  This value keeps 100K concurrent registrations well under 1s.
-const fanoutSetSize = 128
+const watcherListNodeSize = 16
+const watcherSentinel = watcherListNodeSize + 1
 
-// FanoutSet is a collection of separate Fanout instances. It exposes an identical API, and "load balances"
-// watcher registration across the enclosed instances. In very large clusters it is possible for tens of
-// thousands of nodes to simultaneously request watchers. This can cause serious contention issues. FanoutSet is
-// a simple but effective solution to that problem.
-type FanoutSet struct {
-	// rw mutex is used to ensure that Close and Reset operations are exclusive,
-	// since these operations close watchers. Enforcing this property isn't strictly
-	// necessary, but it prevents a scenario where watchers might observe a reset/close,
-	// attempt re-registration, and observe the *same* reset/close again. This isn't
-	// necessarily a problem, but it might confuse attempts to debug other event-system
-	// issues, so we choose to avoid it.
-	rw      sync.RWMutex
-	counter *atomic.Uint64
-	members []*Fanout
+type watcherList struct {
+	head   unsafe.Pointer
+	length int32
 }
 
-// NewFanoutSet creates a new FanoutSet instance in an uninitialized
-// state.  Until initialized, watchers will be queued but no
-// events will be sent.
-func NewFanoutSet() *FanoutSet {
-	members := make([]*Fanout, 0, fanoutSetSize)
-	for i := 0; i < fanoutSetSize; i++ {
-		members = append(members, NewFanout())
-	}
-	return &FanoutSet{
-		counter: atomic.NewUint64(0),
-		members: members,
+func newWatcherList() *watcherList {
+	return &watcherList{
+		head: unsafe.Pointer(newWatcherListNode()),
 	}
 }
 
-// NewWatcher attaches a new watcher to a fanout instance.
-func (s *FanoutSet) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
-	s.rw.RLock() // see field-level docks for locking model
-	defer s.rw.RUnlock()
-	fi := int(s.counter.Inc() % uint64(len(s.members)))
-	return s.members[fi].NewWatcher(ctx, watch)
-}
+func (l *watcherList) iter(f func(*fanoutEntry)) {
+	n := (*watcherListNode)(atomic.LoadPointer(&l.head))
 
-// SetInit sets the Fanout instances into an initialized state, sending OpInit
-// events to any watchers which were added prior to initialization.
-func (s *FanoutSet) SetInit() {
-	s.rw.RLock() // see field-level docks for locking model
-	defer s.rw.RUnlock()
-	for _, f := range s.members {
-		f.SetInit()
+	for {
+		if n == nil {
+			return
+		}
+
+		top := atomic.LoadInt32(&n.init)
+		for i := int32(0); i < top; i++ {
+			entry := &n.entries[i]
+			if !entry.closed {
+				f(entry)
+			}
+		}
+
+		n = n.next
 	}
 }
 
-// Emit broadcasts events to all matching watchers that have been attached
-// to this fanout set.
-func (s *FanoutSet) Emit(events ...types.Event) {
-	s.rw.RLock() // see field-level docks for locking model
-	defer s.rw.RUnlock()
-	for _, f := range s.members {
-		f.Emit(events...)
+func (l *watcherList) len() int {
+	return int(atomic.LoadInt32(&l.length))
+}
+
+func (l *watcherList) add(w fanoutEntry) {
+	for {
+		nodePtr := atomic.LoadPointer(&l.head)
+		node := (*watcherListNode)(nodePtr)
+
+		if !node.add(w) {
+			head := newWatcherListNode()
+			head.next = node
+			head.setFirst(w)
+
+			if atomic.CompareAndSwapPointer(&l.head, unsafe.Pointer(node), unsafe.Pointer(head)) {
+				break
+			}
+
+			continue
+		}
+
+		break
+	}
+
+	atomic.AddInt32(&l.length, 1)
+}
+
+func (l *watcherList) remove(w *fanoutWatcher) bool {
+	found := false
+	l.iter(func(entry *fanoutEntry) {
+		if entry.watcher == w {
+			found = true
+			entry.closed = true
+		}
+	})
+
+	atomic.AddInt32(&l.length, -1)
+	return found
+}
+
+type watcherListNode struct {
+	entries []fanoutEntry
+	slot    int32
+	init    int32
+	next    *watcherListNode
+}
+
+func newWatcherListNode() *watcherListNode {
+	return &watcherListNode{
+		entries: make([]fanoutEntry, watcherListNodeSize),
 	}
 }
 
-// Reset closes all attached watchers and places the fanout instances
-// into an uninitialized state.  Reset may be called on an uninitialized
-// fanout set to remove "queued" watchers.
-func (s *FanoutSet) Reset() {
-	s.rw.Lock() // see field-level docks for locking model
-	defer s.rw.Unlock()
-	for _, f := range s.members {
-		f.Reset()
-	}
+func (n *watcherListNode) setFirst(w fanoutEntry) {
+	n.entries[0] = w
+	n.slot = 1
+	n.init = 1
 }
 
-// Close permanently closes the fanout.  Existing watchers will be
-// closed and no new watchers will be added.
-func (s *FanoutSet) Close() {
-	s.rw.Lock() // see field-level docks for locking model
-	defer s.rw.Unlock()
-	for _, f := range s.members {
-		f.Close()
+func (n *watcherListNode) add(w fanoutEntry) bool {
+	slot := n.getSlot()
+	if slot == watcherSentinel {
+		return false
+	}
+
+	n.entries[slot] = w
+	atomic.AddInt32(&n.init, 1)
+	return true
+}
+
+func (n *watcherListNode) getSlot() int32 {
+	for {
+		currentSlot := atomic.LoadInt32(&n.slot)
+		if currentSlot == watcherListNodeSize {
+			return watcherSentinel
+		}
+
+		newSlot := currentSlot + 1
+		if atomic.CompareAndSwapInt32(&n.slot, currentSlot, newSlot) {
+			return currentSlot
+		}
 	}
 }
