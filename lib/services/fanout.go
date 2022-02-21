@@ -407,8 +407,7 @@ const watcherListNodeSize = 16
 const watcherSentinel = watcherListNodeSize + 1
 
 type watcherList struct {
-	head   unsafe.Pointer
-	length int32
+	head unsafe.Pointer
 }
 
 func newWatcherList() *watcherList {
@@ -438,10 +437,13 @@ func (l *watcherList) iter(f func(*fanoutEntry)) {
 }
 
 func (l *watcherList) len() int {
-	return int(atomic.LoadInt32(&l.length))
+	count := 0
+	l.iter(func(entry *fanoutEntry) { count++ })
+	return count
 }
 
 func (l *watcherList) add(w fanoutEntry) {
+Outer:
 	for {
 		nodePtr := atomic.LoadPointer(&l.head)
 		node := (*watcherListNode)(nodePtr)
@@ -455,13 +457,11 @@ func (l *watcherList) add(w fanoutEntry) {
 				break
 			}
 
-			continue
+			continue Outer
 		}
 
 		break
 	}
-
-	atomic.AddInt32(&l.length, 1)
 }
 
 func (l *watcherList) remove(w *fanoutWatcher) bool {
@@ -473,7 +473,6 @@ func (l *watcherList) remove(w *fanoutWatcher) bool {
 		}
 	})
 
-	atomic.AddInt32(&l.length, -1)
 	return found
 }
 
@@ -508,15 +507,10 @@ func (n *watcherListNode) add(w fanoutEntry) bool {
 }
 
 func (n *watcherListNode) getSlot() int32 {
-	for {
-		currentSlot := atomic.LoadInt32(&n.slot)
-		if currentSlot == watcherListNodeSize {
-			return watcherSentinel
-		}
-
-		newSlot := currentSlot + 1
-		if atomic.CompareAndSwapInt32(&n.slot, currentSlot, newSlot) {
-			return currentSlot
-		}
+	slot := atomic.AddInt32(&n.slot, 1)
+	if slot > watcherListNodeSize {
+		return watcherSentinel
 	}
+
+	return slot - 1
 }

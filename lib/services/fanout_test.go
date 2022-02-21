@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -73,16 +74,15 @@ func TestFanoutInit(t *testing.T) {
 }
 
 /*
+cmd: go test -bench=. -benchtime=10s ./lib/services
 goos: linux
-goarch: amd64
+goarch: arm64
 pkg: github.com/gravitational/teleport/lib/services
-cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
-BenchmarkFanoutRegistration-16       	       1	118856478045 ns/op
+cpu: Apple M1
+BenchmarkFanoutRegistration-8       	       186	64479158 ns/op
 */
-// NOTE: this benchmark exists primarily to "contrast" with the set registration
-// benchmark below, and demonstrate why the set-based strategy is necessary.
 func BenchmarkFanoutRegistration(b *testing.B) {
-	const iterations = 100_000
+	iterations := 100_000 / runtime.NumCPU()
 	ctx := context.Background()
 
 	for n := 0; n < b.N; n++ {
@@ -91,16 +91,18 @@ func BenchmarkFanoutRegistration(b *testing.B) {
 
 		var wg sync.WaitGroup
 
-		for i := 0; i < iterations; i++ {
+		for i := 0; i < runtime.NumCPU(); i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				w, err := f.NewWatcher(ctx, types.Watch{
-					Name:  "test",
-					Kinds: []types.WatchKind{{Name: "spam"}, {Name: "eggs"}},
-				})
-				require.NoError(b, err)
-				w.Close()
+
+				for i := 0; i < iterations; i++ {
+					_, err := f.NewWatcher(ctx, types.Watch{
+						Name:  "test",
+						Kinds: []types.WatchKind{{Name: "spam"}, {Name: "eggs"}},
+					})
+					require.NoError(b, err)
+				}
 			}()
 		}
 
