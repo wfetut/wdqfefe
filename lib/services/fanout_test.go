@@ -18,7 +18,6 @@ package services
 
 import (
 	"context"
-	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -82,7 +81,7 @@ cpu: Apple M1
 BenchmarkFanoutRegistration-8       	       186	64479158 ns/op
 */
 func BenchmarkFanoutRegistration(b *testing.B) {
-	iterations := 100_000 / runtime.NumCPU()
+	const iterations = 100_000
 	ctx := context.Background()
 
 	for n := 0; n < b.N; n++ {
@@ -91,18 +90,16 @@ func BenchmarkFanoutRegistration(b *testing.B) {
 
 		var wg sync.WaitGroup
 
-		for i := 0; i < runtime.NumCPU(); i++ {
+		for i := 0; i < iterations; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-
-				for i := 0; i < iterations; i++ {
-					_, err := f.NewWatcher(ctx, types.Watch{
-						Name:  "test",
-						Kinds: []types.WatchKind{{Name: "spam"}, {Name: "eggs"}},
-					})
-					require.NoError(b, err)
-				}
+				w, err := f.NewWatcher(ctx, types.Watch{
+					Name:  "test",
+					Kinds: []types.WatchKind{{Name: "spam"}, {Name: "eggs"}},
+				})
+				require.NoError(b, err)
+				w.Close()
 			}()
 		}
 

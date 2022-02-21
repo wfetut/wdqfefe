@@ -376,10 +376,7 @@ func (w *fanoutWatcher) Done() <-chan struct{} {
 
 func (w *fanoutWatcher) Close() error {
 	w.cancel()
-	// goroutine is to prevent accidental
-	// deadlock, if watcher.Close is called
-	// under Fanout mutex
-	go w.fanout.removeWatcherWithLock(w)
+	w.fanout.removeWatcherWithLock(w)
 	return nil
 }
 
