@@ -73,12 +73,11 @@ func TestFanoutInit(t *testing.T) {
 }
 
 /*
-cmd: go test -bench=. -benchtime=10s ./lib/services
 goos: linux
 goarch: arm64
 pkg: github.com/gravitational/teleport/lib/services
 cpu: Apple M1
-BenchmarkFanoutRegistration-8       	       186	64479158 ns/op
+BenchmarkFanoutRegistration-8    	       4	 287811792 ns/op
 */
 func BenchmarkFanoutRegistration(b *testing.B) {
 	const iterations = 100_000
