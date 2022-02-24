@@ -51,7 +51,11 @@ func MakeTestClient(ctx context.Context, config common.TestClientConfig, opts ..
 				// interval and server selection timeout so access errors are
 				// returned to the client quicker.
 				SetHeartbeatInterval(500 * time.Millisecond).
-				SetServerSelectionTimeout(5 * time.Second),
+				SetServerSelectionTimeout(5 * time.Second).
+				SetMaxPoolSize(2).
+				SetDirect(true).
+				SetMaxConnecting(1).
+				SetMaxConnIdleTime(10 * time.Second),
 		}, opts...)...)
 	if err != nil {
 		return nil, trace.Wrap(err)

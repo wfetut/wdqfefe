@@ -117,13 +117,21 @@ func TestAuditMongo(t *testing.T) {
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{"admin"}, []string{"admin"})
 
 	// Access denied should trigger an unsuccessful session start event.
-	_, err := testCtx.mongoClient(ctx, "alice", "mongo", "notadmin")
+	mongoClient, err := testCtx.mongoClient(ctx, "alice", "mongo", "notadmin")
 	require.Error(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, mongoClient.Disconnect(ctx))
+	})
+
 	waitForEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
 
 	// Connect should trigger successful session start event.
 	mongo, err := testCtx.mongoClient(ctx, "alice", "mongo", "admin")
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, mongoClient.Disconnect(ctx))
+	})
+
 	waitForEvent(t, testCtx, libevents.DatabaseSessionStartCode)
 
 	// Find command in a database we don't have access to.
