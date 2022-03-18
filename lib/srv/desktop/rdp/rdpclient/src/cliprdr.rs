@@ -40,6 +40,22 @@ impl PendingData {
     }
 }
 
+/// FileListManager manages the global state necessary to handle
+/// transferring files via the clipboard channel.
+struct FileListManager {
+    // is_expecting_file_list is set to true when we receive a Format List PDU (CB_FORMAT_LIST,
+    // handled by handle_format_list) with format name == CLIPBOARD_FORMAT_NAME_FILE_LIST (meaning
+    // a file or list of files was cut/copied on the remote Windows machine), and set to false when
+    // we receive another supported type of Format List PDU (meaning text was cut/copied on the
+    // remote Windows machine).
+    //
+    // In either case, we immediately send a Format Data Request PDU (CB_FORMAT_DATA_REQUEST), which
+    // is responded to with a Format Data Response PDU (CB_FORMAT_DATA_RESPONSE),
+    // which is handled by handle_format_data_response, which uses the value of is_expecting_file_list
+    // to decide whether to try to parse a file list, or just send the client the copied text.
+    is_expecting_file_list: bool,
+}
+
 /// Client implements a client for the clipboard virtual channel
 /// (CLIPRDR) extension, as defined in:
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/fb9b7e0b-6db4-41c2-b83c-f889c1ee7688
@@ -47,6 +63,7 @@ pub struct Client {
     clipboard: HashMap<u32, Vec<u8>>,
     pending: PendingData,
     on_remote_copy: Box<dyn Fn(Vec<u8>)>,
+    file_list_manager: FileListManager,
 }
 
 impl Default for Client {
@@ -65,6 +82,9 @@ impl Client {
                 clipboard_header: None,
             },
             on_remote_copy,
+            file_list_manager: FileListManager {
+                is_expecting_file_list: false,
+            },
         }
     }
 
@@ -74,6 +94,7 @@ impl Client {
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
         let mut payload = try_let!(tpkt::Payload::Raw, payload)?;
+        debug!("received payload: {:?}", payload); // TODO(isaiah): remove this
         let pdu_header = vchan::ChannelPDUHeader::decode(&mut payload)?;
 
         // TODO(zmb3): this logic is the same for all virtual channels, and should
@@ -177,12 +198,12 @@ impl Client {
         }
 
         self.clipboard
-            .insert(ClipboardFormat::CF_OEMTEXT as u32, converted);
+            .insert(ClipboardFormatId::CF_OEMTEXT as u32, converted);
 
         encode_message(
             ClipboardPDUType::CB_FORMAT_LIST,
             FormatListPDU {
-                format_names: vec![LongFormatName::id(ClipboardFormat::CF_OEMTEXT as u32)],
+                format_names: vec![LongFormatName::id(ClipboardFormatId::CF_OEMTEXT as u32)],
             }
             .encode()?,
         )
@@ -218,7 +239,8 @@ impl Client {
             ClipboardCapabilitiesPDU {
                 general: Some(GeneralClipboardCapabilitySet {
                     version: CB_CAPS_VERSION_2,
-                    flags: ClipboardGeneralCapabilityFlags::CB_USE_LONG_FORMAT_NAMES,
+                    flags: ClipboardGeneralCapabilityFlags::CB_USE_LONG_FORMAT_NAMES
+                        | ClipboardGeneralCapabilityFlags::CB_STREAM_FILECLIP_ENABLED,
                 }),
             }
             .encode()?,
@@ -236,7 +258,11 @@ impl Client {
 
     /// Handles the format list PDU, which is a notification from the server
     /// that some data was copied and can be requested at a later date.
-    fn handle_format_list(&self, payload: &mut Payload, length: u32) -> RdpResult<Vec<Vec<u8>>> {
+    fn handle_format_list(
+        &mut self,
+        payload: &mut Payload,
+        length: u32,
+    ) -> RdpResult<Vec<Vec<u8>>> {
         let list = FormatListPDU::<LongFormatName>::decode(payload, length)?;
         debug!(
             "{:?} data was copied on the RDP server",
@@ -256,19 +282,43 @@ impl Client {
 
         let mut result = encode_message(ClipboardPDUType::CB_FORMAT_LIST_RESPONSE, vec![])?;
 
+        let mut request_data = |format_id: u32| -> RdpResult<()> {
+            result.extend(encode_message(
+                ClipboardPDUType::CB_FORMAT_DATA_REQUEST,
+                FormatDataRequestPDU::for_id(format_id).encode()?,
+            )?);
+
+            Ok(())
+        };
+
         for name in list.format_names {
+            // TODO(isaiah): this match mess can probably be cleaned up somehow.
+            // Check for supported, standard clipboard formats.
             match FromPrimitive::from_u32(name.format_id) {
                 // TODO(zmb3): support CF_TEXT, CF_UNICODETEXT, ...
-                Some(ClipboardFormat::CF_OEMTEXT) => {
+                Some(ClipboardFormatId::CF_OEMTEXT) => {
+                    self.file_list_manager.is_expecting_file_list = false;
                     // request the data by imitating a paste event
-                    result.extend(encode_message(
-                        ClipboardPDUType::CB_FORMAT_DATA_REQUEST,
-                        FormatDataRequestPDU::for_id(name.format_id).encode()?,
-                    )?);
+                    request_data(name.format_id)?;
                 }
-                _ => {
-                    info!("{:?} data was copied on the remote desktop, but this format is unsupported", name.format_id);
-                }
+                _ => match name.format_name {
+                    // No supported, standard clipboard format was found,
+                    // check for the File List format name.
+                    Some(format_name) => match format_name.as_str() {
+                        CLIPBOARD_FORMAT_NAME_FILE_LIST => {
+                            self.file_list_manager.is_expecting_file_list = true;
+                            // Request the File List by sending a Format Data Request
+                            // with the system-dependent format id that was sent to us
+                            request_data(name.format_id)?;
+                        }
+                        _ => {
+                            info!("detected unsupported format name: {:?}", format_name);
+                        }
+                    },
+                    None => {
+                        info!("detected unsupported format id: {:?}", name.format_id);
+                    }
+                },
             }
         }
 
@@ -287,6 +337,12 @@ impl Client {
 
     /// Handles a request from the RDP server for clipboard data.
     /// This message is received when a user executes a paste in the remote desktop.
+    ///
+    /// The RDP server on the remote desktop is smart enough to know to only send this
+    /// message on a paste if the most recent clipboard action on the remote desktop was
+    /// caused by the receipt of a CB_FORMAT_LIST PDU sent by us. IOW, it will only be sent
+    /// if the latest cut/copy was done on the client side (and is therefore held by us in
+    /// client.clipboard)
     fn handle_format_data_request(&self, payload: &mut Payload) -> RdpResult<Vec<Vec<u8>>> {
         let req = FormatDataRequestPDU::decode(payload)?;
         let data = match self.clipboard.get(&req.format_id) {
@@ -312,24 +368,32 @@ impl Client {
     /// Receives clipboard data from the remote desktop. This is the server responding
     /// to our format data request.
     fn handle_format_data_response(
-        &mut self,
+        &self,
         payload: &mut Payload,
         length: u32,
     ) -> RdpResult<Vec<Vec<u8>>> {
-        let mut resp = FormatDataResponsePDU::decode(payload, length)?;
+        let resp = FormatDataResponsePDU::decode(payload, length)?;
         let data_len = resp.data.len();
         debug!(
-            "recieved {} bytes of copied data from Windows Desktop",
-            data_len,
+            "recieved {} bytes of copied data from Windows Desktop: {:?}", // TODO(isaiah): remove the full data print out
+            data_len, resp.data
         );
+
+        let mut text_for_client_clipboard = if self.file_list_manager.is_expecting_file_list {
+            // TODO(isaiah): write a function that parses file list and returns the [first] file name,
+            // and updates Client.
+            "is_expecting_file_list".as_bytes().to_vec()
+        } else {
+            resp.data
+        };
 
         // trim the null-terminator, if it exists
         // (but don't worry about CRLF conversion, most non-Windows systems can handle CRLF well enough)
-        if let Some(0x00) = resp.data.last() {
-            resp.data.truncate(resp.data.len() - 1);
+        if let Some(0x00) = text_for_client_clipboard.last() {
+            text_for_client_clipboard.truncate(data_len - 1);
         }
 
-        (self.on_remote_copy)(resp.data);
+        (self.on_remote_copy)(text_for_client_clipboard);
 
         Ok(vec![])
     }
@@ -674,7 +738,7 @@ impl FormatName for LongFormatName {
 #[allow(dead_code, non_camel_case_types)]
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, FromPrimitive, ToPrimitive)]
-enum ClipboardFormat {
+enum ClipboardFormatId {
     CF_TEXT = 1,         // CRLF line endings, null-terminated
     CF_BITMAP = 2,       // HBITMAP handle
     CF_METAFILEPICT = 3, // 1.3.1.1.3
@@ -698,6 +762,13 @@ enum ClipboardFormat {
     CF_GDIOBJFIRST = 0x0300, // range for application-defined GDI object formats
     CF_GDIOBJLAST = 0x03FF, // https://docs.microsoft.com/en-us/windows/win32/dataxchg/clipboard-formats#private-clipboard-formats
 }
+
+/// There's no specified unique numeric ID for the File List clipboard format,
+/// however within the context of the Remote Desktop Protocol: Clipboard Virtual Channel Extension,
+/// the File List format type uses the following hard-coded Clipboard Format name.
+///
+/// See section 1.3.1.2.
+const CLIPBOARD_FORMAT_NAME_FILE_LIST: &str = "FileGroupDescriptorW";
 
 /// Sent as a reply to the format list PDU - used to indicate whether
 /// the format list PDU was processed succesfully.
@@ -831,7 +902,7 @@ mod tests {
         let msg = encode_message(
             ClipboardPDUType::CB_FORMAT_LIST,
             FormatListPDU {
-                format_names: vec![ShortFormatName::id(ClipboardFormat::CF_TEXT as u32)],
+                format_names: vec![ShortFormatName::id(ClipboardFormatId::CF_TEXT as u32)],
             }
             .encode()
             .unwrap(),
@@ -926,7 +997,7 @@ mod tests {
         assert_eq!(decoded.format_names.len(), 1);
         assert_eq!(
             decoded.format_names[0].format_id,
-            ClipboardFormat::CF_TEXT as u32
+            ClipboardFormatId::CF_TEXT as u32
         );
         assert_eq!(decoded.format_names[0].format_name, None);
 
@@ -941,7 +1012,7 @@ mod tests {
         assert_eq!(decoded.format_names.len(), 1);
         assert_eq!(
             decoded.format_names[0].format_id,
-            ClipboardFormat::CF_TEXT as u32
+            ClipboardFormatId::CF_TEXT as u32
         );
         assert_eq!(
             decoded.format_names[0].format_name,
@@ -963,7 +1034,7 @@ mod tests {
         assert_eq!(decoded.format_names.len(), 2);
         assert_eq!(
             decoded.format_names[0].format_id,
-            ClipboardFormat::CF_TEXT as u32
+            ClipboardFormatId::CF_TEXT as u32
         );
         assert_eq!(
             decoded.format_names[0].format_name,
@@ -971,7 +1042,7 @@ mod tests {
         );
         assert_eq!(
             decoded.format_names[1].format_id,
-            ClipboardFormat::CF_TEXT as u32
+            ClipboardFormatId::CF_TEXT as u32
         );
         assert_eq!(
             decoded.format_names[1].format_name,
@@ -1051,9 +1122,9 @@ mod tests {
 
         let mut c: Client = Default::default();
         c.clipboard
-            .insert(ClipboardFormat::CF_OEMTEXT as u32, test_data.clone());
+            .insert(ClipboardFormatId::CF_OEMTEXT as u32, test_data.clone());
 
-        let req = FormatDataRequestPDU::for_id(ClipboardFormat::CF_OEMTEXT as u32);
+        let req = FormatDataRequestPDU::for_id(ClipboardFormatId::CF_OEMTEXT as u32);
         let responses = c
             .handle_format_data_request(&mut Cursor::new(req.encode().unwrap()))
             .unwrap();
@@ -1074,7 +1145,7 @@ mod tests {
     fn invokes_callback_with_clipboard_data() {
         let (send, recv) = channel();
 
-        let mut c = Client::new(Box::new(move |vec| {
+        let c = Client::new(Box::new(move |vec| {
             send.send(vec).unwrap();
         }));
 
@@ -1111,7 +1182,7 @@ mod tests {
         assert_eq!(ClipboardPDUType::CB_FORMAT_LIST, header.msg_type);
         assert_eq!(1, format_list.format_names.len());
         assert_eq!(
-            ClipboardFormat::CF_OEMTEXT as u32,
+            ClipboardFormatId::CF_OEMTEXT as u32,
             format_list.format_names[0].format_id
         );
 
@@ -1120,7 +1191,7 @@ mod tests {
         assert_eq!(
             String::from("abc\0").into_bytes(),
             *c.clipboard
-                .get(&(ClipboardFormat::CF_OEMTEXT as u32))
+                .get(&(ClipboardFormatId::CF_OEMTEXT as u32))
                 .unwrap()
         );
     }
@@ -1139,7 +1210,7 @@ mod tests {
             assert_eq!(
                 String::from(*expected).into_bytes(),
                 *c.clipboard
-                    .get(&(ClipboardFormat::CF_OEMTEXT as u32))
+                    .get(&(ClipboardFormatId::CF_OEMTEXT as u32))
                     .unwrap(),
                 "testing {}",
                 input
