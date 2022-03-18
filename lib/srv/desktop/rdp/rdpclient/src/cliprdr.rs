@@ -22,7 +22,7 @@ use rdp::core::{mcs, tpkt};
 use rdp::model::error::*;
 use rdp::try_let;
 use std::collections::HashMap;
-use std::io::{Cursor, Read, Write};
+use std::io::{Cursor, Read, Seek, SeekFrom, Write};
 
 pub const CHANNEL_NAME: &str = "cliprdr";
 
@@ -40,8 +40,66 @@ impl PendingData {
     }
 }
 
+bitflags! {
+    /// see 2.2.5.2.3.1 File Descriptor (CLIPRDR_FILEDESCRIPTOR)
+    struct FileDescriptorFlags: u32 {
+        /// The fileAttributes field contains valid data.
+        const FD_ATTRIBUTES = 0x00000004;
+
+        /// The fileSizeHigh and fileSizeLow fields contain valid data.
+        const FD_FILESIZE = 0x00000040;
+
+        /// The lastWriteTime field contains valid data.
+        const FD_WRITESTIME = 0x00000020;
+
+        /// A progress indicator SHOULD be shown when copying the file.
+        const FD_SHOWPROGRESSUI = 0x00004000;
+    }
+}
+
+bitflags! {
+    /// see 2.2.5.2.3.1 File Descriptor (CLIPRDR_FILEDESCRIPTOR)
+    struct FileAttributesFlags: u32 {
+        /// A file that is read-only. Applications can read the file, but cannot write to
+        /// it or delete it.
+        const FILE_ATTRIBUTE_READONLY = 0x00000001;
+        /// The file or directory is hidden. It is not included in an ordinary directory
+        /// listing.
+        const FILE_ATTRIBUTE_HIDDEN = 0x00000002;
+        /// A file or directory that the operating system uses a part of, or uses
+        /// exclusively.
+        const FILE_ATTRIBUTE_SYSTEM = 0x00000004;
+        /// Identifies a directory.
+        const FILE_ATTRIBUTE_DIRECTORY = 0x00000010;
+        /// A file or directory that is an archive file or directory. Applications typically
+        /// use this attribute to mark files for backup or removal.
+        const FILE_ATTRIBUTE_ARCHIVE = 0x00000020;
+        /// A file that does not have other attributes set. This attribute is valid only
+        /// when used alone.
+        const FILE_ATTRIBUTE_NORMAL = 0x00000080;
+    }
+}
+
+/// see 2.2.5.2.3.1 File Descriptor (CLIPRDR_FILEDESCRIPTOR)
+#[derive(Debug)]
+struct FileDescriptor {
+    ///  An unsigned 32-bit integer that specifies which fields contain valid data and the
+    /// usage of progress UI during a copy operation.
+    flags: FileDescriptorFlags,
+    /// An unsigned 32-bit integer that specifies file attribute flags.
+    file_attributes: FileAttributesFlags,
+    /// An unsigned 64-bit integer that specifies the number of 100-nanoseconds
+    /// intervals that have elapsed since 1 January 1601 to the time of the last write operation on the file.
+    last_write_time: u64,
+    /// the file size in bytes
+    file_size: u64,
+    /// the name of the file
+    file_name: String,
+}
+
 /// FileListManager manages the global state necessary to handle
 /// transferring files via the clipboard channel.
+#[derive(Debug)]
 struct FileListManager {
     // is_expecting_file_list is set to true when we receive a Format List PDU (CB_FORMAT_LIST,
     // handled by handle_format_list) with format name == CLIPBOARD_FORMAT_NAME_FILE_LIST (meaning
@@ -54,6 +112,7 @@ struct FileListManager {
     // which is handled by handle_format_data_response, which uses the value of is_expecting_file_list
     // to decide whether to try to parse a file list, or just send the client the copied text.
     is_expecting_file_list: bool,
+    file_list: Vec<FileDescriptor>,
 }
 
 /// Client implements a client for the clipboard virtual channel
@@ -84,6 +143,7 @@ impl Client {
             on_remote_copy,
             file_list_manager: FileListManager {
                 is_expecting_file_list: false,
+                file_list: Vec::new(),
             },
         }
     }
@@ -368,7 +428,7 @@ impl Client {
     /// Receives clipboard data from the remote desktop. This is the server responding
     /// to our format data request.
     fn handle_format_data_response(
-        &self,
+        &mut self,
         payload: &mut Payload,
         length: u32,
     ) -> RdpResult<Vec<Vec<u8>>> {
@@ -382,7 +442,7 @@ impl Client {
         let mut text_for_client_clipboard = if self.file_list_manager.is_expecting_file_list {
             // TODO(isaiah): write a function that parses file list and returns the [first] file name,
             // and updates Client.
-            "is_expecting_file_list".as_bytes().to_vec()
+            self.handle_file_list(resp)?
         } else {
             resp.data
         };
@@ -394,6 +454,58 @@ impl Client {
         }
 
         (self.on_remote_copy)(text_for_client_clipboard);
+
+        Ok(vec![])
+    }
+
+    /// see 2.2.5.2.3.1 File Descriptor (CLIPRDR_FILEDESCRIPTOR)
+    fn handle_file_list(&mut self, data: FormatDataResponsePDU) -> RdpResult<Vec<u8>> {
+        let mut data = Cursor::new(data.data);
+        let file_list_len = data.read_u32::<LittleEndian>()?;
+
+        for _ in 0..file_list_len {
+            let orig_pos = data.position();
+
+            // We use from_bits_truncate here rather than from_bits, because emperically the server
+            // can send back values here with bits not prescribed by the FileDescriptorFlags spec.
+            let flags = FileDescriptorFlags::from_bits_truncate(data.read_u32::<LittleEndian>()?);
+
+            data.seek(SeekFrom::Current(32))?; // reserved1 (32 bytes)
+
+            // Using from_bits_truncate here as well out of an abundance of caution.
+            let file_attributes =
+                FileAttributesFlags::from_bits_truncate(data.read_u32::<LittleEndian>()?);
+
+            data.seek(SeekFrom::Current(16))?; // reserved2 (16 bytes)
+
+            let last_write_time = data.read_u64::<LittleEndian>()?;
+
+            // An unsigned 32-bit integer that contains the most significant 4 bytes of the file size.
+            let file_size_high = data.read_u32::<LittleEndian>()?;
+            // An unsigned 32-bit integer that contains the least significant 4 bytes of the file size.
+            let file_size_low = data.read_u32::<LittleEndian>()?;
+            // (Why would RDP do this to us? Just make it a little endian u64 instead!)
+            let file_size = (u64::from(file_size_high) << 32) + u64::from(file_size_low);
+
+            // A null-terminated 260 character Unicode string that contains the name of the file.
+            // read_unicode_to_string will return upon finding the null terminator, so won't
+            // necessarily eat all 260 bytes.
+            let file_name = read_unicode_to_string(&mut data);
+            debug!("file_name: {:?}", file_name);
+
+            self.file_list_manager.file_list.push(FileDescriptor {
+                flags,
+                file_attributes,
+                last_write_time,
+                file_size,
+                file_name,
+            });
+
+            // Ensure we eat the entire file descriptor
+            data.set_position(orig_pos + 592);
+        }
+
+        debug!("file list updated: {:?}", self.file_list_manager.file_list);
 
         Ok(vec![])
     }
@@ -701,29 +813,35 @@ impl FormatName for LongFormatName {
 
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let format_id = payload.read_u32::<LittleEndian>()?;
-        let mut consumed = 0;
-        let name: String = std::char::decode_utf16(
-            payload
-                .get_ref()
-                .chunks_exact(2)
-                .skip(payload.position() as usize / 2) // skip over format_id
-                .take_while(|c| {
-                    consumed += 2;
-                    !matches!(c, [0x00, 0x00])
-                })
-                .map(|c| u16::from_le_bytes([c[0], c[1]])),
-        )
-        .map(|c| c.unwrap_or(std::char::REPLACEMENT_CHARACTER))
-        .collect();
 
-        // advance cursor in case there are more names to decode
-        payload.set_position(payload.position() + consumed);
+        let name = read_unicode_to_string(payload);
 
         Ok(Self {
             format_id,
             format_name: if name.is_empty() { None } else { Some(name) },
         })
     }
+}
+
+// read_unicode_to_string causes data to consume and return a null terminated unicode string.
+fn read_unicode_to_string(data: &mut Payload) -> String {
+    let mut consumed = 0;
+    let string = std::char::decode_utf16(
+        data.get_ref()
+            .chunks_exact(2)
+            .skip(data.position() as usize / 2) // skip over previously consumed bytes
+            .take_while(|c| {
+                consumed += 2;
+                !matches!(c, [0x00, 0x00])
+            })
+            .map(|c| u16::from_le_bytes([c[0], c[1]])),
+    )
+    .map(|c| c.unwrap_or(std::char::REPLACEMENT_CHARACTER))
+    .collect();
+
+    data.set_position(data.position() + consumed);
+
+    string
 }
 
 /// All data copied to a system clipboard has to conform to a format
@@ -1145,7 +1263,7 @@ mod tests {
     fn invokes_callback_with_clipboard_data() {
         let (send, recv) = channel();
 
-        let c = Client::new(Box::new(move |vec| {
+        let mut c = Client::new(Box::new(move |vec| {
             send.send(vec).unwrap();
         }));
 
