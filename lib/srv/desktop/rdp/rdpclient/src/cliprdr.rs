@@ -40,63 +40,6 @@ impl PendingData {
     }
 }
 
-bitflags! {
-    /// see 2.2.5.2.3.1 File Descriptor (CLIPRDR_FILEDESCRIPTOR)
-    struct FileDescriptorFlags: u32 {
-        /// The fileAttributes field contains valid data.
-        const FD_ATTRIBUTES = 0x00000004;
-
-        /// The fileSizeHigh and fileSizeLow fields contain valid data.
-        const FD_FILESIZE = 0x00000040;
-
-        /// The lastWriteTime field contains valid data.
-        const FD_WRITESTIME = 0x00000020;
-
-        /// A progress indicator SHOULD be shown when copying the file.
-        const FD_SHOWPROGRESSUI = 0x00004000;
-    }
-}
-
-bitflags! {
-    /// see 2.2.5.2.3.1 File Descriptor (CLIPRDR_FILEDESCRIPTOR)
-    struct FileAttributesFlags: u32 {
-        /// A file that is read-only. Applications can read the file, but cannot write to
-        /// it or delete it.
-        const FILE_ATTRIBUTE_READONLY = 0x00000001;
-        /// The file or directory is hidden. It is not included in an ordinary directory
-        /// listing.
-        const FILE_ATTRIBUTE_HIDDEN = 0x00000002;
-        /// A file or directory that the operating system uses a part of, or uses
-        /// exclusively.
-        const FILE_ATTRIBUTE_SYSTEM = 0x00000004;
-        /// Identifies a directory.
-        const FILE_ATTRIBUTE_DIRECTORY = 0x00000010;
-        /// A file or directory that is an archive file or directory. Applications typically
-        /// use this attribute to mark files for backup or removal.
-        const FILE_ATTRIBUTE_ARCHIVE = 0x00000020;
-        /// A file that does not have other attributes set. This attribute is valid only
-        /// when used alone.
-        const FILE_ATTRIBUTE_NORMAL = 0x00000080;
-    }
-}
-
-/// see 2.2.5.2.3.1 File Descriptor (CLIPRDR_FILEDESCRIPTOR)
-#[derive(Debug)]
-struct FileDescriptor {
-    ///  An unsigned 32-bit integer that specifies which fields contain valid data and the
-    /// usage of progress UI during a copy operation.
-    flags: FileDescriptorFlags,
-    /// An unsigned 32-bit integer that specifies file attribute flags.
-    file_attributes: FileAttributesFlags,
-    /// An unsigned 64-bit integer that specifies the number of 100-nanoseconds
-    /// intervals that have elapsed since 1 January 1601 to the time of the last write operation on the file.
-    last_write_time: u64,
-    /// the file size in bytes
-    file_size: u64,
-    /// the name of the file
-    file_name: String,
-}
-
 /// FileListManager manages the global state necessary to handle
 /// transferring files via the clipboard channel.
 #[derive(Debug)]
@@ -110,9 +53,11 @@ struct FileListManager {
     // In either case, we immediately send a Format Data Request PDU (CB_FORMAT_DATA_REQUEST), which
     // is responded to with a Format Data Response PDU (CB_FORMAT_DATA_RESPONSE),
     // which is handled by handle_format_data_response, which uses the value of is_expecting_file_list
-    // to decide whether to try to parse a file list, or just send the client the copied text.
+    // to decide whether to try to parse a Packed File List, or just a generic string of text.
     is_expecting_file_list: bool,
-    file_list: Vec<FileDescriptor>,
+    // file_list is the list of files on the remote Windows machine's clipboard,
+    // available for download by the client.
+    file_list: Option<PackedFileList>,
 }
 
 /// Client implements a client for the clipboard virtual channel
@@ -143,7 +88,7 @@ impl Client {
             on_remote_copy,
             file_list_manager: FileListManager {
                 is_expecting_file_list: false,
-                file_list: Vec::new(),
+                file_list: Some(Vec::new()),
             },
         }
     }
@@ -154,7 +99,6 @@ impl Client {
         mcs: &mut mcs::Client<S>,
     ) -> RdpResult<()> {
         let mut payload = try_let!(tpkt::Payload::Raw, payload)?;
-        debug!("received payload: {:?}", payload); // TODO(isaiah): remove this
         let pdu_header = vchan::ChannelPDUHeader::decode(&mut payload)?;
 
         // TODO(zmb3): this logic is the same for all virtual channels, and should
@@ -335,54 +279,56 @@ impl Client {
         // if we want to support a variety of formats, we should clear
         // and re-initialize some local state (Clipboard Format ID Map)
         //
-        // we're only supporting standard (text) formats right now, so
-        // we don't need to maintain a local/remote mapping
-        //
         // see section 3.1.1.1 for details
 
-        let mut result = encode_message(ClipboardPDUType::CB_FORMAT_LIST_RESPONSE, vec![])?;
-
-        let mut request_data = |format_id: u32| -> RdpResult<()> {
+        let request_data = |format_id: u32| -> RdpResult<Vec<Vec<u8>>> {
+            let mut result = encode_message(ClipboardPDUType::CB_FORMAT_LIST_RESPONSE, vec![])?;
             result.extend(encode_message(
                 ClipboardPDUType::CB_FORMAT_DATA_REQUEST,
                 FormatDataRequestPDU::for_id(format_id).encode()?,
             )?);
 
-            Ok(())
+            Ok(result)
         };
 
+        // Walk through the format names until we find one we support,
+        // then return a request for that format.
         for name in list.format_names {
-            // TODO(isaiah): this match mess can probably be cleaned up somehow.
             // Check for supported, standard clipboard formats.
             match FromPrimitive::from_u32(name.format_id) {
                 // TODO(zmb3): support CF_TEXT, CF_UNICODETEXT, ...
                 Some(ClipboardFormatId::CF_OEMTEXT) => {
+                    info!("detected a generic text copy");
+                    // Set the client's flag to let it know to handle the next
+                    // Format Data Response PDU as a Generic response.
                     self.file_list_manager.is_expecting_file_list = false;
-                    // request the data by imitating a paste event
-                    request_data(name.format_id)?;
+                    // Request the Generic data by imitating a paste event.
+                    return request_data(name.format_id);
                 }
-                _ => match name.format_name {
-                    // No supported, standard clipboard format was found,
-                    // check for the File List format name.
-                    Some(format_name) => match format_name.as_str() {
-                        CLIPBOARD_FORMAT_NAME_FILE_LIST => {
+                _ => {
+                    if let Some(format_name) = name.format_name {
+                        if format_name.as_str() == CLIPBOARD_FORMAT_NAME_FILE_LIST {
+                            info!("detected a file list copy");
+                            // Set the client flag to let it know to handle the next
+                            // Format Data Response PDU as a Packed File List response.
                             self.file_list_manager.is_expecting_file_list = true;
-                            // Request the File List by sending a Format Data Request
-                            // with the system-dependent format id that was sent to us
-                            request_data(name.format_id)?;
+                            // Request the Packed File List by sending a Format Data Request
+                            // with the system-dependent format id that was sent to us.
+                            return request_data(name.format_id);
+                        } else {
+                            debug!("detected unsupported format with format_id: {:?} and format_name: {:?}", name.format_id, format_name);
                         }
-                        _ => {
-                            info!("detected unsupported format name: {:?}", format_name);
-                        }
-                    },
-                    None => {
-                        info!("detected unsupported format id: {:?}", name.format_id);
+                    } else {
+                        debug!(
+                            "detected unsupported format with format_id: {:?} and no format_name",
+                            name.format_id
+                        );
                     }
-                },
+                }
             }
         }
 
-        Ok(result)
+        Ok(vec![])
     }
 
     /// Handle the format list response, which is the server acknowledging that
@@ -421,7 +367,10 @@ impl Client {
 
         encode_message(
             ClipboardPDUType::CB_FORMAT_DATA_RESPONSE,
-            FormatDataResponsePDU { data }.encode()?,
+            FormatDataResponsePDU {
+                data: FormatDataResponseData::Generic(data),
+            }
+            .encode()?,
         )
     }
 
@@ -432,80 +381,52 @@ impl Client {
         payload: &mut Payload,
         length: u32,
     ) -> RdpResult<Vec<Vec<u8>>> {
-        let resp = FormatDataResponsePDU::decode(payload, length)?;
-        let data_len = resp.data.len();
-        debug!(
-            "recieved {} bytes of copied data from Windows Desktop: {:?}", // TODO(isaiah): remove the full data print out
-            data_len, resp.data
-        );
+        let format_data_response_pdu = FormatDataResponsePDU::decode(
+            payload,
+            length,
+            self.file_list_manager.is_expecting_file_list,
+        )?;
 
-        let mut text_for_client_clipboard = if self.file_list_manager.is_expecting_file_list {
-            // TODO(isaiah): write a function that parses file list and returns the [first] file name,
-            // and updates Client.
-            self.handle_file_list(resp)?
-        } else {
-            resp.data
-        };
+        let mut text_for_client_clipboard;
+        match format_data_response_pdu.data {
+            FormatDataResponseData::Generic(data) => {
+                // If we received a cut/copy of ordinary text data,
+                // we send that back to the client's clipboard.
+                text_for_client_clipboard = data;
+                self.file_list_manager.file_list = None; // TODO(isaiah): does this automatically clean up the previous file_list? Or is this a leak?
+            }
+            FormatDataResponseData::PackedFileList(file_list) => {
+                // If we received a cut/copy of files, set our global file list
+                // to the list we received, and create a string representation of the
+                // file's names to be sent back to the client's clipboard as text.
+                let mut text_as_string: String = "[".into();
+                for (i, file_desc) in file_list.iter().enumerate() {
+                    let name = &file_desc.file_name;
+                    text_as_string.push_str(name.as_str());
+                    if i < file_list.len() - 1 {
+                        text_as_string.push_str(", ");
+                    }
+                }
+                text_as_string.push_str("]");
+
+                text_for_client_clipboard = text_as_string.as_bytes().to_vec();
+                self.file_list_manager.file_list = Some(file_list); // TODO(isaiah): does this automatically clean up the previous file_list? Or is this a leak?
+                debug!("file list updated: {:?}", self.file_list_manager.file_list);
+            }
+        }
 
         // trim the null-terminator, if it exists
         // (but don't worry about CRLF conversion, most non-Windows systems can handle CRLF well enough)
         if let Some(0x00) = text_for_client_clipboard.last() {
-            text_for_client_clipboard.truncate(data_len - 1);
+            text_for_client_clipboard.truncate(text_for_client_clipboard.len() - 1);
         }
 
+        // TODO(isaiah): this function will also take a serialized representation
+        // of the self.file_list_manager.file_list, which will be communicated back
+        // to the client (in a TDP message). The client can then use that information by making
+        // the copied files available for download (or making it clear that no files are available
+        // if self.file_list_manager.file_list == None).
         (self.on_remote_copy)(text_for_client_clipboard);
-
-        Ok(vec![])
-    }
-
-    /// see 2.2.5.2.3.1 File Descriptor (CLIPRDR_FILEDESCRIPTOR)
-    fn handle_file_list(&mut self, data: FormatDataResponsePDU) -> RdpResult<Vec<u8>> {
-        let mut data = Cursor::new(data.data);
-        let file_list_len = data.read_u32::<LittleEndian>()?;
-
-        for _ in 0..file_list_len {
-            let orig_pos = data.position();
-
-            // We use from_bits_truncate here rather than from_bits, because emperically the server
-            // can send back values here with bits not prescribed by the FileDescriptorFlags spec.
-            let flags = FileDescriptorFlags::from_bits_truncate(data.read_u32::<LittleEndian>()?);
-
-            data.seek(SeekFrom::Current(32))?; // reserved1 (32 bytes)
-
-            // Using from_bits_truncate here as well out of an abundance of caution.
-            let file_attributes =
-                FileAttributesFlags::from_bits_truncate(data.read_u32::<LittleEndian>()?);
-
-            data.seek(SeekFrom::Current(16))?; // reserved2 (16 bytes)
-
-            let last_write_time = data.read_u64::<LittleEndian>()?;
-
-            // An unsigned 32-bit integer that contains the most significant 4 bytes of the file size.
-            let file_size_high = data.read_u32::<LittleEndian>()?;
-            // An unsigned 32-bit integer that contains the least significant 4 bytes of the file size.
-            let file_size_low = data.read_u32::<LittleEndian>()?;
-            // (Why would RDP do this to us? Just make it a little endian u64 instead!)
-            let file_size = (u64::from(file_size_high) << 32) + u64::from(file_size_low);
-
-            // A null-terminated 260 character Unicode string that contains the name of the file.
-            // read_unicode_to_string will return upon finding the null terminator, so won't
-            // necessarily eat all 260 bytes.
-            let file_name = read_unicode_to_string(&mut data);
-            debug!("file_name: {:?}", file_name);
-
-            self.file_list_manager.file_list.push(FileDescriptor {
-                flags,
-                file_attributes,
-                last_write_time,
-                file_size,
-                file_name,
-            });
-
-            // Ensure we eat the entire file descriptor
-            data.set_position(orig_pos + 592);
-        }
-
-        debug!("file list updated: {:?}", self.file_list_manager.file_list);
 
         Ok(vec![])
     }
@@ -923,24 +844,162 @@ impl FormatDataRequestPDU {
     }
 }
 
+bitflags! {
+    /// see 2.2.5.2.3.1 File Descriptor (CLIPRDR_FILEDESCRIPTOR)
+    struct FileDescriptorFlags: u32 {
+        /// The fileAttributes field contains valid data.
+        const FD_ATTRIBUTES = 0x00000004;
+
+        /// The fileSizeHigh and fileSizeLow fields contain valid data.
+        const FD_FILESIZE = 0x00000040;
+
+        /// The lastWriteTime field contains valid data.
+        const FD_WRITESTIME = 0x00000020;
+
+        /// A progress indicator SHOULD be shown when copying the file.
+        const FD_SHOWPROGRESSUI = 0x00004000;
+    }
+}
+
+bitflags! {
+    /// see 2.2.5.2.3.1 File Descriptor (CLIPRDR_FILEDESCRIPTOR)
+    struct FileAttributesFlags: u32 {
+        /// A file that is read-only. Applications can read the file, but cannot write to
+        /// it or delete it.
+        const FILE_ATTRIBUTE_READONLY = 0x00000001;
+        /// The file or directory is hidden. It is not included in an ordinary directory
+        /// listing.
+        const FILE_ATTRIBUTE_HIDDEN = 0x00000002;
+        /// A file or directory that the operating system uses a part of, or uses
+        /// exclusively.
+        const FILE_ATTRIBUTE_SYSTEM = 0x00000004;
+        /// Identifies a directory.
+        const FILE_ATTRIBUTE_DIRECTORY = 0x00000010;
+        /// A file or directory that is an archive file or directory. Applications typically
+        /// use this attribute to mark files for backup or removal.
+        const FILE_ATTRIBUTE_ARCHIVE = 0x00000020;
+        /// A file that does not have other attributes set. This attribute is valid only
+        /// when used alone.
+        const FILE_ATTRIBUTE_NORMAL = 0x00000080;
+    }
+}
+
+/// see 2.2.5.2.3.1 File Descriptor (CLIPRDR_FILEDESCRIPTOR)
+#[derive(Debug, PartialEq)]
+struct FileDescriptor {
+    ///  An unsigned 32-bit integer that specifies which fields contain valid data and the
+    /// usage of progress UI during a copy operation.
+    flags: FileDescriptorFlags,
+    /// An unsigned 32-bit integer that specifies file attribute flags.
+    file_attributes: FileAttributesFlags,
+    /// An unsigned 64-bit integer that specifies the number of 100-nanoseconds
+    /// intervals that have elapsed since 1 January 1601 to the time of the last write operation on the file.
+    last_write_time: u64,
+    /// the file size in bytes
+    file_size: u64,
+    /// the name of the file
+    file_name: String,
+}
+
+/// 2.2.5.2.3 Packed File List (CLIPRDR_FILELIST)
+type PackedFileList = Vec<FileDescriptor>;
+
+#[derive(Debug, PartialEq)]
+enum FormatDataResponseData {
+    Generic(Vec<u8>),
+    PackedFileList(PackedFileList),
+}
+
 /// Sent as a reply to the format data request PDU, and is used for both:
 /// 1. Indicating that the processing of the request was succesful, and
 /// 2. Sending the contents of the requested clipboard data
+/// see 2.2.5.2 Format Data Response PDU (CLIPRDR_FORMAT_DATA_RESPONSE)
 #[derive(Debug)]
 struct FormatDataResponsePDU {
-    data: Vec<u8>,
+    data: FormatDataResponseData,
 }
 
 impl FormatDataResponsePDU {
     fn encode(&self) -> RdpResult<Vec<u8>> {
-        Ok(self.data.clone())
+        if let FormatDataResponseData::Generic(data) = &self.data {
+            Ok(data.clone())
+        } else {
+            Err(invalid_data_error(
+                "attempted to encode unexpected data in FormatDataResponsePDU",
+            ))
+        }
     }
 
-    fn decode(payload: &mut Payload, length: u32) -> RdpResult<Self> {
+    fn decode(payload: &mut Payload, length: u32, as_file_list: bool) -> RdpResult<Self> {
+        if !as_file_list {
+            Self::decode_generic(payload, length)
+        } else {
+            Self::decode_file_list(payload)
+        }
+    }
+
+    fn decode_generic(payload: &mut Payload, length: u32) -> RdpResult<Self> {
         let mut data = vec![0; length as usize];
         payload.read_exact(data.as_mut_slice())?;
 
-        Ok(Self { data })
+        Ok(Self {
+            data: FormatDataResponseData::Generic(data),
+        })
+    }
+
+    /// 2.2.5.2.3 Packed File List (CLIPRDR_FILELIST) and
+    /// 2.2.5.2.3.1 File Descriptor (CLIPRDR_FILEDESCRIPTOR)
+    fn decode_file_list(payload: &mut Payload) -> RdpResult<Self> {
+        let file_list_len = payload.read_u32::<LittleEndian>()?;
+        // TODO(isaiah): is there a rusty way to instantiate this with the correct
+        // amount of memory to hold file_list_len FileDescriptor's?
+        let mut file_list: PackedFileList = Vec::new();
+
+        for _ in 0..file_list_len {
+            let orig_pos = payload.position();
+
+            // We use from_bits_truncate here rather than from_bits, because emperically the server
+            // can send back values here with bits not prescribed by the FileDescriptorFlags spec.
+            let flags =
+                FileDescriptorFlags::from_bits_truncate(payload.read_u32::<LittleEndian>()?);
+
+            payload.seek(SeekFrom::Current(32))?; // reserved1 (32 bytes)
+
+            // Using from_bits_truncate here as well out of an abundance of caution.
+            let file_attributes =
+                FileAttributesFlags::from_bits_truncate(payload.read_u32::<LittleEndian>()?);
+
+            payload.seek(SeekFrom::Current(16))?; // reserved2 (16 bytes)
+
+            let last_write_time = payload.read_u64::<LittleEndian>()?;
+
+            // An unsigned 32-bit integer that contains the most significant 4 bytes of the file size.
+            let file_size_high = payload.read_u32::<LittleEndian>()?;
+            // An unsigned 32-bit integer that contains the least significant 4 bytes of the file size.
+            let file_size_low = payload.read_u32::<LittleEndian>()?;
+            // (Why would RDP do this to us? Just make it a little endian u64 instead!)
+            let file_size = (u64::from(file_size_high) << 32) + u64::from(file_size_low);
+
+            // A null-terminated 260 character Unicode string that contains the name of the file.
+            // read_unicode_to_string will return upon finding the null terminator, so won't
+            // necessarily eat all 260 bytes.
+            let file_name = read_unicode_to_string(payload);
+
+            file_list.push(FileDescriptor {
+                flags,
+                file_attributes,
+                last_write_time,
+                file_size,
+                file_name,
+            });
+
+            // Ensure we eat the entire file descriptor
+            payload.set_position(orig_pos + 592);
+        }
+
+        Ok(Self {
+            data: FormatDataResponseData::PackedFileList(file_list),
+        })
     }
 }
 
@@ -1187,6 +1246,7 @@ mod tests {
         assert_eq!(
             general.flags,
             ClipboardGeneralCapabilityFlags::CB_USE_LONG_FORMAT_NAMES
+                | ClipboardGeneralCapabilityFlags::CB_STREAM_FILECLIP_ENABLED
         );
 
         // Second response - the format list PDU:
@@ -1211,7 +1271,9 @@ mod tests {
         for (i, item) in data.iter_mut().enumerate() {
             *item = (i % 256) as u8;
         }
-        let pdu = FormatDataResponsePDU { data };
+        let pdu = FormatDataResponsePDU {
+            data: FormatDataResponseData::Generic(data),
+        };
         let encoded = pdu.encode().unwrap();
         let messages = encode_message(ClipboardPDUType::CB_FORMAT_DATA_RESPONSE, encoded).unwrap();
         assert_eq!(2, messages.len());
@@ -1255,8 +1317,8 @@ mod tests {
         assert_eq!(header.msg_type, ClipboardPDUType::CB_FORMAT_DATA_RESPONSE);
         assert_eq!(header.msg_flags, ClipboardHeaderFlags::CB_RESPONSE_OK);
         assert_eq!(header.data_len, 10);
-        let resp = FormatDataResponsePDU::decode(&mut payload, header.data_len).unwrap();
-        assert_eq!(resp.data, test_data);
+        let resp = FormatDataResponsePDU::decode(&mut payload, header.data_len, false).unwrap();
+        assert_eq!(resp.data, FormatDataResponseData::Generic(test_data));
     }
 
     #[test]
@@ -1268,7 +1330,7 @@ mod tests {
         }));
 
         let data_resp = FormatDataResponsePDU {
-            data: String::from("abc\0").into_bytes(),
+            data: FormatDataResponseData::Generic(String::from("abc\0").into_bytes()),
         }
         .encode()
         .unwrap();
@@ -1334,5 +1396,31 @@ mod tests {
                 input
             );
         }
+    }
+
+    #[test]
+    fn format_list_toggles_is_expecting_file_list() {
+        let mut c: Client = Default::default();
+        assert_eq!(c.file_list_manager.is_expecting_file_list, false);
+
+        // Format List with "FileGroupDescriptorW" sets is_expecting_file_list true.
+        let mut payload: Payload = Cursor::new(vec![
+            166, 192, 0, 0, // some format id
+            // "FileGroupDescriptorW"
+            70, 0, 105, 0, 108, 0, 101, 0, 71, 0, 114, 0, 111, 0, 117, 0, 112, 0, 68, 0, 101, 0,
+            115, 0, 99, 0, 114, 0, 105, 0, 112, 0, 116, 0, 111, 0, 114, 0, 87, 0, 0, 0,
+        ]);
+
+        c.handle_format_list(&mut payload, 42).unwrap();
+        assert_eq!(c.file_list_manager.is_expecting_file_list, true);
+
+        // Format List with CF_OEMTEXT.
+        let mut payload: Payload = Cursor::new(vec![
+            0x07, 0x00, 0x00, 0x00, // CF_OEMTEXT
+            0x74, 0x00, 0x65, 0x00, 0x73, 0x00, 0x74, 0x00, // "test"
+            0x00, 0x00, // null terminator
+        ]);
+        c.handle_format_list(&mut payload, 14).unwrap();
+        assert_eq!(c.file_list_manager.is_expecting_file_list, false);
     }
 }
