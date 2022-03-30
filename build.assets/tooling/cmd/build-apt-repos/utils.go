@@ -5,30 +5,28 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 )
 
-func GetSubdirectories(basePath string) <-chan string {
-	out := make(chan string)
-	go func() {
-		defer close(out)
+func GetSubdirectories(basePath ...string) ([]string, error) {
 
-		files, err := ioutil.ReadDir(basePath)
-		if err != nil {
-			handleFatalError(err, "Failed to read directory \"%s\"", basePath)
+	files, err := ioutil.ReadDir(filepath.Join(basePath...))
+	if err != nil {
+		return nil, err
+	}
+
+	subdirs := []string{}
+
+	for _, f := range files {
+		if !f.IsDir() {
+			continue
 		}
+		subdirs = append(subdirs, f.Name())
+	}
 
-		for _, file := range files {
-			if !file.IsDir() {
-				continue
-			}
-
-			out <- file.Name()
-		}
-	}()
-
-	return out
+	return subdirs, nil
 }
 
 func EnsureDirectoryExists(path string) {
