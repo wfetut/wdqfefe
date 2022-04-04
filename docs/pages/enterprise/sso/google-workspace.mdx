@@ -87,16 +87,42 @@ The setup will consist of:
 - Creating a service account for Teleport to fetch the additional Google Groups
   data.
 
-### Choose your Google Workspace API
+### Determine if you need to query transitive groups
 
 {/* TODO: 
 
-Change this to a section that 
+Very quickly explain the different APIs available here and how they require 
+different paid Google Workspace plans.
 
-(a) lays out the rules re: transitive groups first
-(b) indicates up front how to configure Google Workspace or your connector
-  to use one API instead of another.
+If you have access to one level of service, you can use x API and query
+transitive groups. If not, what do you need to do in Teleport and Google
+Workspace?
+
+/*}
+
+### Determine your service account scope
+
+{/* TODO: 
+
+Explain that you can determine the scope based on your service account.
+
 */}
+
+
+
+{/* TODO: 
+
+  Explain that v3 connectors grab the JSON credentials from the service account
+  URL and attempt to get groups from Google Cloud Identity. If that doesn't work,
+  they use the Admin Directory Group Read Only scope (sp?).
+
+/*}
+
+{/* TODO:
+  Explain that V2 connectors always use the `AdminDirectoryGroupReadonlyScope`.
+/*}
+
+{/* TODO: move the paragraphs below into the structure above */}
 
 The Google Workspace integration in Teleport supports mapping roles to the
 groups that a user belongs to both directly and indirectly (by virtue of
@@ -111,22 +137,25 @@ fetching just the groups with direct membership is also supported. The preferred
 behavior is selected depending on the OAuth scopes granted to the service
 account associated with the connector.
 
-<Admonition type="note">
-  Because of an inherent limitation in Google APIs, fetching transitive groups
-  requires view permissions on all transitive groups that users belong to; as
-  that is not possible for users that belong to groups external to the
-  workspace, those users will not be able to log in to Teleport.
+Because of an inherent limitation in Google APIs, fetching transitive groups
+requires view permissions on all transitive groups that users belong to; as
+that is not possible for users that belong to groups external to the
+workspace, those users will not be able to log in to Teleport.
 
-  We recommend blocking access to external groups at the workspace level
-  (following [these instructions](https://support.google.com/a/answer/9468710))
-  when using the transitive group feature.
+We recommend blocking access to external groups at the workspace level
+(following [these instructions](https://support.google.com/a/answer/9468710))
+when using the transitive group feature.
 
-  The [Groups Inspection](https://admin.google.com/ac/groupsinspection) page in
-  the Google Admin Console has the same limitations as Teleport in this regard,
-  and can be used as a first step to diagnose login issues pertaining to the
-  transitive groups feature.
-</Admonition>
+The [Groups Inspection](https://admin.google.com/ac/groupsinspection) page in
+the Google Admin Console has the same limitations as Teleport in this regard,
+and can be used as a first step to diagnose login issues pertaining to the
+transitive groups feature.
 
+{/* TODO: 
+
+move the content of this Details box to a more appropriate place
+
+*/}
 <Details title="Version Warning: Before 8.1.2" opened={false}>
 Teleport versions prior to 8.1.2 only support fetching groups with direct
 membership with the
@@ -141,32 +170,58 @@ field of the [connector resource](#create-an-oidc-connector) is changed from `v2
 to `v3`.
 </Details>
 
-- [Create a new project](https://console.cloud.google.com/projectselector2/apis/dashboard).
+### Create a new project
+
+In the GCP console, choose to [Create a new project](https://console.cloud.google.com/projectselector2/apis/dashboard).
+
   ![creation of a Google Cloud Platform project](../../../img/googleoidc/new-project.png)
 
-- [Configure the OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent):
+### Configure OAuth consent
 
-  Select "Internal" as your User Type.
-    ![configuration of the OAuth consent screen](../../../img/googleoidc/consent-screen-1.png)
+On the
+[OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
+page of the GCP console, select"Internal" as your User Type.
+
+![configuration of the OAuth consent screen](../../../img/googleoidc/consent-screen-1.png)
 
   Configure the appearence of your connector by picking a visible name, user support email, etc.
-  
-  Select the `.../auth/userinfo.email` and `openid` scopes.
+
+### Select scopes
+
+Select the `.../auth/userinfo.email` and `openid` scopes.
     ![select email and openid scopes](../../../img/googleoidc/consent-screen-2.png)
 
-- Enable the [Cloud Identity API](https://console.cloud.google.com/apis/library/cloudidentity.googleapis.com) or the [Admin SDK API](https://console.cloud.google.com/apis/library/admin.googleapis.com) for transitive and direct group membership, respectively. Enabling both is fine.
+Enable the
+[Cloud Identity API](https://console.cloud.google.com/apis/library/cloudidentity.googleapis.com)
+or the
+[Admin SDK API](https://console.cloud.google.com/apis/library/admin.googleapis.com)
+for transitive and direct group membership, respectively. Enabling both is fine.
 
-- [Create an OAuth client ID](https://console.cloud.google.com/apis/credentials/oauthclient):
+<Notice type="warning">
 
-  Select "Web application" as the Application type, pick a name, then add `https://<address of proxy server>:3080/v1/webapi/oidc/callback` as an authorized redirect URI.
+Your Google Workspace account must enable support for the API you choose to use.
+
+Please consult the documentation for your chosen API to ensure that you have the
+correct Google Workspace plan.
+
+</Notice>
+
+### Create an OAuth client ID
+
+In the [Create an OAuth client ID](https://console.cloud.google.com/apis/credentials/oauthclient) page of the GCP console, select "Web application" as the Application type, pick a name, then add the following as an authorized redirect URI.
+
+```txt
+https://<address of proxy server>:3080/v1/webapi/oidc/callback
+```
+
     ![OAuth client ID creation](../../../img/googleoidc/clientid-creation.png)
 
   Copy the Client ID and Client Secret from the next screen or by clicking "Download OAuth client".
     ![OAuth client data](../../../img/googleoidc/clientid-data.png)
 
-- [Create a service account](https://console.cloud.google.com/iam-admin/serviceaccounts/create):
+### Create a service account
 
-  Pick a name for your service account. Leave project access grants and user access grants empty.
+On the [Create a service account](https://console.cloud.google.com/iam-admin/serviceaccounts/create) page, pick a name for your service account. Leave project access grants and user access grants empty.
     ![service account creation](../../../img/googleoidc/serviceacct-creation.png)
   
   Click the newly-created account to view its details, and copy the Unique ID for later.
@@ -180,7 +235,9 @@ to `v3`.
   Teleport requires the service account JSON to be available to all Teleport Auth Server hosts when deploying Teleport in a High Availability configuration. Unless you paste the JSON into the OIDC Connector configuration, you will need to upload the JSON file to all Auth Server hosts.
 </Admonition>
 
-- Configure [domain-wide
+### Configure domain-wide delegation
+
+Configure [domain-wide
   delegation](https://admin.google.com/ac/owl/domainwidedelegation) for your
   newly-created service account:
 
