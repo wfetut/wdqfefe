@@ -36,6 +36,7 @@ use rdp::core::tpkt;
 use rdp::core::x224;
 use rdp::model::error::{Error as RdpError, RdpError as RdpProtocolError, RdpErrorKind, RdpResult};
 use rdp::model::link::{Link, Stream};
+use rdp::nla::ntlm::Ntlm;
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use std::io::Error as IoError;
@@ -190,10 +191,25 @@ fn connect_rdp_inner(
     // Domain name "." means current domain.
     let domain = ".";
 
+    // Generate a random 8-digit PIN for our smartcard.
+    let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
+    let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
+
     // From rdp-rs/src/core/client.rs
     let tcp = Link::new(Stream::Raw(tcp));
-    let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolRDP as u32;
-    let x224 = x224::Client::connect(tpkt::Client::new(tcp), protocols, false, None, false, false)?;
+    let protocols = x224::Protocols::ProtocolSSL as u32 | x224::Protocols::ProtocolHybrid as u32;
+    let x224 = x224::Client::connect(
+        tpkt::Client::new(tcp),
+        protocols,
+        false, // TODO(zmb3)
+        Some(&mut Ntlm::new(
+            domain.to_string(),
+            params.username.clone(),
+            pin.clone(),
+        )),
+        false,
+        false,
+    )?;
     let mut mcs = mcs::Client::new(x224);
 
     // request the static channels we'll need:
@@ -211,9 +227,7 @@ fn connect_rdp_inner(
         KeyboardLayout::US,
         &static_channels,
     )?;
-    // Generate a random 8-digit PIN for our smartcard.
-    let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
-    let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
+
     sec::connect(
         &mut mcs,
         &domain.to_string(),
