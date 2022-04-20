@@ -4,20 +4,23 @@ description: How to join sshd servers to a Teleport cluster.
 videoBanner: x0eYFUEIOrM
 ---
 
-Teleport is fully compatible with OpenSSH and can be quickly set up to record and
-audit all SSH activity. 
+In this guide, we will show you how to configure the OpenSSH server `sshd` to
+join a Teleport cluster. Existing fleets of OpenSSH servers can be configured to
+accept SSH certificates dynamically issued by a Teleport CA.
 
 Using Teleport and OpenSSH has the advantage of getting you up
 and running, but in the long run, we would recommend replacing `sshd` with `teleport`.
 We've outlined these reasons in [OpenSSH vs Teleport SSH for Servers?](https://gravitational.com/blog/openssh-vs-teleport/)
 
-In this guide, we will show you how to configure the OpenSSH server `sshd` to
-join a Teleport cluster. Existing fleets of OpenSSH servers can be configured to
-accept SSH certificates dynamically issued by a Teleport CA.
+## Prerequisites
+
+- A Linux host with the OpenSSH server `sshd` installed.
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Configure an OpenSSH server to join a Teleport cluster
+## Step 1/ . Configure `sshd` to trust the Teleport CA
 
 `sshd` must be told to allow users to log in with certificates generated
 by the Teleport User CA. Start by exporting the Teleport CA public key.
@@ -35,7 +38,8 @@ $ echo "TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub" | sudo tee -a /etc/ssh/
 Restart `sshd`.
 
 Now, `sshd` will trust users who present a Teleport-issued certificate.
-The next step is to configure host authentication.
+
+## Step 2/ . Configure host authentication
 
 The recommended solution is to ask Teleport to issue valid host certificates for
 all OpenSSH nodes. To generate a host certificate, run the following `tctl` command:
@@ -81,7 +85,14 @@ HostKey /etc/ssh/api.example.com
 HostCertificate /etc/ssh/api.example.com-cert.pub
 ```
 
+## Step 3 /. Connect to the OpenSSH server
+
+{/* TODO: Add a step showing how you'd connect to the host after going through
+the previous steps */}
+
 ## Revoke an SSH certificate
+
+{/* TODO: See if there's a better place to put this text */}
 
 To revoke the current Teleport CA and generate a new one, run `tctl auth rotate`. Unless you've highly automated your
 infrastructure, we would suggest you proceed with caution as this will invalidate the user
