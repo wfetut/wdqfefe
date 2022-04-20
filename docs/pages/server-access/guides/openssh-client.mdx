@@ -10,28 +10,89 @@ existing SSH implementations, such as OpenSSH.
 In this guide, we will explain how to configure the OpenSSH client `ssh` to log
 in to Nodes inside a Teleport cluster.
 
-Using Teleport and OpenSSH has the advantage of getting you up
-and running, but in the long run, we would recommend replacing `sshd` with `teleport`.
-We've outlined these reasons in [OpenSSH vs Teleport SSH for Servers?](https://gravitational.com/blog/openssh-vs-teleport/)
+Using Teleport and OpenSSH has the advantage of getting you up and running, but
+in the long run, we would recommend replacing `sshd` with `teleport`. We've
+outlined these reasons in
+[OpenSSH vs Teleport SSH for Servers?](https://gravitational.com/blog/openssh-vs-teleport/).
 
-<Admonition
-  type="note"
-  title="Note"
->
-  OpenSSH 6.9 is the minimum OpenSSH version compatible with Teleport. View your OpenSSH version with the command: 
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- OpenSSH version 6.9 or above on your local machine. View your OpenSSH version
+  with the command:
   
   ```code
   $ ssh -V
   ```
-</Admonition>
+
+- A Linux host where you will install and run a Teleport Node.
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Use the OpenSSH client to access Teleport Nodes
+## Step 1/ . Prepare your Node
 
-It is possible to use the OpenSSH client `ssh` to connect to Nodes within a
-Teleport cluster. Teleport supports SSH subsystems and includes a `proxy` subsystem that can be used like `netcat` is with `ProxyCommand` to connect
-through a jump host.
+On the host where you will run your Teleport Node, follow the instructions for
+your environment to install Teleport.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+<ScopedBlock scope="cloud">On your local machine, use</ScopedBlock><ScopedBlock
+scope={["oss", "enterprise"]}>On the host that runs the Teleport Auth Service,
+use</ScopedBlock> the `tctl` tool to generate an invite token that your Node
+will use to join the cluster. In the following example, a new token is created
+with a TTL of five minutes:
+
+```code
+# Generate a short-lived invitation token for a new node:
+$ tctl nodes add --ttl=5m --roles=node
+# The invite token: (=presets.tokens.first=)
+# You can also list all generated non-expired tokens:
+$ tctl tokens ls
+# Token                            Type            Expiry Time
+# ------------------------         -----------     ---------------
+# (=presets.tokens.first=)         Node            25 Sep 18 00:21 UTC
+```
+
+Save the address of your <ScopedBlock scope="cloud">Teleport Cloud
+tenant</ScopedBlock><ScopedBlock scope={["oss", "enterprise"]}>Teleport Auth
+Service</ScopedBlock>:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ export ADDR=tele.example.com:3025
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ export ADDR=mytenant.teleport.sh:443
+```
+
+</ScopedBlock>
+
+Start your Node with the invite token:
+
+```code
+$ sudo teleport start \
+  --auth-server=${ADDR?} \
+  --roles=node \
+  --token=${TOKEN?}
+```
+
+## Step 2/ . Generate an SSH client configuration
+
+{/* TODO: Double-check this for accuracy. Maybe use the original phrasing?
+
+Teleport supports SSH subsystems and includes a `proxy` subsystem that can be
+-used like `netcat` is with `ProxyCommand` to connect through a jump host.
+
+*/}
+
+You will need to configure your OpenSSH client to connect to your Teleport cluster,
+then connect to the Node.
 
 OpenSSH client configuration may be generated automatically by `tsh`, or it can
 be configured manually. In either case, make sure you are running OpenSSH's
@@ -60,7 +121,8 @@ will be using to connect to a Teleport Node. The output exports the
 `SSH_AUTH_SOCK` and `SSH_AGENT_PID` environment variables that allow OpenSSH
 clients to find the SSH agent.
 
-### Automatic setup
+<Tabs>
+<TabItem label="Automatic Setup">
 
 <Admonition
   type="note"
@@ -175,7 +237,8 @@ $ ssh -p 4022 user@node3.mytenant.teleport.sh
 
 </Admonition>
 
-### Manual setup
+</TabItem>
+<TabItem label="Manual Setup">
 
 On your client machine, you need to import the public key of Teleport's host
 certificate. This will allow your OpenSSH client to verify that host certificates
@@ -238,13 +301,6 @@ Host *.leaf1.example.com
    ProxyCommand tsh proxy ssh --cluster=leaf1.example.com %r@%h:%p
 ```
 
-When everything is configured properly, you can use SSH to connect to any Node
-behind `root.example.com`:
-
-```code
-$ ssh root@database.root.example.com
-```
-
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
@@ -274,6 +330,15 @@ Host *.mytenant.teleport.sh
    ProxyCommand tsh proxy ssh --cluster=mytenant.teleport.sh %r@%h:%p
 ```
 
+</ScopedBlock>
+
+</TabItem>
+</Tabs>
+
+## Step 3 /. Connect to the Node
+
+<ScopedBlock scope="cloud">
+
 When everything is configured properly, you can use SSH to connect to any Node
 behind `mytenant.teleport.sh`:
 
@@ -281,6 +346,15 @@ behind `mytenant.teleport.sh`:
 $ ssh root@database.root.mytenant.teleport.sh
 ```
 
+</ScopedBlock>
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+When everything is configured properly, you can use SSH to connect to any Node
+behind `root.example.com`:
+
+```code
+$ ssh root@database.root.example.com
+```
 </ScopedBlock>
 
 <Admonition
@@ -320,9 +394,3 @@ $ tsh ssh --port=22 dev@database.root.mytenant.teleport.sh
 >
   The principal/username (`dev@` in the example above) being used to connect must be listed in the Teleport user/role configuration.
 </Admonition>
-
-## Revoke an SSH certificate
-
-To revoke the current Teleport CA and generate a new one, run `tctl auth rotate`. Unless you've highly automated your
-infrastructure, we would suggest you proceed with caution as this will invalidate the user
-and host CAs, meaning that the new CAs will need to be exported to every OpenSSH-based machine again using `tctl auth export` as above.
