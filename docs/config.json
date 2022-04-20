@@ -291,8 +291,12 @@
               "slug": "/server-access/guides/tsh/"
             },
             {
-              "title": "OpenSSH Guide",
-              "slug": "/server-access/guides/openssh/"
+              "title": "Teleport with OpenSSH Server",
+              "slug": "/server-access/guides/openssh-server/"
+            },
+            {
+              "title": "Teleport with OpenSSH Client",
+              "slug": "/server-access/guides/openssh-client/"
             },
             {
               "title": "Recording Proxy Mode",
@@ -1082,7 +1086,12 @@
     },
     {
       "source": "/openssh-teleport/",
-      "destination": "/server-access/guides/openssh/",
+      "destination": "/server-access/guides/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/guides/openssh/",
+      "destination": "/server-access/guides/",
       "permanent": true
     },
     {

@@ -1,23 +1,18 @@
 ---
-title: Using Teleport with OpenSSH
-description: How to use Teleport on legacy systems with OpenSSH and sshd.
+title: Using Teleport with OpenSSH Clients
+description: How to use Teleport on legacy systems with OpenSSH clients.
 videoBanner: x0eYFUEIOrM
 ---
 
-Teleport is fully compatible with OpenSSH and can be quickly set up to record and
-audit all SSH activity. 
+Teleport is a standards-compliant SSH proxy and can work in environments with
+existing SSH implementations, such as OpenSSH.
+
+In this guide, we will explain how to configure the OpenSSH client `ssh` to log
+in to Nodes inside a Teleport cluster.
 
 Using Teleport and OpenSSH has the advantage of getting you up
 and running, but in the long run, we would recommend replacing `sshd` with `teleport`.
 We've outlined these reasons in [OpenSSH vs Teleport SSH for Servers?](https://gravitational.com/blog/openssh-vs-teleport/)
-
-Teleport is a standards-compliant SSH proxy and can work in environments with
-existing SSH implementations, such as OpenSSH. This guide will cover:
-
-- Configuring the OpenSSH server `sshd` to join a Teleport cluster. Existing fleets of
-  OpenSSH servers can be configured to accept SSH certificates dynamically issued by a Teleport CA.
-- Configuring the OpenSSH client `ssh` to log in to Nodes inside a Teleport
-  cluster.
 
 <Admonition
   type="note"
@@ -31,70 +26,6 @@ existing SSH implementations, such as OpenSSH. This guide will cover:
 </Admonition>
 
 (!docs/pages/includes/tctl.mdx!)
-
-## Configure an OpenSSH server to join a Teleport cluster
-
-`sshd` must be told to allow users to log in with certificates generated
-by the Teleport User CA. Start by exporting the Teleport CA public key.
-
-Export the Teleport certificate authority certificate into a file and update
-your SSH configuration to trust Teleport's CA:
-
-```code
-# tctl needs to be run on the Auth Server.
-$ sudo tctl auth export --type=user | sed s/cert-authority\ // > teleport_user_ca.pub
-$ sudo mv ./teleport_user_ca.pub /etc/ssh/teleport_user_ca.pub
-$ echo "TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub" | sudo tee -a /etc/ssh/sshd_config
-```
-
-Restart `sshd`.
-
-Now, `sshd` will trust users who present a Teleport-issued certificate.
-The next step is to configure host authentication.
-
-The recommended solution is to ask Teleport to issue valid host certificates for
-all OpenSSH nodes. To generate a host certificate, run the following `tctl` command:
-
-```code
-# Creating host certs, with an array of every host to be accessed.
-# Wildcard certs aren't supported by OpenSSH. The domain must be fully 
-# qualified.
-# Management of the host certificates can become complex. This is another
-# reason we recommend using Teleport SSH on nodes.
-$ sudo tctl auth sign \
-      --host=api.example.com,ssh.example.com,64.225.88.175,64.225.88.178 \
-      --format=openssh \
-      --out=api.example.com
-
-The credentials have been written to api.example.com, api.example.com-cert.pub
-
-# You can use ssh-keygen to verify the contents.
-$ ssh-keygen -L -f api.example.com-cert.pub
-#api.example.com-cert.pub:
-#        Type: ssh-rsa-cert-v01@openssh.com host certificate
-#        Public key: RSA-CERT SHA256:ireEc5HWFjhYPUhmztaFud7EgsopO8l+GpxNMd3wMSk
-#        Signing CA: RSA SHA256:/6HSHsoU5u+r85M26Ut+M9gl+HventwSwrbTvP/cmvo
-#        Key ID: ""
-#        Serial: 0
-#        Valid: after 2020-07-29T20:26:24
-#        Principals:
-#               api.example.com
-#               ssh.example.com
-#               64.225.88.175
-#               64.225.88.178
-#        Critical Options: (none)
-#        Extensions:
-#                x-teleport-authority UNKNOWN OPTION (len 47)
-#                x-teleport-role UNKNOWN OPTION (len 8)
-```
-
-Then add the following lines to `/etc/ssh/sshd_config` on all OpenSSH nodes, and
-restart `sshd`.
-
-```yaml
-HostKey /etc/ssh/api.example.com
-HostCertificate /etc/ssh/api.example.com-cert.pub
-```
 
 ## Use the OpenSSH client to access Teleport Nodes
 
