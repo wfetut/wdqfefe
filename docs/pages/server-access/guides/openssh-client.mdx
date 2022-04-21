@@ -24,15 +24,10 @@ outlined our reasoning in
   $ ssh -V
   ```
 
-  {/* TODO: The instruction below may complicate things--maybe just encourage users
-  to create a config file with a nonstandard name for this tutorial and specify it
-   when running SSH commands? */}
-
   You'll be editing your OpenSSH client configuration, so you may want to run
   the OpenSSH client from a local container or virtual machine.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
-
 
 - A Linux host where you will install and run a Teleport Node.
 
@@ -117,17 +112,9 @@ ip-172-30-50-106 ⟵ Tunnel
 
 ## Step 2/3. Generate an SSH client configuration
 
-{/* TODO: Double-check this for accuracy. Maybe use the original phrasing?
-
-Teleport supports SSH subsystems and includes a `proxy` subsystem that can be
--used like `netcat` is with `ProxyCommand` to connect through a jump host.
-
-*/}
-
-You will need to configure your OpenSSH client to connect to your Teleport cluster,
-then connect to the Node.
-
-Teleport can generate an OpenSSH client configuration automatically with `tsh`.
+To use your OpenSSH client with Teleport, you will first generate a
+configuration that the client will use to connect to the Teleport Proxy Service
+and forward traffic to your Node.
 
 First, make sure you are running OpenSSH's `ssh-agent` and have logged
 in to your Teleport cluster:
@@ -162,6 +149,42 @@ $ tsh config
 
 If you are using Trusted Clusters, this will print an OpenSSH client
 configuration block for the root cluster and all currently known leaf clusters.
+
+<Details title="How does the config work?">
+
+Teleport implements an SSH server that includes several **subsystems**, or
+predefined commands that are run when the server handles a connection. The Proxy
+Service implements a `proxy` subsystem that forwards SSH traffic to remote Nodes
+and Trusted Clusters.
+
+Here is a brief explanation of the configuration that `tsh config` generates:
+
+```
+# Common flags for all {{ .ClusterName }} hosts
+Host *.{{ .ClusterName }} {{ .ProxyHost }}
+    UserKnownHostsFile "{{ .KnownHostsPath }}"
+    IdentityFile "{{ .IdentityFilePath }}"
+    CertificateFile "{{ .CertificateFilePath }}"
+```
+
+If the host you are `ssh`ing into belongs to your Teleport cluster, use a
+Teleport-managed known hosts file, private key, and certificate that are stored
+in the `.tsh` directory.
+
+```
+# Flags for all {{ .ClusterName }} hosts except the proxy
+Host *.{{ .ClusterName }} !{{ .ProxyHost }}
+    Port 3022
+    ProxyCommand "{{ .TSHPath }}" proxy ssh --cluster={{ .ClusterName }} --proxy={{ .ProxyHost }} %r@%h:%p
+```
+
+If the host that you are `ssh`ing into is a Node, the OpenSSH client will first
+execute a command, the `ProxyCommand`, that makes an SSH connection to the Proxy
+Service. This command, `tsh proxy ssh`, requests the `proxy` subsystem in order
+to forward SSH traffic through the Proxy Service to your chosen Node (including
+a Node in a Trusted Cluster).
+
+</Details>
 
 Append this to your local OpenSSH config file (usually `~/.ssh/config`) using
 your text editor of choice.
