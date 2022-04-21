@@ -40,10 +40,19 @@ outlined our reasoning in
 
 ## Step 1/3. Prepare your Node
 
+<ScopedBlock scope={["oss", "enterprise"]}>
+
 On the host where you will run your Teleport Node, follow the instructions for
 your environment to install Teleport.
 
 (!docs/pages/includes/install-linux.mdx!)
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+(!docs/pages/includes/install-agent-cloud.mdx!)
+
+</ScopedBlock>
 
 <ScopedBlock scope="cloud">On your local machine, use</ScopedBlock><ScopedBlock
 scope={["oss", "enterprise"]}>On the host that runs the Teleport Auth Service,
@@ -72,6 +81,7 @@ Service</ScopedBlock> to environment variables:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
+# Include the port used by your Auth Service to listen for connections
 $ ADDR=tele.example.com:3025
 $ TOKEN=<your token from above>
 ```
@@ -80,6 +90,7 @@ $ TOKEN=<your token from above>
 <ScopedBlock scope={["cloud"]}>
 
 ```code
+# You must include port 443
 $ ADDR=mytenant.teleport.sh:443
 $ TOKEN=<your token from above>
 ```
@@ -116,10 +127,9 @@ Teleport supports SSH subsystems and includes a `proxy` subsystem that can be
 You will need to configure your OpenSSH client to connect to your Teleport cluster,
 then connect to the Node.
 
-You can generate an OpenSSH client configuration either automatically with `tsh`
-or manually by editing your OpenSSH configuration file.
+Teleport can generate an OpenSSH client configuration automatically with `tsh`.
 
-In either case, make sure you are running OpenSSH's `ssh-agent` and have logged
+First, make sure you are running OpenSSH's `ssh-agent` and have logged
 in to your Teleport cluster:
 
 <ScopedBlock scope={["oss","enterprise"]}>
@@ -142,16 +152,6 @@ $ tsh --proxy=mytenant.teleport.sh --user=myuser@example.com login
 The `ssh-agent` command prints additional commands to export the `SSH_AUTH_SOCK`
 and `SSH_AGENT_PID` environment variables. These variables allow OpenSSH clients
 to find the SSH agent. Running `ssh-agent` with `eval` executes these commands.
-
-<Tabs>
-<TabItem label="Automatic Setup">
-
-  <Notice type="note">
-
-  Automatic OpenSSH client configuration is supported on Linux and macOS as of
-  Teleport 7.0 and on Windows as of Teleport 7.2.
-
-  </Notice>
 
 On your local machine, run the following `tsh` command. This will print the
 necessary configuration to connect to a Node using the standard OpenSSH client:
@@ -178,17 +178,33 @@ your text editor of choice.
 
 </Details>
 
+<Admonition
+  type="tip"
+  title="Multiple Clusters"
+>
+
+  If you switch between multiple Teleport Proxy Servers, you'll need to re-run
+  `tsh config` for each to generate the cluster-specific configuration.
+
+  Similarly, if Trusted Clusters are added or removed, be sure to re-run
+  `tsh config` and replace the previous configuration.
+
+</Admonition>
+
+## Step 3/3. Connect to a Node
+
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 Once you have appended the new text to your OpenSSH client configuration file,
-log in to any Node in your Teleport cluster:
+you can log in to a Node in your Teleport cluster:
 
 ```code
 # See which Nodes are available to access
 $ tsh ls
 Node Name        Address    Labels 
 ---------------- ---------- ------ 
-node1 ⟵ Tunnel   
+node1 ⟵ Tunnel
+# Use your Node's name as a subdomain of your Teleport Proxy Service's domain.
 $ ssh user@node1.root.example.com
 ```
 
@@ -213,14 +229,15 @@ $ ssh -p 4022 user@node3.leaf.example.com
 <ScopedBlock scope={["cloud"]}>
 
 Once you have appended the new text to your OpenSSH client configuration file,
-log in to any Node in your Teleport cluster:
+log in to a Node in your Teleport cluster:
 
 ```code
 # See which Nodes are available to access
 $ tsh ls
 Node Name        Address    Labels 
 ---------------- ---------- ------ 
-node1 ⟵ Tunnel   
+node1 ⟵ Tunnel
+# Use your Node's name as a subdomain of your Teleport Cloud tenant domain.   
 $ ssh user@node1.mytenant.teleport.sh
 ```
 
@@ -243,174 +260,10 @@ $ ssh -p 4022 user@node3.mytenant.teleport.sh
 
 </ScopedBlock>
 
-
-<Admonition
-  type="tip"
-  title="Automatic OpenSSH and Multiple Clusters"
->
-
-  If you switch between multiple Teleport Proxy Servers, you'll need to re-run
-  `tsh config` for each to generate the cluster-specific configuration.
-
-  Similarly, if Trusted Clusters are added or removed, be sure to re-run the
-  above command and replace the previous configuration.
-
-</Admonition>
-
-</TabItem>
-<TabItem label="Manual Setup">
-
-On your client machine, you need to import the public key of Teleport's host
-certificate. This will allow your OpenSSH client to verify that host certificates
-are signed by Teleport's trusted host CA:
-
-```code
-$ tctl auth export --type=host > teleport_host_ca.pub
-
-# On the machine where you want to run the ssh client
-$ cat teleport_host_ca.pub >> ~/.ssh/known_hosts
-```
-
-If you have multiple Teleport clusters, you have to export and set up these
-certificate authorities for each cluster individually.
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-<Admonition
-  type="tip"
-  title="OpenSSH and Trusted Clusters"
->
-  If you use [Recording Proxy Mode](../../architecture/proxy.mdx) and [Trusted Clusters](../../setup/admin/trustedclusters.mdx),
-  you need to set up the certificate authority from
-  the root cluster to match all Nodes, even those that belong to leaf
-  clusters. 
-  
-  For example, if your Node naming scheme is `*.root.example.com`,
-  `*.leaf1.example.com`, `*.leaf2.example.com`, then the
-  `@certificate-authority` entry should match `*.example.com` and use the CA
-  from the root Auth Server only.
-</Admonition>
-
-</ScopedBlock>
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-Lastly, configure the OpenSSH client to use the Teleport Proxy Service when connecting
-to Nodes with matching names. Edit `~/.ssh/config` for your user or
-`/etc/ssh/ssh_config` for global changes:
-
-```txt
-# root.example.com is the jump host (Proxy Service). Credentials will be
-# obtained from the SSH agent.
-Host root.example.com
-    HostName 192.168.1.2
-    Port 3023
-
-# Connect to Nodes in the root.example.com cluster through the jump
-# host (Proxy Service). Credentials will be obtained from the
-# SSH agent.
-Host *.root.example.com
-    HostName %h
-    Port 3022
-    ProxyCommand tsh proxy ssh %r@%h:%p
-
-# Connect to Nodes within a Trusted Cluster with the name "leaf1.example.com".
-Host *.leaf1.example.com
-   HostName %h
-   Port 3022
-   ProxyCommand tsh proxy ssh --cluster=leaf1.example.com %r@%h:%p
-```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-Lastly, configure the OpenSSH client to use the Teleport Proxy Service when connecting
-to Nodes with matching names. Edit `~/.ssh/config` for your user or
-`/etc/ssh/ssh_config` for global changes:
-
-```txt
-# mytenant.teleport.sh is the jump host (Proxy Service). Credentials will be
-# obtained from the SSH agent.
-Host mytenant.teleport.sh
-    HostName 192.168.1.2
-    Port 3023
-
-# Connect to Nodes in the mytenant.teleport.sh cluster through the jump
-# host (Proxy Service). Credentials will be obtained from the
-# SSH agent.
-Host *.mytenant.teleport.sh
-    HostName %h
-    Port 3022
-    ProxyCommand tsh proxy ssh %r@%h:%p
-
-# Connect to Nodes within a Trusted Cluster with the name "leaf1.mytenant.teleport.sh".
-Host *.mytenant.teleport.sh
-   HostName %h
-   Port 3022
-   ProxyCommand tsh proxy ssh --cluster=mytenant.teleport.sh %r@%h:%p
-```
-
-</ScopedBlock>
-
-</TabItem>
-</Tabs>
-
-## Step 3 /. Connect to the Node
-
-<ScopedBlock scope="cloud">
-
-When everything is configured properly, you can use SSH to connect to any Node
-behind `mytenant.teleport.sh`:
-
-```code
-$ ssh root@database.root.mytenant.teleport.sh
-```
-
-</ScopedBlock>
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-When everything is configured properly, you can use SSH to connect to any Node
-behind `root.example.com`:
-
-```code
-$ ssh root@database.root.example.com
-```
-</ScopedBlock>
-
 <Admonition
   type="tip"
   title="Note"
 >
   Teleport uses OpenSSH certificates instead of keys, which means you cannot ordinarily connect to a Teleport Node by IP address. You have to connect by
   DNS name. This is because OpenSSH ensures the DNS name of the Node you are connecting to is listed under the `Principals` section of the OpenSSH certificate to verify you are connecting to the correct Node.
-</Admonition>
-
-To connect to the OpenSSH server via `tsh`, add `--port=<ssh port>` with the `tsh ssh` command:
-
-<ScopedBlock scope={["oss","enterprise"]}>
-
-Example `tsh ssh` command to access `database.work.example.com` as `root` with
-an OpenSSH server on port 22 via `tsh`:
-
-```code
-$ tsh ssh --port=22 dev@database.root.example.com
-```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-Example `tsh ssh` command to access `database.work.mytenant.teleport.sh` as `root` with
-an OpenSSH server on port 22 via `tsh`:
-
-```code
-$ tsh ssh --port=22 dev@database.root.mytenant.teleport.sh
-```
-
-</ScopedBlock>
-
-<Admonition
-  type="warning"
-  title="Warning"
->
-  The principal/username (`dev@` in the example above) being used to connect must be listed in the Teleport user/role configuration.
 </Admonition>
