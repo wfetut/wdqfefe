@@ -4,20 +4,18 @@ description: How to use Teleport on legacy systems with OpenSSH clients.
 videoBanner: x0eYFUEIOrM
 ---
 
-Teleport is a standards-compliant SSH proxy and can work in environments with
-existing SSH implementations, such as OpenSSH.
+Teleport is a standards-compliant SSH proxy and can work in environments that
+use legacy SSH implementations, such as OpenSSH, to access infrastructure.
 
 In this guide, we will explain how to configure the OpenSSH client `ssh` to log
 in to Nodes inside a Teleport cluster.
 
-Using Teleport and OpenSSH has the advantage of getting you up and running, but
+Using Teleport with OpenSSH has the advantage of getting you up and running, but
 in the long run, we would recommend replacing `sshd` with `teleport`. We've
-outlined these reasons in
+outlined our reasoning in
 [OpenSSH vs Teleport SSH for Servers?](https://gravitational.com/blog/openssh-vs-teleport/).
 
 ## Prerequisites
-
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - OpenSSH version 6.9 or above on your local machine. View your OpenSSH version
   with the command:
@@ -26,11 +24,21 @@ outlined these reasons in
   $ ssh -V
   ```
 
+  {/* TODO: The instruction below may complicate things--maybe just encourage users
+  to create a config file with a nonstandard name for this tutorial and specify it
+   when running SSH commands? */}
+
+  You'll be editing your OpenSSH client configuration, so you may want to run
+  the OpenSSH client from a local container or virtual machine.
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+
 - A Linux host where you will install and run a Teleport Node.
 
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/ . Prepare your Node
+## Step 1/3. Prepare your Node
 
 On the host where you will run your Teleport Node, follow the instructions for
 your environment to install Teleport.
@@ -54,26 +62,31 @@ $ tctl tokens ls
 # (=presets.tokens.first=)         Node            25 Sep 18 00:21 UTC
 ```
 
-Save the address of your <ScopedBlock scope="cloud">Teleport Cloud
+On the host where you will run your Node, execute the following commands.
+
+Assign your invite token and the
+address of your <ScopedBlock scope="cloud">Teleport Cloud
 tenant</ScopedBlock><ScopedBlock scope={["oss", "enterprise"]}>Teleport Auth
-Service</ScopedBlock>:
+Service</ScopedBlock> to environment variables:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-$ export ADDR=tele.example.com:3025
+$ ADDR=tele.example.com:3025
+$ TOKEN=<your token from above>
 ```
 
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
 ```code
-$ export ADDR=mytenant.teleport.sh:443
+$ ADDR=mytenant.teleport.sh:443
+$ TOKEN=<your token from above>
 ```
 
 </ScopedBlock>
 
-Start your Node with the invite token:
+Start Teleport with the invite token:
 
 ```code
 $ sudo teleport start \
@@ -82,7 +95,16 @@ $ sudo teleport start \
   --token=${TOKEN?}
 ```
 
-## Step 2/ . Generate an SSH client configuration
+Verify that your Node has started by running `tsh ls` on your local machine:
+
+```code
+$ tsh ls
+Node Name        Address    Labels 
+---------------- ---------- ------ 
+ip-172-30-50-106 ⟵ Tunnel          
+```
+
+## Step 2/3. Generate an SSH client configuration
 
 {/* TODO: Double-check this for accuracy. Maybe use the original phrasing?
 
@@ -94,15 +116,17 @@ Teleport supports SSH subsystems and includes a `proxy` subsystem that can be
 You will need to configure your OpenSSH client to connect to your Teleport cluster,
 then connect to the Node.
 
-OpenSSH client configuration may be generated automatically by `tsh`, or it can
-be configured manually. In either case, make sure you are running OpenSSH's
-`ssh-agent`, and have logged in to the Teleport Proxy Service:
+You can generate an OpenSSH client configuration either automatically with `tsh`
+or manually by editing your OpenSSH configuration file.
+
+In either case, make sure you are running OpenSSH's `ssh-agent` and have logged
+in to your Teleport cluster:
 
 <ScopedBlock scope={["oss","enterprise"]}>
 
 ```code
 $ eval `ssh-agent`
-$ tsh --proxy=root.example.com login
+$ tsh --proxy=root.example.com --user=myuser@example.com login
 ```
 
 </ScopedBlock>
@@ -110,57 +134,40 @@ $ tsh --proxy=root.example.com login
 
 ```code
 $ eval `ssh-agent`
-$ tsh --proxy=mytenant.teleport.sh login
+$ tsh --proxy=mytenant.teleport.sh --user=myuser@example.com login
 ```
 
 </ScopedBlock>
 
-`ssh-agent` will print environment variables into the console. Either `eval` the
-output as in the example above, or copy and paste the output into the shell you
-will be using to connect to a Teleport Node. The output exports the
-`SSH_AUTH_SOCK` and `SSH_AGENT_PID` environment variables that allow OpenSSH
-clients to find the SSH agent.
+The `ssh-agent` command prints additional commands to export the `SSH_AUTH_SOCK`
+and `SSH_AGENT_PID` environment variables. These variables allow OpenSSH clients
+to find the SSH agent. Running `ssh-agent` with `eval` executes these commands.
 
 <Tabs>
 <TabItem label="Automatic Setup">
 
-<Admonition
-  type="note"
-  title="Note"
->
+  <Notice type="note">
+
   Automatic OpenSSH client configuration is supported on Linux and macOS as of
   Teleport 7.0 and on Windows as of Teleport 7.2.
-</Admonition>
 
-`tsh` can automatically generate the necessary OpenSSH client configuration to
-connect using the standard OpenSSH client:
+  </Notice>
 
-<ScopedBlock scope={["oss","enterprise"]}>
-
-```code
-# On the machine where you want to run the SSH client
-$ tsh --proxy=root.example.com config
-```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
+On your local machine, run the following `tsh` command. This will print the
+necessary configuration to connect to a Node using the standard OpenSSH client:
 
 ```code
-# On the machine where you want to run the SSH client
-$ tsh --proxy=mytenant.teleport.sh config
+$ tsh config
 ```
 
-</ScopedBlock>
+If you are using Trusted Clusters, this will print an OpenSSH client
+configuration block for the root cluster and all currently known leaf clusters.
 
-This will generate an OpenSSH client configuration block for the root cluster
-and all currently-known leaf clusters (if you are using Trusted Clusters).
 Append this to your local OpenSSH config file (usually `~/.ssh/config`) using
 your text editor of choice.
 
-<Admonition
-  type="warning"
-  title="Warning"
->
+<Details title="Using PowerShell on Windows?" opened={false}>
+
   If using PowerShell on Windows, note that normal shell redirection may write
   the file with the incorrect encoding. To ensure it's written properly, try the
   following:
@@ -168,13 +175,20 @@ your text editor of choice.
   ```code
   $ tsh.exe config | out-file .ssh\config -encoding utf8 -append
   ```
-</Admonition>
+
+</Details>
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
-Once configured, log in to any Node in the `root.example.com` cluster:
+Once you have appended the new text to your OpenSSH client configuration file,
+log in to any Node in your Teleport cluster:
 
 ```code
+# See which Nodes are available to access
+$ tsh ls
+Node Name        Address    Labels 
+---------------- ---------- ------ 
+node1 ⟵ Tunnel   
 $ ssh user@node1.root.example.com
 ```
 
@@ -198,9 +212,15 @@ $ ssh -p 4022 user@node3.leaf.example.com
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
-Once configured, log in to any Node in the `mytenant.teleport.sh` cluster:
+Once you have appended the new text to your OpenSSH client configuration file,
+log in to any Node in your Teleport cluster:
 
 ```code
+# See which Nodes are available to access
+$ tsh ls
+Node Name        Address    Labels 
+---------------- ---------- ------ 
+node1 ⟵ Tunnel   
 $ ssh user@node1.mytenant.teleport.sh
 ```
 
