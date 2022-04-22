@@ -140,44 +140,60 @@ Run the following `tctl` command to generate a host certificate:
 $ tctl auth sign \
       --host=${ADDR?} \
       --format=openssh \
-      --out=${ADDR?}
+      --out=myhost
+
+# The credentials have been written to myhost, myhost-cert.pub
 ```
+
+The above command will result in a private key and certificate.
 
 To generate certificates for multiple hosts, assign the `host` flag to a
 comma-separated list of addresses. Certificates for wildcard domains are not
 supported by OpenSSH, so each domain must be fully qualified.
 
-{/* TODO: Resume here after determining if I can generate a host cert in Cloud */}
+Use `ssh-keygen` to verify the contents of the certificate:
 
-
-```
-# You can use ssh-keygen to verify the contents.
-$ ssh-keygen -L -f api.example.com-cert.pub
-#api.example.com-cert.pub:
-#        Type: ssh-rsa-cert-v01@openssh.com host certificate
-#        Public key: RSA-CERT SHA256:ireEc5HWFjhYPUhmztaFud7EgsopO8l+GpxNMd3wMSk
-#        Signing CA: RSA SHA256:/6HSHsoU5u+r85M26Ut+M9gl+HventwSwrbTvP/cmvo
-#        Key ID: ""
-#        Serial: 0
-#        Valid: after 2020-07-29T20:26:24
-#        Principals:
-#               api.example.com
-#               ssh.example.com
-#               64.225.88.175
-#               64.225.88.178
-#        Critical Options: (none)
-#        Extensions:
-#                x-teleport-authority UNKNOWN OPTION (len 47)
-#                x-teleport-role UNKNOWN OPTION (len 8)
+```code
+$ ssh-keygen -L -f myhost-cert.pub
 ```
 
-Then add the following lines to `/etc/ssh/sshd_config` on all OpenSSH nodes, and
-restart `sshd`.
+The `Principals` section should contain the address you assigned to `ADDR`
+earlier:
+
+```
+myhost-cert.pub:
+        Type: ssh-rsa-cert-v01@openssh.com host certificate
+        Public key: RSA-CERT SHA256:nHkp6SnrAW4AV00VUaqPgR6SgdyvV9MmjUrYnwZ779A
+        Signing CA: RSA SHA256:euqx2Y8Pq+r0c94GKVNXAklBVTmAJtaQUn3/ehrfEJE (using rsa-sha2-512)
+        Key ID: ""
+        Serial: 0
+        Valid: after 2022-04-22T11:14:16
+        Principals: 
+                203.0.113.0
+        Critical Options: (none)
+        Extensions: 
+                x-teleport-authority UNKNOWN OPTION (len 33)
+                x-teleport-role UNKNOWN OPTION (len 8)
+```
+
+Copy the host key and certificate to your `sshd` host, placing them in the
+directory `/etc/ssh`.
+
+Make sure these files have the correct permissions:
+
+```code
+$ sudo chmod 0600 /etc/ssh/myhost
+$ sudo chmod 0600 /etc/ssh/myhost-cert.pub
+```
+
+Then add the following lines to `/etc/ssh/sshd_config` on your `sshd` host:
 
 ```yaml
-HostKey /etc/ssh/api.example.com
-HostCertificate /etc/ssh/api.example.com-cert.pub
+HostKey /etc/ssh/myhost
+HostCertificate /etc/ssh/myhost-cert.pub
 ```
+
+Restart `sshd`.
 
 ## Step 3 /. Connect to the OpenSSH server
 
