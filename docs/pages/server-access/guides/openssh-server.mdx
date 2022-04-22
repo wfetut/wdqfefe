@@ -313,7 +313,7 @@ your chosen host (including a host in a Trusted Cluster).
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 Once you have appended the new text to your OpenSSH client configuration file,
-you can log in to your `sshd` host:
+you can log in to your `sshd` host using the configuration we generated earlier:
 
 ```code
 $ ssh -F ssh_config_teleport user@${ADDR}.root.example.com
@@ -326,21 +326,21 @@ your Teleport Proxy Service.
 If any Trusted Clusters exist, they are also configured:
 
 ```code
-$ ssh user@node2.leaf.example.com
+$ ssh -F ssh_config_teleport user@node2.leaf.example.com
 ```
 
 When connecting to Nodes with Teleport daemons running on non-standard ports
 (other than `3022`), a port may be specified:
 
 ```code
-$ ssh -p 4022 user@node3.leaf.example.com
+$ ssh -F ssh_config_teleport -p 4022 user@node3.leaf.example.com
 ```
 
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
 Once you have appended the new text to your OpenSSH client configuration file,
-you can log in to your `sshd` host:
+you can log in to your `sshd` host using the configuration we generated earlier:
 
 ```code
 $ ssh -F ssh_config_teleport user@${ADDR}.mytenant.teleport.sh
@@ -353,14 +353,14 @@ your Teleport Proxy Service.
 If any Trusted Clusters exist, they are also configured:
 
 ```code
-$ ssh user@node2.mytenant.teleport.sh
+$ ssh -F ssh_config_teleport user@node2.mytenant.teleport.sh
 ```
 
 When connecting to Nodes with Teleport daemons running on non-standard ports
 (other than `3022`), a port may be specified:
 
 ```code
-$ ssh -p 4022 user@node3.mytenant.teleport.sh
+$ ssh -F ssh_config_teleport -p 4022 user@node3.mytenant.teleport.sh
 ```
 
 </ScopedBlock>
@@ -369,13 +369,15 @@ $ ssh -p 4022 user@node3.mytenant.teleport.sh
   type="tip"
   title="Note"
 >
-  Teleport uses OpenSSH certificates instead of keys, which means you cannot ordinarily connect to a Teleport Node by IP address. You have to connect by
-  DNS name. This is because OpenSSH ensures the DNS name of the Node you are connecting to is listed under the `Principals` section of the OpenSSH certificate to verify you are connecting to the correct Node.
+
+  Teleport uses OpenSSH certificates instead of keys. When you connect to a
+  remote host, OpenSSH verifies that the address of the host is listed under the
+  `Principals` section of the OpenSSH certificate. Usually, this is a fully
+  qualified domain name, rather than an IP address.
+
 </Admonition>
 
 ## Revoke an SSH certificate
-
-{/* TODO: See if there's a better place to put this text */}
 
 To revoke the current Teleport CA and generate a new one, run `tctl auth rotate`. Unless you've highly automated your
 infrastructure, we would suggest you proceed with caution as this will invalidate the user
