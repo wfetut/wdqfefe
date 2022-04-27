@@ -246,12 +246,13 @@ func onProxyCommandDB(cf *CLIConf) error {
 }
 
 type localProxyOpts struct {
-	proxyAddr string
-	listener  net.Listener
-	protocol  string
-	insecure  bool
-	certFile  string
-	keyFile   string
+	proxyAddr            string
+	listener             net.Listener
+	protocol             string
+	insecure             bool
+	certFile             string
+	keyFile              string
+	databaseSeverVersion string
 }
 
 func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalProxy, error) {
@@ -268,13 +269,14 @@ func mkLocalProxy(ctx context.Context, opts localProxyOpts) (*alpnproxy.LocalPro
 		return nil, trace.Wrap(err)
 	}
 	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify: opts.insecure,
-		RemoteProxyAddr:    opts.proxyAddr,
-		Protocol:           alpnProtocol,
-		Listener:           opts.listener,
-		ParentContext:      ctx,
-		SNI:                address.Host(),
-		Certs:              certs,
+		InsecureSkipVerify:    opts.insecure,
+		RemoteProxyAddr:       opts.proxyAddr,
+		Protocol:              alpnProtocol,
+		Listener:              opts.listener,
+		ParentContext:         ctx,
+		SNI:                   address.Host(),
+		Certs:                 certs,
+		ServerDatabaseVersion: opts.databaseSeverVersion,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

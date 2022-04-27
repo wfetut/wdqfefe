@@ -75,6 +75,8 @@ type LocalProxyConfig struct {
 	Certs []tls.Certificate
 	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
 	AWSCredentials *credentials.Credentials
+
+	ServerDatabaseVersion string
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -256,8 +258,15 @@ func (l *LocalProxy) GetAddr() string {
 // traffic to the upstreamConn (TLS connection to remote host).
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn, serverName string) error {
 	defer downstreamConn.Close()
+
+	protos := []string{string(l.cfg.Protocol)}
+
+	if l.cfg.ServerDatabaseVersion != "" {
+		protos = append(protos, fmt.Sprintf("%s-%s", common.ProtocolMySQL, l.cfg.ServerDatabaseVersion))
+	}
+
 	upstreamConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, &tls.Config{
-		NextProtos:         []string{string(l.cfg.Protocol)},
+		NextProtos:         protos,
 		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 		ServerName:         serverName,
 		Certificates:       l.cfg.Certs,

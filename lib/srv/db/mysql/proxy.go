@@ -67,7 +67,9 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 
 	// Set correct server version. This field can be empty is the information is not available.
 	mysqlServerVersion := p.MySQLServerVersion
-	if mysqlServerVersion == "" {
+	if mysqlVerCtx := ctx.Value("mysqlVersion"); mysqlVerCtx != nil {
+		mysqlServerVersion = mysqlVerCtx.(string)
+	} else if mysqlServerVersion == "" {
 		mysqlServerVersion = serverVersion
 	}
 

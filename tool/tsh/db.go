@@ -389,6 +389,15 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 		opts.keyFile = profile.KeyPath()
 	}
 
+	if db.Protocol == defaults.ProtocolMySQL {
+		database, err := getDatabase(cf, tc, db.ServiceName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		opts.databaseSeverVersion = database.GetMySQLServerVersion()
+	}
+
 	lp, err := mkLocalProxy(cf.Context, opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
