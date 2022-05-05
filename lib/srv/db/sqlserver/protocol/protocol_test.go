@@ -20,10 +20,10 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol/fixtures"
 	"github.com/gravitational/trace"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol/fixtures"
 )
 
 // TestReadPreLogin verifies Pre-Login packet parsing.
@@ -41,7 +41,7 @@ func TestWritePreLoginResponse(t *testing.T) {
 
 	packet, err := ReadPacket(b)
 	require.NoError(t, err)
-	require.Equal(t, PacketTypeResponse, packet.Type)
+	require.Equal(t, PacketTypeResponse, packet.Type())
 }
 
 // TestReadLogin7 verifies Login7 packet parsing.
@@ -58,4 +58,26 @@ func TestErrorResponse(t *testing.T) {
 
 	err := WriteErrorResponse(b, trace.AccessDenied("access denied"))
 	require.NoError(t, err)
+}
+
+func TestSQLBatch(t *testing.T) {
+	packet, err := ReadPacket(bytes.NewReader(fixtures.SQLBatch1))
+	require.NoError(t, err)
+	r, err := ConvPacket(packet)
+	require.NoError(t, err)
+	require.Equal(t, r.Type(), PacketTypeSQLBatch)
+	p, ok := r.(*SQLBatch)
+	require.True(t, ok)
+	require.Equal(t, "\nselect 'foo' as 'bar'\n        ", p.SQLText)
+}
+
+func TestRPCRequest(t *testing.T) {
+	packet, err := ReadPacket(bytes.NewReader(fixtures.RPCClientRequest1))
+	require.NoError(t, err)
+	require.Equal(t, packet.Type(), PacketTypeRPCRequest)
+	r, err := ConvPacket(packet)
+	require.NoError(t, err)
+	p, ok := r.(*RPCRequest)
+	require.True(t, ok)
+	require.Equal(t, "select @@version", p.Query)
 }

@@ -52,3 +52,19 @@ func FuzzMSSQLLogin(f *testing.F) {
 		})
 	})
 }
+
+func FuzzConvPacket(f *testing.F) {
+	f.Fuzz(func(t *testing.T, buff []byte, typ, s, id, w uint8, len, spid uint16) {
+		require.NotPanics(t, func() {
+			packetHeader := PacketHeader{
+				Type:     typ,
+				Status:   s,
+				Length:   len,
+				SPID:     spid,
+				PacketID: id,
+				Window:   w,
+			}
+			_, _ = ConvPacket(&packet{data: buff, header: packetHeader})
+		})
+	})
+}

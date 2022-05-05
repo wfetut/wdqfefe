@@ -18,6 +18,7 @@ package sqlserver
 
 import (
 	"context"
+	"encoding/hex"
 	"io"
 	"net"
 
@@ -99,13 +100,72 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
-	// Start proxying packets between client and server.
-	err = e.proxy(ctx, serverConn)
-	if err != nil {
-		return trace.Wrap(err)
+	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
+	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+
+	clientErrCh := make(chan error, 1)
+	serverErrCh := make(chan error, 1)
+	go e.receiveFromClient(e.clientConn, serverConn, clientErrCh, sessionCtx)
+	go e.receiveFromServer(serverConn, e.clientConn, serverErrCh)
+
+	select {
+	case err := <-clientErrCh:
+		e.Log.WithError(err).Debug("Client done.")
+	case err := <-serverErrCh:
+		e.Log.WithError(err).Debug("Server done.")
+	case <-ctx.Done():
+		e.Log.Debug("Context canceled.")
 	}
 
 	return nil
+}
+
+// receiveFromClient relays protocol messages received from MySQL client
+// to MySQL database.
+func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, clientErrCh chan<- error, sessionCtx *common.Session) {
+	defer func() {
+		e.Log.Debug("Stop receiving from client.")
+		close(clientErrCh)
+	}()
+	defer serverConn.Close()
+	for {
+		p, err := protocol.ReadPacket(clientConn)
+		if err != nil {
+			if utils.IsOKNetworkError(err) {
+				e.Log.Debug("Client connection closed.")
+				return
+			}
+			e.Log.WithError(err).Error("Failed to read client packet.")
+			clientErrCh <- err
+			return
+		}
+
+		packet, err := protocol.ConvPacket(p)
+		switch {
+		case err != nil:
+			e.Log.WithError(err).Errorf("Failed to read SQLServer client packet\nDump: \n%s\n", hex.Dump(p.Bytes()))
+		default:
+			e.auditPacket(e.Context, sessionCtx, packet)
+		}
+
+		_, err = serverConn.Write(p.Bytes())
+		if err != nil {
+			e.Log.WithError(err).Error("Failed to write server packet.")
+			clientErrCh <- err
+			return
+		}
+	}
+}
+
+// receiveFromServer relays protocol messages received from MySQL database
+// to MySQL client.
+func (e *Engine) receiveFromServer(serverConn, clientConn io.ReadWriteCloser, serverErrCh chan<- error) {
+	defer clientConn.Close()
+	_, err := io.Copy(clientConn, serverConn)
+	if err != nil && !utils.IsOKNetworkError(err) {
+		serverErrCh <- trace.Wrap(err)
+	}
+	return
 }
 
 // handleLogin7 processes Login7 packet received from the client.
@@ -149,33 +209,11 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 	return nil
 }
 
-// proxy proxies all traffic between the client and server connections.
-func (e *Engine) proxy(ctx context.Context, serverConn io.ReadWriteCloser) error {
-	errCh := make(chan error, 2)
-
-	go func() {
-		defer serverConn.Close()
-		_, err := io.Copy(serverConn, e.clientConn)
-		errCh <- err
-	}()
-
-	go func() {
-		defer serverConn.Close()
-		_, err := io.Copy(e.clientConn, serverConn)
-		errCh <- err
-	}()
-
-	var errs []error
-	for i := 0; i < 2; i++ {
-		select {
-		case err := <-errCh:
-			if err != nil && !utils.IsOKNetworkError(err) {
-				errs = append(errs, err)
-			}
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
-		}
+func (e *Engine) auditPacket(ctx context.Context, sessCtx *common.Session, packet protocol.Packet) {
+	switch t := packet.(type) {
+	case *protocol.SQLBatch:
+		e.Audit.OnQuery(ctx, sessCtx, common.Query{Query: "SQLBatch: " + t.SQLText})
+	case *protocol.RPCRequest:
+		e.Audit.OnQuery(ctx, sessCtx, common.Query{Query: "RPCRequest: " + t.Query})
 	}
-
-	return trace.NewAggregate(errs...)
 }
