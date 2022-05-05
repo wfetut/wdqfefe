@@ -28,7 +28,9 @@ func TestSQLBatchWalk(t *testing.T) {
 
 		p, err := ReadPacket(bytes.NewReader(buff))
 		require.NoError(t, err)
-		switch o := p.(type) {
+		r, err := ConvPacket(p)
+		require.NoError(t, err)
+		switch o := r.(type) {
 		case *SQLBatch:
 			require.NotEmpty(t, o.SQLText)
 			t.Log(d.Name())
@@ -61,7 +63,9 @@ func TestRPCRequestWalk(t *testing.T) {
 
 		p, err := ReadPacket(bytes.NewReader(buff))
 		require.NoError(t, err)
-		switch o := p.(type) {
+		r, err := ConvPacket(p)
+		require.NoError(t, err)
+		switch o := r.(type) {
 		case *SQLBatch:
 			require.NotEmpty(t, o.SQLText)
 			t.Log(d.Name())

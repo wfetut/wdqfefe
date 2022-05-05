@@ -18,7 +18,7 @@ package sqlserver
 
 import (
 	"context"
-	"fmt"
+	"encoding/hex"
 	"io"
 	"net"
 
@@ -151,23 +151,16 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 			clientErrCh <- err
 			return
 		}
-		switch p.Type() {
-		case protocol.PacketTypeSQLBatch:
-			sqlBatch, err := protocol.toSQLBatch(p)
-			if err != nil {
-				log.WithError(err).Error("failed to convert to SQLBatch")
-			} else {
-				fmt.Println(sqlBatch.SQLText)
-			}
-		case protocol.PacketTypeRPCRequest:
-			rpcRequest, err := protocol.ToRPCRequest(p)
-			if err != nil {
-				log.WithError(err).Error("failed to convert to RPCRequest")
-			} else {
-				fmt.Println(rpcRequest.Query)
-			}
+
+		packet, err := protocol.ConvPacket(p)
+		switch {
+		case err != nil:
+			log.WithError(err).Errorf("Failed to read SQLServer client packet\nDump: \n%s\n", hex.Dump(p.Bytes()))
 		default:
+			// audit packet.
+			packet = packet
 		}
+
 		_, err = serverConn.Write(p.Bytes())
 		if err != nil {
 			log.WithError(err).Error("Failed to write server packet.")

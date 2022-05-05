@@ -82,7 +82,7 @@ func (g packet) Type() uint8 {
 }
 
 // ReadPacket reads a single full packet from the reader.
-func ReadPacket(r io.Reader) (Packet, error) {
+func ReadPacket(r io.Reader) (*packet, error) {
 	var buff bytes.Buffer
 	tr := io.TeeReader(r, &buff)
 	// Read 8-byte packet header.
@@ -108,24 +108,25 @@ func ReadPacket(r io.Reader) (Packet, error) {
 		data:   dataBytes,
 		raw:    buff,
 	}
+	return p, nil
+}
 
+func ConvPacket(p *packet) (Packet, error) {
 	switch p.Type() {
 	case PacketTypeRPCRequest:
 		sqlBatch, err := toRPCRequest(p)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return p, trace.Wrap(err)
 		}
 		return sqlBatch, nil
 	case PacketTypeSQLBatch:
 		rpcRequest, err := toSQLBatch(p)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return p, trace.Wrap(err)
 		}
 		return rpcRequest, nil
-	default:
-		return p, nil
 	}
-
+	return p, nil
 }
 
 // makePacket prepends header to the provided packet data.

@@ -37,7 +37,7 @@ func toRPCRequest(p Packet) (*RPCRequest, error) {
 	}
 	s, err := readBVarChar(rr)
 	if err != nil {
-		panic(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return &RPCRequest{

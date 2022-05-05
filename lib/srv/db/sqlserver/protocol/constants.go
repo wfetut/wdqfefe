@@ -17,8 +17,8 @@ limitations under the License.
 package protocol
 
 const (
-	PacketTypeSQLBatch   = 0x01
-	PacketTypeRPCRequest = 0x03
+	PacketTypeSQLBatch   uint8 = 0x01
+	PacketTypeRPCRequest uint8 = 0x03
 
 	// PacketTypeResponse is the packet type for server response messages.
 	PacketTypeResponse uint8 = 0x04
