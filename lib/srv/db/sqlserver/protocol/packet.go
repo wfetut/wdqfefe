@@ -48,20 +48,46 @@ func (h *PacketHeader) Marshal() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// Packet represents a single protocol packet.
-type Packet struct {
-	// PacketHeader is the parsed packet header.
-	PacketHeader
+type Packet interface {
+	Bytes() []byte
+	Data() []byte
+	Header() PacketHeader
+	Type() uint8
+}
 
-	// Data is the packet data bytes without header.
-	Data []byte
+type packet struct {
+	header PacketHeader
+	data   []byte
+	raw    bytes.Buffer
+}
+
+// Bytes returns raw packet bytes.
+func (g packet) Bytes() []byte {
+	return g.raw.Bytes()
+}
+
+// Data is the packet data bytes without header.
+func (g packet) Data() []byte {
+	return g.data
+}
+
+// Header is the parsed packet header.
+func (g packet) Header() PacketHeader {
+	return g.header
+}
+
+// Type is the parsed packet header.
+func (g packet) Type() uint8 {
+	return g.header.Type
 }
 
 // ReadPacket reads a single full packet from the reader.
-func ReadPacket(r io.Reader) (*Packet, error) {
+func ReadPacket(r io.Reader) (Packet, error) {
+	var buff bytes.Buffer
+	tr := io.TeeReader(r, &buff)
 	// Read 8-byte packet header.
 	var headerBytes [packetHeaderSize]byte
-	if _, err := io.ReadFull(r, headerBytes[:]); err != nil {
+	if _, err := io.ReadFull(tr, headerBytes[:]); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -73,14 +99,33 @@ func ReadPacket(r io.Reader) (*Packet, error) {
 
 	// Read packet data. Packet length includes header.
 	dataBytes := make([]byte, header.Length-packetHeaderSize)
-	if _, err := io.ReadFull(r, dataBytes); err != nil {
+	if _, err := io.ReadFull(tr, dataBytes); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	return &Packet{
-		PacketHeader: header,
-		Data:         dataBytes,
-	}, nil
+	p := &packet{
+		header: header,
+		data:   dataBytes,
+		raw:    buff,
+	}
+
+	switch p.Type() {
+	case PacketTypeRPCRequest:
+		sqlBatch, err := toRPCRequest(p)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return sqlBatch, nil
+	case PacketTypeSQLBatch:
+		rpcRequest, err := toSQLBatch(p)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return rpcRequest, nil
+	default:
+		return p, nil
+	}
+
 }
 
 // makePacket prepends header to the provided packet data.

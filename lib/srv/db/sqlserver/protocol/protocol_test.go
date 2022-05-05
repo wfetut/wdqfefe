@@ -41,7 +41,7 @@ func TestWritePreLoginResponse(t *testing.T) {
 
 	packet, err := ReadPacket(b)
 	require.NoError(t, err)
-	require.Equal(t, PacketTypeResponse, packet.Type)
+	require.Equal(t, PacketTypeResponse, packet.Type())
 }
 
 // TestReadLogin7 verifies Login7 packet parsing.
