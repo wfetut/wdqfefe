@@ -42,6 +42,8 @@ const (
 	// ProtocolSQLServer is the TLS ALPN protocol value used to indicate SQL Server protocol.
 	ProtocolSQLServer Protocol = "teleport-sqlserver"
 
+	ProtocolCassandra Protocol = "teleport-cassandra"
+
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ProtocolProxySSH Protocol = "teleport-proxy-ssh"
 
@@ -77,6 +79,7 @@ var SupportedProtocols = []Protocol{
 	ProtocolMongoDB,
 	ProtocolRedisDB,
 	ProtocolSQLServer,
+	ProtocolCassandra,
 	ProtocolProxySSH,
 	ProtocolReverseTunnel,
 	ProtocolHTTP,
@@ -106,6 +109,8 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 		return ProtocolRedisDB, nil
 	case defaults.ProtocolSQLServer:
 		return ProtocolSQLServer, nil
+	case defaults.ProtocolCassandra:
+		return ProtocolCassandra, nil
 	default:
 		return "", trace.NotImplemented("%q protocol is not supported", dbProtocol)
 	}
@@ -118,7 +123,7 @@ func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 // to terminated DB connection.
 func IsDBTLSProtocol(protocol Protocol) bool {
 	switch protocol {
-	case ProtocolMongoDB, ProtocolRedisDB, ProtocolSQLServer:
+	case ProtocolMongoDB, ProtocolRedisDB, ProtocolSQLServer, ProtocolCassandra:
 		return true
 	default:
 		return false
