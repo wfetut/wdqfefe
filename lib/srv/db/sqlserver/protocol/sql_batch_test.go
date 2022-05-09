@@ -49,8 +49,10 @@ func TestSQLBatchWalk(t *testing.T) {
 
 func TestRPCRequestWalk(t *testing.T) {
 	filepath.WalkDir("/Users/marek/packetsrpc/", func(path string, d fs.DirEntry, err error) error {
-		if d.Name() != "11_pkg.bin" {
-			return nil
+		if false {
+			if d.Name() != "11_pkg.bin" {
+				return nil
+			}
 		}
 
 		if err != nil {

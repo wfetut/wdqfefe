@@ -3,8 +3,8 @@ package protocol
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
+	"io"
 
 	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/gravitational/trace"
@@ -29,30 +29,24 @@ func toRPCRequest(p Packet) (*RPCRequest, error) {
 		return nil, trace.BadParameter("expected SQLBatch packet, got: %#v", p.Type())
 	}
 	data := p.Data()
+	r := bytes.NewReader(p.Data())
 
 	var headersLength uint32
-	if err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &headersLength); err != nil {
+	if err := binary.Read(r, binary.LittleEndian, &headersLength); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(data) < int(headersLength+2) {
-		return nil, trace.BadParameter("data invalid size")
+	if _, err := r.Seek(int64(headersLength), io.SeekStart); err != nil {
+		return nil, trace.ConvertSystemError(err)
 	}
 
 	var length uint16
-
-	if headersLength > headersLength+2 {
-		return nil, trace.BadParameter("data invalid size")
-	}
-	if err := binary.Read(bytes.NewReader(data[headersLength:headersLength+2]), binary.LittleEndian, &length); err != nil {
+	if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if length != 0xFFFF {
-		if len(data) < 2*int(length) {
-			return nil, trace.BadParameter("bad parameter")
-		}
-		procName, err := readUcs2(bytes.NewReader(data[headersLength+2:]), 2*int(length))
+		procName, err := readUcs2(r, 2*int(length))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -63,27 +57,20 @@ func toRPCRequest(p Packet) (*RPCRequest, error) {
 	}
 
 	var procID uint16
-	if err := binary.Read(bytes.NewReader(data[headersLength+2:headersLength+4]), binary.LittleEndian, &procID); err != nil {
+	if err := binary.Read(r, binary.LittleEndian, &procID); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	fmt.Println(hex.Dump(data[headersLength:]))
-	kk := data[headersLength+2:]
-	rr := bytes.NewReader(kk)
 
 	var flags uint16
-	if err := binary.Read(rr, binary.LittleEndian, &flags); err != nil {
+	if err := binary.Read(r, binary.LittleEndian, &flags); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	fmt.Println(hex.Dump(kk[2:]))
-	i := 6
-	if len(kk) < 6 {
-		return nil, trace.BadParameter("bad parameter")
+	if _, err := r.Seek(2, io.SeekCurrent); err != nil {
+		return nil, trace.ConvertSystemError(err)
 	}
-	fmt.Println(hex.Dump(kk[i:]))
 
-	tds := mssql.NewTdsBuffer(kk[i:], len(kk[i:]))
+	tds := mssql.NewTdsBuffer(data[int(r.Size())-r.Len():], r.Len())
 	ti := mssql.ReadTypeInfo(tds)
 	val := ti.Reader(&ti, tds)
 
@@ -91,23 +78,4 @@ func toRPCRequest(p Packet) (*RPCRequest, error) {
 		Packet: p,
 		Query:  fmt.Sprintf("%v", val),
 	}, nil
-}
-
-type Collation struct {
-	LcidAndFlags uint32
-	SortId       uint8
-}
-
-type TypeInfo struct {
-	NameLength  uint8
-	FlagsParam  uint8
-	T           uint8
-	MaxLength   uint16
-	Collocation uint32
-	SortID      uint8
-}
-
-type RPCContent struct {
-	IDSwitch uint16
-	Flags    uint16
 }
