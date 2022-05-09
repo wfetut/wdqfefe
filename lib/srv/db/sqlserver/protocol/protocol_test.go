@@ -61,7 +61,7 @@ func TestErrorResponse(t *testing.T) {
 }
 
 func TestSQLBatch(t *testing.T) {
-	packet, err := ReadPacket(bytes.NewReader(fixtures.SQLBatch1))
+	packet, err := ReadPacket(bytes.NewReader(fixtures.SQLBatch))
 	require.NoError(t, err)
 	r, err := ConvPacket(packet)
 	require.NoError(t, err)
@@ -80,4 +80,15 @@ func TestRPCRequest(t *testing.T) {
 	p, ok := r.(*RPCRequest)
 	require.True(t, ok)
 	require.Equal(t, "select @@version", p.Query)
+}
+
+func TestRPCRequestfoo(t *testing.T) {
+	packet, err := ReadPacket(bytes.NewReader(fixtures.RPCClientRequest))
+	require.NoError(t, err)
+	require.Equal(t, packet.Type(), PacketTypeRPCRequest)
+	r, err := ConvPacket(packet)
+	require.NoError(t, err)
+	p, ok := r.(*RPCRequest)
+	require.True(t, ok)
+	require.Equal(t, "foo3", p.ProcName)
 }

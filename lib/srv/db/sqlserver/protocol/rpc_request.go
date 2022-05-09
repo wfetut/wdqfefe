@@ -3,13 +3,25 @@ package protocol
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
+	"fmt"
 
+	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/gravitational/trace"
 )
 
 type RPCRequest struct {
 	Packet
-	Query string
+	ProcName string
+	Query    string
+}
+
+type PP struct {
+	*bytes.Buffer
+}
+
+func (k *PP) Close() error {
+	return nil
 }
 
 func toRPCRequest(p Packet) (*RPCRequest, error) {
@@ -23,30 +35,61 @@ func toRPCRequest(p Packet) (*RPCRequest, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if int(headersLength+2) >= len(data) {
+	if len(data) < int(headersLength+2) {
 		return nil, trace.BadParameter("data invalid size")
 	}
 
+	var length uint16
+
+	if headersLength > headersLength+2 {
+		return nil, trace.BadParameter("data invalid size")
+	}
+	if err := binary.Read(bytes.NewReader(data[headersLength:headersLength+2]), binary.LittleEndian, &length); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if length != 0xFFFF {
+		if len(data) < 2*int(length) {
+			return nil, trace.BadParameter("bad parameter")
+		}
+		procName, err := readUcs2(bytes.NewReader(data[headersLength+2:]), 2*int(length))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &RPCRequest{
+			Packet:   p,
+			ProcName: procName,
+		}, nil
+	}
+
+	var procID uint16
+	if err := binary.Read(bytes.NewReader(data[headersLength+2:headersLength+4]), binary.LittleEndian, &procID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fmt.Println(hex.Dump(data[headersLength:]))
 	kk := data[headersLength+2:]
 	rr := bytes.NewReader(kk)
 
-	var rpcContent RPCContent
-	if err := binary.Read(rr, binary.LittleEndian, &rpcContent); err != nil {
+	var flags uint16
+	if err := binary.Read(rr, binary.LittleEndian, &flags); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var typeInfo TypeInfo
-	if err := binary.Read(rr, binary.LittleEndian, &typeInfo); err != nil {
-		return nil, trace.Wrap(err)
+	fmt.Println(hex.Dump(kk[2:]))
+	i := 6
+	if len(kk) < 6 {
+		return nil, trace.BadParameter("bad parameter")
 	}
-	s, err := readBVarChar(rr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	fmt.Println(hex.Dump(kk[i:]))
+
+	tds := mssql.NewTdsBuffer(kk[i:], len(kk[i:]))
+	ti := mssql.ReadTypeInfo(tds)
+	val := ti.Reader(&ti, tds)
 
 	return &RPCRequest{
 		Packet: p,
-		Query:  s,
+		Query:  fmt.Sprintf("%v", val),
 	}, nil
 }
 

@@ -22,7 +22,9 @@ import (
 	"io"
 	"net"
 
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
@@ -212,8 +214,18 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 func (e *Engine) auditPacket(ctx context.Context, sessCtx *common.Session, packet protocol.Packet) {
 	switch t := packet.(type) {
 	case *protocol.SQLBatch:
-		e.Audit.OnQuery(ctx, sessCtx, common.Query{Query: "SQLBatch: " + t.SQLText})
+		e.Audit.OnQuery(ctx, sessCtx, common.Query{Query: t.SQLText})
 	case *protocol.RPCRequest:
-		e.Audit.OnQuery(ctx, sessCtx, common.Query{Query: "RPCRequest: " + t.Query})
+		e.Audit.EmitEvent(ctx, &events.MSServerRPCRequest{
+			Metadata: common.MakeEventMetadata(sessCtx,
+				libevents.DatabaseSessionMSServerRPCRequest,
+				libevents.MSServerRPCRequestCode,
+			),
+			UserMetadata:     common.MakeUserMetadata(sessCtx),
+			SessionMetadata:  common.MakeSessionMetadata(sessCtx),
+			DatabaseMetadata: common.MakeDatabaseMetadata(sessCtx),
+			Procname:         t.ProcName,
+			Parameters:       []string{t.Query},
+		})
 	}
 }

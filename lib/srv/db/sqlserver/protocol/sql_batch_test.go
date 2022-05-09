@@ -32,6 +32,7 @@ func TestSQLBatchWalk(t *testing.T) {
 		require.NoError(t, err)
 		switch o := r.(type) {
 		case *SQLBatch:
+			o = o
 			require.NotEmpty(t, o.SQLText)
 			t.Log(d.Name())
 			t.Log(o.SQLText)
@@ -48,6 +49,10 @@ func TestSQLBatchWalk(t *testing.T) {
 
 func TestRPCRequestWalk(t *testing.T) {
 	filepath.WalkDir("/Users/marek/packetsrpc/", func(path string, d fs.DirEntry, err error) error {
+		if d.Name() != "11_pkg.bin" {
+			return nil
+		}
+
 		if err != nil {
 			return nil
 		}
@@ -71,6 +76,7 @@ func TestRPCRequestWalk(t *testing.T) {
 			t.Log(d.Name())
 			t.Log(o.SQLText)
 			return nil
+
 		case *RPCRequest:
 			require.NotEmpty(t, o.Query)
 			t.Log(d.Name())
