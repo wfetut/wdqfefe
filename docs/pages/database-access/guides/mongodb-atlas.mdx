@@ -239,6 +239,56 @@ Once logged in, connect to the database:
 $ tsh db connect mongodb-atlas
 ```
 
+<Details title="Is TLS routing enabled?">
+
+If TLS routing is enabled, `tsh` will need to implement Server Name Indication
+(SNI) and Application-Level Protocol Negotiation (ALPN) in order to connect to your
+database through the Teleport Proxy Service. 
+
+This is because the Proxy Service multiplexes all traffic through the public web
+address, and determines which service to route your connection to at the
+application level.
+
+To determine if TLS routing is enabled in your Teleport cluster, send the
+following request to your Proxy Service's public web address:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$  curl -s https://teleport.example.com/webapi/ping | jq '.proxy.tls_routing_enabled'
+true
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$  curl -s https://mytenant.teleport.sh/webapi/ping | jq '.proxy.tls_routing_enabled'
+true
+```
+
+</ScopedBlock>
+
+To run the local `tsh` proxy, execute the following command on your local
+machine:
+
+```code
+$ tsh proxy db <database-name>
+Started DB proxy on 127.0.0.1:61740
+
+Use following credentials to connect to the <database-name> proxy:
+  ca_file=/Users/myuser/.tsh/keys/root.gravitational.io/certs.pem
+  cert_file=/Users/myuser/.tsh/keys/root.gravitational.io/alice-db/root/<database-name>-x509.pem
+  key_file=/Users/myuser/.tsh/keys/root.gravitational.io/alice
+```
+
+{/* TODO: is there a way to avoid needing to connect with a local client? Can you run another `tsh` command? */}
+
+Use the displayed local proxy host/port and credentials paths when configuring your GUI client below. When entering the hostname, use localhost rather than 127.0.0.1.
+
+</Details>
+
+
 <Admonition type="note" title="Note">
   The `mongo` command-line client should be available in PATH in order to be
   able to connect.
