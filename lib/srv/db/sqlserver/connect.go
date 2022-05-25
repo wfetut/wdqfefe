@@ -22,9 +22,10 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
-	"github.com/gravitational/trace"
 
 	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/denisenkom/go-mssqldb/msdsn"
@@ -64,19 +65,39 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		TypeFlags:    loginPacket.TypeFlags(),
 	}
 
-	auth, err := c.getAuth(sessionCtx)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+	var connector *mssql.Connector
+	switch {
+	case sessionCtx.Database.GetAD().Krb5File != "":
+		auth, err := c.getAuth(sessionCtx)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		connector = mssql.NewConnectorConfig(msdsn.Config{
+			Host:         host,
+			Port:         portI,
+			Database:     sessionCtx.DatabaseName,
+			LoginOptions: options,
+			Encryption:   msdsn.EncryptionRequired,
+			TLSConfig:    tlsConfig,
+		}, auth)
+	case sessionCtx.Database.IsCloudSQL():
+		password, err := c.Auth.GetCloudSQLPassword(ctx, sessionCtx)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		connector = mssql.NewConnectorConfig(msdsn.Config{
+			Host:         host,
+			Port:         portI,
+			Database:     sessionCtx.DatabaseName,
+			LoginOptions: options,
+			Encryption:   msdsn.EncryptionRequired,
+			TLSConfig:    tlsConfig,
+			Password:     password,
+			User:         sessionCtx.DatabaseUser,
+		}, nil)
+	default:
+		return nil, nil, trace.BadParameter("wrong parameter")
 	}
-
-	connector := mssql.NewConnectorConfig(msdsn.Config{
-		Host:         host,
-		Port:         portI,
-		Database:     sessionCtx.DatabaseName,
-		LoginOptions: options,
-		Encryption:   msdsn.EncryptionRequired,
-		TLSConfig:    tlsConfig,
-	}, auth)
 
 	conn, err := connector.Connect(ctx)
 	if err != nil {

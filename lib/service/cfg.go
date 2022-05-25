@@ -825,7 +825,7 @@ func (d *Database) CheckAndSetDefaults() error {
 	}
 
 	// For SQL Server we only support Kerberos auth with Active Directory at the moment.
-	if d.Protocol == defaults.ProtocolSQLServer {
+	if d.Protocol == defaults.ProtocolSQLServer && d.GCP.ProjectID == "" {
 		if err := d.AD.CheckAndSetDefaults(d.Name); err != nil {
 			return trace.Wrap(err)
 		}
