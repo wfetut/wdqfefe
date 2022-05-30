@@ -18,7 +18,6 @@ package client
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -178,25 +177,28 @@ func (p *sessionPlayer) setState(state tshPlayerState) {
 // timestampFrame prints 'event timestamp' in the top right corner of the
 // terminal after playing every 'print' event
 func timestampFrame(term *terminal.Terminal, message string) {
-	const (
-		saveCursor    = "7"
-		restoreCursor = "8"
-	)
 	width, _, err := term.Size()
 	if err != nil {
 		return
 	}
-	esc := func(s string) {
-		os.Stdout.Write([]byte("\x1b" + s))
-	}
+	// move cursor to top right corner (row 0)
+	// TODO(timothyb89): message length does not account for unicode characters
+	// or ANSI sequences.
+	writeAtLocation(term, 0, int(width)-len(message), []byte(message))
+}
+
+func writeAtLocation(term *terminal.Terminal, row, col int, message []byte) {
+	const (
+		saveCursor    = "7"
+		restoreCursor = "8"
+	)
+
+	esc := func(s string) { term.Stdout().Write([]byte("\x1b" + s)) }
 	esc(saveCursor)
 	defer esc(restoreCursor)
 
-	// move cursor to -10:0
-	// TODO(timothyb89): message length does not account for unicode characters
-	// or ANSI sequences.
-	esc(fmt.Sprintf("[%d;%df", 0, int(width)-len(message)))
-	os.Stdout.WriteString(message)
+	esc(fmt.Sprintf("[%d;%df", row, col))
+	term.Stdout().Write([]byte(message))
 }
 
 func (p *sessionPlayer) close() {
@@ -218,7 +220,7 @@ func (p *sessionPlayer) playRange(from, to int) {
 		to = len(p.sessionEvents)
 	}
 	// clear screen between runs:
-	os.Stdout.Write([]byte("\x1bc"))
+	p.term.Stdout().Write([]byte("\x1bc"))
 
 	// playback goroutine:
 	go func() {
@@ -259,7 +261,7 @@ func (p *sessionPlayer) playRange(from, to int) {
 				}
 				offset = e.GetInt("offset")
 				bytes = e.GetInt("bytes")
-				os.Stdout.Write(p.stream[offset : offset+bytes])
+				p.term.Stdout().Write(p.stream[offset : offset+bytes])
 			// resize terminal event (also on session start)
 			case events.ResizeEvent, events.SessionStartEvent:
 				parts := strings.Split(e.GetString("size"), ":")
@@ -268,7 +270,7 @@ func (p *sessionPlayer) playRange(from, to int) {
 				}
 				width, height := parts[0], parts[1]
 				// resize terminal window by sending control sequence:
-				os.Stdout.Write([]byte(fmt.Sprintf("\x1b[8;%s;%st", height, width)))
+				fmt.Fprintf(p.term.Stdout(), "\x1b[8;%s;%st", height, width)
 			default:
 				continue
 			}

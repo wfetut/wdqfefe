@@ -422,6 +422,15 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 			}
 			continue
 		}
+		defer func() {
+			if err := indexFile.Close(); err != nil {
+				// l.log.WithError(err).Errorf("Failed to close file %q.", tarballPath)
+				// return nil, trace.Wrap(err)
+
+				// TODO: return this error
+			}
+		}()
+
 		index.indexFiles = append(index.indexFiles, indexFileName)
 
 		entries, err := readIndexEntries(indexFile, authServer)
@@ -440,11 +449,6 @@ func readSessionIndex(dataDir string, authServers []string, namespace string, si
 			default:
 				return nil, trace.BadParameter("found unknown event type: %q", entry.Type)
 			}
-		}
-
-		err = indexFile.Close()
-		if err != nil {
-			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -532,9 +536,12 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 	}()
 	if err := l.UploadHandler.Download(l.ctx, sid, tarball); err != nil {
 		// remove partially downloaded tarball
-		if rmErr := os.Remove(tarballPath); rmErr != nil {
-			l.log.WithError(rmErr).Warningf("Failed to remove file %v.", tarballPath)
-		}
+		// we do this in a defer so that it runs after the deferred close above
+		defer func() {
+			if rmErr := os.Remove(tarballPath); rmErr != nil {
+				l.log.WithError(rmErr).Warningf("Failed to remove file %v.", tarballPath)
+			}
+		}()
 		return trace.Wrap(err)
 	}
 	l.log.WithField("duration", time.Since(start)).Debugf("Downloaded %v to %v.", sid, tarballPath)
@@ -685,11 +692,13 @@ func (l *AuditLog) unpackFile(fileName string) (readSeekCloser, error) {
 	}
 	source, err := os.OpenFile(fileName, os.O_RDONLY, 0640)
 	if err != nil {
+		dest.Close()
 		return nil, trace.ConvertSystemError(err)
 	}
 	defer source.Close()
 	reader, err := gzip.NewReader(source)
 	if err != nil {
+		dest.Close()
 		return nil, trace.Wrap(err)
 	}
 	defer reader.Close()

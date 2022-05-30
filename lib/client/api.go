@@ -2035,15 +2035,15 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	)
 	defer span.End()
 
-	var sessionEvents []events.EventFields
-	var stream []byte
 	if namespace == "" {
 		return trace.BadParameter(auth.MissingNamespaceError)
 	}
+
 	sid, err := session.ParseID(sessionID)
 	if err != nil {
 		return fmt.Errorf("'%v' is not a valid session ID (must be GUID)", sid)
 	}
+
 	// connect to the auth server (site) who made the recording
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
@@ -2055,25 +2055,9 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// request events for that session (to get timing data)
-	sessionEvents, err = site.GetSessionEvents(namespace, *sid, 0, true)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	// read the stream into a buffer:
-	for {
-		tmp, err := site.GetSessionChunk(namespace, *sid, len(stream), events.MaxChunkBytes)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(tmp) == 0 {
-			break
-		}
-		stream = append(stream, tmp...)
-	}
-
-	return playSession(sessionEvents, stream)
+	defer site.Close()
+	return streamSesssion(ctx, *sid, site)
 }
 
 func (tc *TeleportClient) GetSessionEvents(ctx context.Context, namespace, sessionID string) ([]events.EventFields, error) {
@@ -4220,13 +4204,70 @@ func isFIPS() bool {
 	return modules.GetModules().IsBoringBinary()
 }
 
+func streamSesssion(ctx context.Context, sid session.ID, streamer streamer) error {
+	term, err := terminal.New(nil, nil, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer term.Close()
+
+	// configure terminal for direct unbuffered echo-less input:
+	if term.IsAttached() {
+		err := term.InitRaw(true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// TODO(zmb3) move clock/log to constructor
+	player := newStreamingPlayer(streamer, sid, term)
+	player.clock = clockwork.NewRealClock()
+	player.log = log
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	errorCh := make(chan error)
+	const (
+		keyCtrlC = 3
+		keyCtrlD = 4
+		keySpace = 32
+		keyLeft  = 68
+		keyRight = 67
+		keyUp    = 65
+		keyDown  = 66
+	)
+	// playback control goroutine
+	go func() {
+		defer cancel()
+		var key [1]byte
+		for {
+			_, err := term.Stdin().Read(key[:])
+			if err != nil {
+				errorCh <- err
+				return
+			}
+			switch key[0] {
+			case keyCtrlC, keyCtrlD:
+				return
+			case keySpace:
+				player.TogglePause()
+			case keyLeft, keyDown:
+				player.Rewind()
+			case keyRight, keyUp:
+				player.Forward()
+			}
+		}
+	}()
+
+	return player.Play(ctx)
+}
+
 // playSession plays session in the terminal
 func playSession(sessionEvents []events.EventFields, stream []byte) error {
 	term, err := terminal.New(nil, nil, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	defer term.Close()
 
 	// configure terminal for direct unbuffered echo-less input:
