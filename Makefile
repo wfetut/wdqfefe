@@ -1214,3 +1214,7 @@ build-ui-e: ensure-js-deps
 .PHONY: docker-ui
 docker-ui:
 	$(MAKE) -C build.assets ui
+# Generate docs from the Teleport source code
+.PHONY: docs-gen
+docs-gen:
+	(cd ./assets/docs-gen && go run main.go -in="../.." -out=../../docs/gen)
