@@ -102,7 +102,7 @@ func AssertConnectionProblem(t *testing.T, err error) {
 }
 
 // DeepCompare uses gocheck DeepEquals but provides nice diff if things are not equal
-func DeepCompare(c *check.C, a, b interface{}) {
+func DeepCompare(c interface{ Fatalf(string, ...interface{}) }, a, b interface{}) {
 	if !reflect.DeepEqual(a, b) {
 		c.Fatalf("Values are not equal, diff:\n%s\nStack:\n%v\n", cmp.Diff(a, b), string(debug.Stack()))
 	}

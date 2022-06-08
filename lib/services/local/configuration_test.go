@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"testing"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -25,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
+	"github.com/stretchr/testify/require"
 
 	"gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
@@ -46,54 +48,69 @@ func (s *ClusterConfigurationSuite) TearDownTest(c *check.C) {
 	c.Assert(s.bk.Close(), check.IsNil)
 }
 
-func (s *ClusterConfigurationSuite) TestAuthPreference(c *check.C) {
-	clusterConfig, err := NewClusterConfigurationService(s.bk)
-	c.Assert(err, check.IsNil)
+func TestAuthPreference(t *testing.T) {
+	bk, err := lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
+	require.NoError(t, err)
+
+	clusterConfig, err := NewClusterConfigurationService(bk)
+	require.NoError(t, err)
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
-	suite.AuthPreference(c)
+	suite.AuthPreference(t)
 }
 
-func (s *ClusterConfigurationSuite) TestClusterName(c *check.C) {
-	clusterConfig, err := NewClusterConfigurationService(s.bk)
-	c.Assert(err, check.IsNil)
+func TestClusterName(t *testing.T) {
+	bk, err := lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
+	require.NoError(t, err)
+
+	clusterConfig, err := NewClusterConfigurationService(bk)
+	require.NoError(t, err)
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
-	suite.ClusterName(c)
+	suite.ClusterName(t)
 }
 
-func (s *ClusterConfigurationSuite) TestClusterNetworkingConfig(c *check.C) {
-	clusterConfig, err := NewClusterConfigurationService(s.bk)
-	c.Assert(err, check.IsNil)
+func TestClusterNetworkingConfig(t *testing.T) {
+	bk, err := lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
+	require.NoError(t, err)
+
+	clusterConfig, err := NewClusterConfigurationService(bk)
+	require.NoError(t, err)
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
-	suite.ClusterNetworkingConfig(c)
+	suite.ClusterNetworkingConfig(t)
 }
 
-func (s *ClusterConfigurationSuite) TestSessionRecordingConfig(c *check.C) {
-	clusterConfig, err := NewClusterConfigurationService(s.bk)
-	c.Assert(err, check.IsNil)
+func TestSessionRecordingConfig(t *testing.T) {
+	bk, err := lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
+	require.NoError(t, err)
+
+	clusterConfig, err := NewClusterConfigurationService(bk)
+	require.NoError(t, err)
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
-	suite.SessionRecordingConfig(c)
+	suite.SessionRecordingConfig(t)
 }
 
-func (s *ClusterConfigurationSuite) TestStaticTokens(c *check.C) {
-	clusterConfig, err := NewClusterConfigurationService(s.bk)
-	c.Assert(err, check.IsNil)
+func TestStaticTokens(t *testing.T) {
+	bk, err := lite.New(context.TODO(), backend.Params{"path": t.TempDir()})
+	require.NoError(t, err)
+
+	clusterConfig, err := NewClusterConfigurationService(bk)
+	require.NoError(t, err)
 
 	suite := &suite.ServicesTestSuite{
 		ConfigS: clusterConfig,
 	}
-	suite.StaticTokens(c)
+	suite.StaticTokens(t)
 }
 
 func (s *ClusterConfigurationSuite) TestSessionRecording(c *check.C) {

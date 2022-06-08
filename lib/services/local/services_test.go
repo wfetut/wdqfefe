@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
@@ -42,21 +43,22 @@ type ServicesSuite struct {
 
 var _ = check.Suite(&ServicesSuite{})
 
-func (s *ServicesSuite) SetUpTest(c *check.C) {
+func newServicesSuite(t *testing.T) *ServicesSuite {
 	var err error
 	ctx := context.Background()
 
 	clock := clockwork.NewFakeClock()
 
+	s := &ServicesSuite{}
 	s.bk, err = lite.NewWithConfig(ctx, lite.Config{
-		Path:             c.MkDir(),
+		Path:             t.TempDir(),
 		PollStreamPeriod: 200 * time.Millisecond,
 		Clock:            clock,
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	configService, err := NewClusterConfigurationService(s.bk)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	eventsService := NewEventsService(s.bk)
 	presenceService := NewPresenceService(s.bk)
@@ -73,97 +75,120 @@ func (s *ServicesSuite) SetUpTest(c *check.C) {
 		RestrictionsS: NewRestrictionsService(s.bk),
 		Clock:         clock,
 	}
+	t.Cleanup(func() {
+		require.Nil(t, s.bk.Close())
+	})
+
+	return s
 }
 
-func (s *ServicesSuite) TearDownTest(c *check.C) {
-	c.Assert(s.bk.Close(), check.IsNil)
+func TestUserCACRUD(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.CertAuthCRUD(t)
 }
 
-func (s *ServicesSuite) TestUserCACRUD(c *check.C) {
-	s.suite.CertAuthCRUD(c)
-}
-
-func (s *ServicesSuite) TestServerCRUD(c *check.C) {
-	s.suite.ServerCRUD(c)
+func TestServerCRUD(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.ServerCRUD(t)
 }
 
 // TestAppServerCRUD tests CRUD functionality for services.App.
-func (s *ServicesSuite) TestAppServerCRUD(c *check.C) {
-	s.suite.AppServerCRUD(c)
+func TestAppServerCRUD(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.AppServerCRUD(t)
 }
 
-func (s *ServicesSuite) TestReverseTunnelsCRUD(c *check.C) {
-	s.suite.ReverseTunnelsCRUD(c)
+func TestReverseTunnelsCRUD(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.ReverseTunnelsCRUD(t)
 }
 
-func (s *ServicesSuite) TestUsersCRUD(c *check.C) {
-	s.suite.UsersCRUD(c)
+func TestUsersCRUD(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.UsersCRUD(t)
 }
 
-func (s *ServicesSuite) TestUsersExpiry(c *check.C) {
-	s.suite.UsersExpiry(c)
+func TestUsersExpiry(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.UsersExpiry(t)
 }
 
-func (s *ServicesSuite) TestLoginAttempts(c *check.C) {
-	s.suite.LoginAttempts(c)
+func TestLoginAttempts(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.LoginAttempts(t)
 }
 
-func (s *ServicesSuite) TestPasswordHashCRUD(c *check.C) {
-	s.suite.PasswordHashCRUD(c)
+func TestPasswordHashCRUD(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.PasswordHashCRUD(t)
 }
 
-func (s *ServicesSuite) TestWebSessionCRUD(c *check.C) {
-	s.suite.WebSessionCRUD(c)
+func TestWebSessionCRUD(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.WebSessionCRUD(t)
 }
 
-func (s *ServicesSuite) TestToken(c *check.C) {
-	s.suite.TokenCRUD(c)
+func TestToken(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.TokenCRUD(t)
 }
 
-func (s *ServicesSuite) TestRoles(c *check.C) {
-	s.suite.RolesCRUD(c)
+func TestRoles(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.RolesCRUD(t)
 }
 
-func (s *ServicesSuite) TestSAMLCRUD(c *check.C) {
-	s.suite.SAMLCRUD(c)
+func TestSAMLCRUD(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.SAMLCRUD(t)
 }
 
-func (s *ServicesSuite) TestTunnelConnectionsCRUD(c *check.C) {
-	s.suite.TunnelConnectionsCRUD(c)
+func TestTunnelConnectionsCRUD(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.TunnelConnectionsCRUD(t)
 }
 
-func (s *ServicesSuite) TestGithubConnectorCRUD(c *check.C) {
-	s.suite.GithubConnectorCRUD(c)
+func TestGithubConnectorCRUD(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.GithubConnectorCRUD(t)
 }
 
-func (s *ServicesSuite) TestRemoteClustersCRUD(c *check.C) {
-	s.suite.RemoteClustersCRUD(c)
+func TestRemoteClustersCRUD(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.RemoteClustersCRUD(t)
 }
 
-func (s *ServicesSuite) TestEvents(c *check.C) {
-	s.suite.Events(c)
+func TestEvents(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.Events(t)
 }
 
-func (s *ServicesSuite) TestEventsClusterConfig(c *check.C) {
-	s.suite.EventsClusterConfig(c)
+func TestEventsClusterConfig(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.EventsClusterConfig(t)
 }
 
-func (s *ServicesSuite) TestSemaphoreLock(c *check.C) {
-	s.suite.SemaphoreLock(c)
+func TestSemaphoreLock(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.SemaphoreLock(t)
 }
 
-func (s *ServicesSuite) TestSemaphoreConcurrency(c *check.C) {
-	s.suite.SemaphoreConcurrency(c)
+func TestSemaphoreConcurrency(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.SemaphoreConcurrency(t)
 }
 
-func (s *ServicesSuite) TestSemaphoreContention(c *check.C) {
-	s.suite.SemaphoreContention(c)
+func TestSemaphoreContention(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.SemaphoreContention(t)
 }
 
-func (s *ServicesSuite) TestSemaphoreFlakiness(c *check.C) {
-	s.suite.SemaphoreFlakiness(c)
+func TestSemaphoreFlakiness(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.SemaphoreFlakiness(t)
 }
 
-func (s *ServicesSuite) TestNetworkRestrictions(c *check.C) {
-	s.suite.NetworkRestrictions(c)
+func TestNetworkRestrictions(t *testing.T) {
+	s := newServicesSuite(t)
+	s.suite.NetworkRestrictions(t)
 }
