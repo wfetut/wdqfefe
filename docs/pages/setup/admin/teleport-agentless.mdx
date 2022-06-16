@@ -1,0 +1,60 @@
+---
+title: "Running Resource Services: Agentlessly or as Agents"
+description: How to run Teleport's resource services to manage access to your infrastructure.
+---
+
+{/* TODO: Edit this guide to accommodate Cloud users /*}
+{/* TODO: Add links to our resource service guides */}
+
+Teleport manages access to resources in your cluster using **resource
+services**, such as the SSH Service, Kubernetes Service, and Database Service.
+This guide will the configurations you can use to run Teleport's resource
+services within your cluster, including in **agentless mode** and in **agent
+mode**.
+
+In general, all of Teleport's resource services must run on the same _network_
+as the resources they manage, but not on the same _host_. This means that you
+have two options for deploying resource services, which we will introduce in
+more detail in this guide:
+
+{/* TODO: Add diagrams to explain each mode */}
+
+- **Agentless mode:** You can deploy one resource service—or a small pool of
+  resource services—in the same data center (or network) as your infrastructure.
+  This minimizes the resource utilization of your resource services while
+  reducing their capacity to handle client traffic.
+
+  With Teleport in agentless mode, you can easily control access to SSH servers,
+  Kubernetes clusters, databases and internal applications without running any
+  additional software on your servers. Agentless mode supports session
+  recordings and audit logs for deep understanding into user behavior.
+
+- **Agent mode:** You can deploy a single `teleport` daemon within the same host
+  or Kubernetes pod as the application, database, or other resource it protects.
+
+  For capabilities such as kernel-level logging and user provisioning, we
+  recommend Teleport as a drop-in replacement for OpenSSH. Since Teleport
+  replaces the OpenSSH agent while preserving OpenSSH functionality, you get
+  deeper analytics without a net addition of an agent on your system.
+
+## Agentless mode
+
+{/* TODO: Consider adding a section/sections re: deploying resource services on the same
+host as the Auth/Proxy (or Auth without the Proxy and vice versa) */}
+
+{/* TODO: How would a pool of resource services work? Are these services
+stateless? If you deploy them behind a load balancer, would the load balancer
+need to terminate TLS? */}
+
+{/* How to make this work for each service */}
+{/* RE: the SSH service, talk about running without a resource service */}
+
+## Agent mode
+
+{/* How to make this work for each service */}
+
+{/* TODO: Some services don't support agent mode, right? The Desktop Service is
+the one that comes to mind */}
+
+{/* TODO: agent section */}
+{/* TODO: agentless section: include examples of all resource services */}
