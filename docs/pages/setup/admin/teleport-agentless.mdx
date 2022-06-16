@@ -1,6 +1,6 @@
 ---
 title: "Running Resource Services: Agentlessly or as Agents"
-description: How to run Teleport's resource services to manage access to your infrastructure.
+description: Explaining agentless mode and agent mode for resource services.
 ---
 
 {/* TODO: Edit this guide to accommodate Cloud users /*}
@@ -13,9 +13,9 @@ services within your cluster, including in **agentless mode** and in **agent
 mode**.
 
 In general, all of Teleport's resource services must run on the same _network_
-as the resources they manage, but not on the same _host_. This means that you
-have two options for deploying resource services, which we will introduce in
-more detail in this guide:
+as the resources they manage, but not on the same _host_. This gives you have
+two options for deploying resource services, which we will introduce in more
+detail in this guide:
 
 {/* TODO: Add diagrams to explain each mode */}
 
@@ -39,22 +39,37 @@ more detail in this guide:
 
 ## Agentless mode
 
-{/* TODO: Consider adding a section/sections re: deploying resource services on the same
-host as the Auth/Proxy (or Auth without the Proxy and vice versa) */}
+
+{/* TODO How to make this work for each service: add a Tabs component with a
+TabItem for each service:
+
+- explaining how agentless mode works for that service
+- including an example config 
+- when you would want to use agentless mode for that service
+- A diagram if needed
+
+*/} 
 
 {/* TODO: How would a pool of resource services work? Are these services
 stateless? If you deploy them behind a load balancer, would the load balancer
-need to terminate TLS? */}
+need to terminate TLS? **It depends on the service!** /}
 
-{/* How to make this work for each service */}
-{/* RE: the SSH service, talk about running without a resource service */}
+{/* TODO RE: the SSH service, talk about running
+without a resource service */}
+
+{/* TODO: Note that you can also deploy resource services in the same `teleport` process as the Auth/Proxy, but that process _must_ include both the Auth and Proxy: https://gravitational.slack.com/archives/C01TYKHFVTQ/p1655396993351109?thread_ts=1655396125.961999&cid=C01TYKHFVTQ */}
 
 ## Agent mode
 
-{/* How to make this work for each service */}
+{/* TODO How to make this work for each service: add a Tabs component with a
+TabItem for each service:
+
+- explaining how agent mode works for that service
+- including an example config 
+- when you would want to use agent mode for that service
+- A diagram if needed
+
+*/}  
 
 {/* TODO: Some services don't support agent mode, right? The Desktop Service is
 the one that comes to mind */}
-
-{/* TODO: agent section */}
-{/* TODO: agentless section: include examples of all resource services */}
