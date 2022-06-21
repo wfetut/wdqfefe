@@ -103,11 +103,17 @@ func TestGRPCErrorWrapping(t *testing.T) {
 	}()
 	defer server.Stop()
 
+	const windowSize = 65536
 	conn, err := grpc.Dial(
 		listener.Addr().String(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithChainUnaryInterceptor(GRPCClientUnaryErrorInterceptor),
 		grpc.WithChainStreamInterceptor(GRPCClientStreamErrorInterceptor),
+
+		// Set a large window size to disable dynamic window estimation
+		// See: https://github.com/grpc/grpc-go/issues/5358
+		grpc.WithInitialWindowSize(windowSize),
+		grpc.WithInitialConnWindowSize(windowSize),
 	)
 	require.NoError(t, err)
 	defer conn.Close()
@@ -125,10 +131,9 @@ func TestGRPCErrorWrapping(t *testing.T) {
 
 	sendErr := stream.Send(&pb.EchoRequest{Message: "Hi!"})
 
-	// io.EOF means the server closed the stream, which can
-	// happen depending in timing. In either case, it is
-	// still safe to recv from the stream and check for
-	// the already exists error.
+	// io.EOF means the server closed the stream.
+	// It is still safe to recv from the stream and check for
+	// the already exists error though.
 	if sendErr != nil && !errors.Is(sendErr, io.EOF) {
 		require.FailNowf(t, "unexpected error", "%v", sendErr)
 	}

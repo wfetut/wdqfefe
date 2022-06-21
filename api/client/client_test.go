@@ -74,6 +74,7 @@ func WithConfig(cfg Config) ConfigOpt {
 }
 
 func (m *mockServer) NewClient(ctx context.Context, opts ...ConfigOpt) (*Client, error) {
+	const windowSize = 65536
 	cfg := Config{
 		Addrs: []string{m.addr},
 		Credentials: []Credentials{
@@ -81,6 +82,11 @@ func (m *mockServer) NewClient(ctx context.Context, opts ...ConfigOpt) (*Client,
 		},
 		DialOpts: []grpc.DialOption{
 			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
+
+			// Set a large window size to disable dynamic window estimation
+			// See: https://github.com/grpc/grpc-go/issues/5358
+			grpc.WithInitialWindowSize(windowSize),
+			grpc.WithInitialConnWindowSize(windowSize),
 		},
 	}
 
@@ -103,9 +109,8 @@ func startMockServerWithListener(t *testing.T, l net.Listener) *mockServer {
 	srv := newMockServer(l.Addr().String())
 	t.Cleanup(srv.grpc.Stop)
 
-	go func() {
-		require.NoError(t, srv.grpc.Serve(l))
-	}()
+	go srv.grpc.Serve(l)
+
 	return srv
 }
 
@@ -116,6 +121,7 @@ func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.P
 func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
 	resources, err := testResources(req.ResourceType, req.Namespace)
 	if err != nil {
+		println("!!!!! 118")
 		return nil, trail.ToGRPC(err)
 	}
 
@@ -143,6 +149,7 @@ func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResources
 		case types.KindDatabaseServer:
 			database, ok := resource.(*types.DatabaseServerV3)
 			if !ok {
+				println("!!!!! 146")
 				return nil, trace.Errorf("database server has invalid type %T", resource)
 			}
 
@@ -150,6 +157,7 @@ func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResources
 		case types.KindAppServer:
 			app, ok := resource.(*types.AppServerV3)
 			if !ok {
+				println("!!!!! 154")
 				return nil, trace.Errorf("application server has invalid type %T", resource)
 			}
 
@@ -157,6 +165,7 @@ func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResources
 		case types.KindNode:
 			srv, ok := resource.(*types.ServerV2)
 			if !ok {
+				println("!!!!! 162")
 				return nil, trace.Errorf("node has invalid type %T", resource)
 			}
 
@@ -164,6 +173,7 @@ func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResources
 		case types.KindKubeService:
 			srv, ok := resource.(*types.ServerV2)
 			if !ok {
+				println("!!!!! 170")
 				return nil, trace.Errorf("kubernetes service has invalid type %T", resource)
 			}
 
@@ -171,6 +181,7 @@ func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResources
 		case types.KindWindowsDesktop:
 			desktop, ok := resource.(*types.WindowsDesktopV3)
 			if !ok {
+				println("!!!!! 178")
 				return nil, trace.Errorf("windows desktop has invalid type %T", resource)
 			}
 
@@ -516,6 +527,7 @@ func TestListResources(t *testing.T) {
 	// Create client
 	clt, err := srv.NewClient(ctx)
 	require.NoError(t, err)
+	t.Cleanup(func() { clt.Close() })
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
