@@ -301,7 +301,12 @@ Install `tsh` on your local machine:
 
   <TabItem label="Windows - Powershell">
     ```code
+    $ curl -O teleport.sha256 https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip.sha256
+    $ cat teleport.sha256
+    # <checksum> <filename>
     $ curl -O teleport-v(=teleport.version=)-windows-amd64-bin.zip https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip
+    $ certutil -hashfile teleport-v(=teleport.version=)-windows-amd64-bin.zip sha256
+    # Verify that the checksums match
     # Unzip the archive and move `tsh.exe` to your %PATH%
     ```
   </TabItem>
@@ -310,7 +315,11 @@ Install `tsh` on your local machine:
     For more options (including RPM/DEB packages and downloads for i386/ARM/ARM64) please see our [installation page](../installation.mdx).
 
     ```code
+    $ curl https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz.sha256
+    # <checksum> <filename>    
     $ curl -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    $ shasum -a 256 teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    # Verify that the checksums match
     $ tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
     $ cd teleport
     $ sudo ./install
