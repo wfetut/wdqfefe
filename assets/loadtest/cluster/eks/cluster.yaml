@@ -1,0 +1,17 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name:
+  region:
+
+nodeGroups:
+  - name:
+    instanceType: m5.4xlarge
+    desiredCapacity: 50
+    volumeSize: 80
+    iam:
+      attachPolicyARNs:
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy

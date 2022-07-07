@@ -35,7 +35,6 @@ env:
 	@echo NODE_TOKEN=$(shell cat node-token) >> secrets.env
 	@echo PROXY_TOKEN=$(shell cat proxy-token) >> secrets.env
 	@echo TC_TOKEN=$(shell cat tc-token) >> secrets.env
-	@echo GCP_PROJECT=$(shell make -C ../../cluster get-project) >> secrets.env
 	@echo PROM_REMOTE_URL=${PROM_REMOTE_URL} >> secrets.env
 	@echo PROM_USER=${PROM_USER} >> secrets.env
 	@echo PROM_PASSWORD=${PROM_PASSWORD} >> secrets.env

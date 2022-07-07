@@ -3,8 +3,8 @@
 set -e
 set -x
 
-node=$(tsh --insecure --proxy="${PROXY_HOST}":3080 -i /etc/teleport/auth -l root ls -f names | grep -v iot)
-iot_node=$(tsh --insecure --proxy="${PROXY_HOST}":3080 -i /etc/teleport/auth -l root ls -f names | grep iot)
+node=$(tsh --insecure --proxy="${PROXY_HOST}":3080 -i /etc/teleport/auth -l root ls -f names | grep -m 1 -v iot)
+iot_node=$(tsh --insecure --proxy="${PROXY_HOST}":3080 -i /etc/teleport/auth -l root ls -f names | grep -m 1 iot)
 
 echo "${node}"
 echo "${iot_node}"

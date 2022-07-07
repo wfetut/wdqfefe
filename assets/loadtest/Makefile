@@ -8,32 +8,41 @@ reserve-ips:
 	@make -C network apply
 
 # create gke cluster 
-.PHONY: create-cluster
-create-cluster:
-	@make -C ./cluster apply
-	@make -C ./cluster get-creds
+.PHONY: create-gke-cluster
+create-gke-cluster:
+	@make -C cluster/gke apply
+	@make -C cluster/gke get-creds
 
 # delete gke cluster
-.PHONY: delete-cluster
-delete-cluster:
-	@make -C cluster destroy USE_CERT_MANAGER=$(USE_CERT_MANAGER)
+.PHONY: delete-gke-cluster
+delete-gke-cluster:
+	@make -C cluster/gke destroy USE_CERT_MANAGER=$(USE_CERT_MANAGER)
 
-# deploy teleport with etcd backend to loadtest namespace
+.PHONY: create-eks-cluster
+create-eks-cluster:
+	@make -C cluster/eks create-cluster
+
+# delete eks cluster
+.PHONY: delete-eks-cluster
+delete-eks-cluster:
+	@make -C cluster/eks destroy-cluster
+
+# deploy teleport with etcd backend to namespace
 .PHONY: deploy-etcd-cluster
 deploy-etcd-cluster:
 	@make -C k8s apply BACKEND=etcd USE_CERT_MANAGER=$(USE_CERT_MANAGER) TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
 
-# deploy teleport with firestore backend to loadtest namespace
+# deploy teleport with firestore backend to namespace
 .PHONY: deploy-firestore-cluster
 deploy-firestore-cluster:
 	@make -C k8s apply BACKEND=firestore USE_CERT_MANAGER=$(USE_CERT_MANAGER) TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
 
-# deploy teleport with dynamo backend to loadtest namespace
+# deploy teleport with dynamo backend to namespace
 .PHONY: deploy-dynamo-cluster
 deploy-dynamo-cluster:
 	@make -C k8s apply BACKEND=dynamo USE_CERT_MANAGER=$(USE_CERT_MANAGER) TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
 
-# delete the loadtest namespace
+# delete the namespace
 .PHONY: delete-deploy
 delete-deploy:
 	@make -C k8s clean USE_CERT_MANAGER=$(USE_CERT_MANAGER)
@@ -65,9 +74,14 @@ pods:
 	@make -C k8s pods NAMESPACE=$(NAMESPACE)
 
 # get cluster credentials
-.PHONY: get-creds
-get-creds:
-	@make -C cluster get-creds
+.PHONY: get-gke-creds
+get-gke-creds:
+	@make -C cluster/gke get-creds
+
+# get cluster credentials
+.PHONY: get-eks-creds
+get-eks-creds:
+	@make -C cluster/eks get-creds
 
 # collect heap and goroutine profiles
 .PHONY: collect-profiles

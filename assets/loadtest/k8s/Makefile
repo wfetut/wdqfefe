@@ -5,6 +5,7 @@ BACKEND ?= etcd
 USE_CERT_MANAGER ?= yes
 TELEPORT_IMAGE ?= quay.io/gravitational/teleport-ent:9.0.0
 NAMESPACE ?= loadtest
+CONTAINERS ?= 1
 
 # performs initialization needed for cluster
 # 1) generates etcd certs
@@ -237,9 +238,24 @@ install-nodes: install-iot-node install-node
 # install an IoT mode node
 .PHONY: install-iot-node
 install-iot-node:
-	@make expand-yaml FILENAME=../teleport/teleport-iot-node
+	@number=1 ; while [[ $$number -le $(CONTAINERS) ]] ; do \
+  		make expand-yaml LISTEN_ADDR=$$((3021 + number)) FILENAME=../teleport/teleport-iot-node; \
+  		mv ../teleport/teleport-iot-node-gen.yaml ../teleport/teleport-iot-node-gen$$number.yaml; \
+  		((number = number + 1)); \
+	done
+
+
 	kubectl create configmap iot-node-config -n $(NAMESPACE) \
-		--from-file=teleport.yaml=../teleport/teleport-iot-node-gen.yaml \
+		--from-file=teleporta.yaml=../teleport/teleport-iot-node-gen1.yaml \
+		--from-file=teleportb.yaml=../teleport/teleport-iot-node-gen2.yaml \
+		--from-file=teleportc.yaml=../teleport/teleport-iot-node-gen3.yaml \
+		--from-file=teleportd.yaml=../teleport/teleport-iot-node-gen4.yaml \
+		--from-file=teleporte.yaml=../teleport/teleport-iot-node-gen5.yaml \
+		--from-file=teleportf.yaml=../teleport/teleport-iot-node-gen6.yaml \
+		--from-file=teleportg.yaml=../teleport/teleport-iot-node-gen7.yaml \
+		--from-file=teleporth.yaml=../teleport/teleport-iot-node-gen8.yaml \
+		--from-file=teleporti.yaml=../teleport/teleport-iot-node-gen9.yaml \
+		--from-file=teleportj.yaml=../teleport/teleport-iot-node-gen10.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 
 	@make expand-yaml FILENAME=iot-node TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
@@ -248,9 +264,24 @@ install-iot-node:
 # install a non-IoT mode node
 .PHONY: install-node
 install-node:
-	@make expand-yaml FILENAME=../teleport/teleport-node
+	@number=1 ; while [[ $$number -le $(CONTAINERS) ]] ; do \
+  		make expand-yaml LISTEN_ADDR=$$((3021 + number)) FILENAME=../teleport/teleport-node; \
+  		mv ../teleport/teleport-node-gen.yaml ../teleport/teleport-node-gen$$number.yaml; \
+  		((number = number + 1)); \
+	done
+
+
 	kubectl create configmap node-config -n $(NAMESPACE) \
-		--from-file=teleport.yaml=../teleport/teleport-node-gen.yaml \
+		--from-file=teleporta.yaml=../teleport/teleport-node-gen1.yaml \
+		--from-file=teleportb.yaml=../teleport/teleport-node-gen2.yaml \
+		--from-file=teleportc.yaml=../teleport/teleport-node-gen3.yaml \
+		--from-file=teleportd.yaml=../teleport/teleport-node-gen4.yaml \
+		--from-file=teleporte.yaml=../teleport/teleport-node-gen5.yaml \
+		--from-file=teleportf.yaml=../teleport/teleport-node-gen6.yaml \
+		--from-file=teleportg.yaml=../teleport/teleport-node-gen7.yaml \
+		--from-file=teleporth.yaml=../teleport/teleport-node-gen8.yaml \
+		--from-file=teleporti.yaml=../teleport/teleport-node-gen9.yaml \
+		--from-file=teleportj.yaml=../teleport/teleport-node-gen10.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 
 	@make expand-yaml FILENAME=node TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
@@ -355,10 +386,10 @@ install-soaktest:
 # deploys a job to run the soak tests
 .PHONY: run-soak-tests
 run-soak-tests:
-	kubectl -n $(NAMESPACE) exec $$(kubectl get pod -n $(NAMESPACE) -l teleport-role="auth" -o jsonpath="{.items[0].metadata.name}") -c teleport -it \
+	kubectl -n $(NAMESPACE) exec $$(kubectl get pod -n $(NAMESPACE) -l teleport-role="auth" -o jsonpath="{.items[0].metadata.name}") -it \
 		-- tctl auth sign --overwrite --user=soaktest-runner --out=/data/soaktest-auth --ttl=8760h --config /etc/teleport/teleport.yaml
 
-	kubectl cp -c teleport loadtest/$$(kubectl get pod -n $(NAMESPACE) -l teleport-role="auth" -o jsonpath="{.items[0].metadata.name}"):/data/soaktest-auth ./secrets/soaktest-auth
+	kubectl cp $(NAMESPACE)/$$(kubectl get pod -n $(NAMESPACE) -l teleport-role="auth" -o jsonpath="{.items[0].metadata.name}"):/data/soaktest-auth ./secrets/soaktest-auth
 
 	kubectl wait --for=condition=available --timeout=600s deploy/node -n $(NAMESPACE)
 	kubectl wait --for=condition=available --timeout=600s deploy/iot-node -n $(NAMESPACE)
@@ -456,6 +487,7 @@ fetch-profiles:
 	mkdir -p $(shell pwd)/profiles/$(LOCATION)/
 	curl -o $(shell pwd)/profiles/$(LOCATION)/goroutine.profile http://127.0.0.1:3434/debug/pprof/goroutine
 	curl -o $(shell pwd)/profiles/$(LOCATION)/heap.profile http://127.0.0.1:3434/debug/pprof/heap
+	curl -o $(shell pwd)/profiles/$(LOCATION)/heap.profile http://127.0.0.1:3434/debug/pprof/trace?seconds=5
 
 # expands any placeholders in the provided yaml file with the value in the matching environment variable. the
 # output file will be named the same with a -gen suffix, i.e input = test then output will be test-gen.yaml

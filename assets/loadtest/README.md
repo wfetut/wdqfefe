@@ -24,7 +24,7 @@ Teleports manual release test plan.
 ### Creating the Cluster
 
 First create a cluster, if you are running this automation for the first time, you may be asked to run
-`terraform init` from the cluster directory before continuing. To resize the cluster, edit [`terraform.tfvars`](cluster/terraform.tfvars) as needed.
+`terraform init` from the cluster directory before continuing. To resize the cluster, edit [`terraform.tfvars`](cluster/gke/terraform.tfvars) as needed.
 
 ```bash
 $ make create-cluster
@@ -92,7 +92,7 @@ $ make run-soak-tests
 ```
 
 
-**Note:** You must have enough nodes in the cluster to run the following tests. Ensure your `node_count` in [`terraform.tfvars`](cluster/terraform.tfvars) is correctly set.
+**Note:** You must have enough nodes in the cluster to run the following tests. Ensure your `node_count` in [`terraform.tfvars`](cluster/gke/terraform.tfvars) is correctly set.
 
 To run the 10k node scaling tests:
 

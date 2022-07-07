@@ -24,9 +24,6 @@ spec:
         - name: config
           configMap:
             name: proxy-config
-        - name: teleport-tls
-          secret:
-            secretName: teleport-tls
       containers:
         - name: teleport
           image: ${TELEPORT_IMAGE}
@@ -59,9 +56,6 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/teleport/
-              readOnly: true
-            - name: teleport-tls
-              mountPath: /etc/teleport-tls/
               readOnly: true
 ---
 apiVersion: v1

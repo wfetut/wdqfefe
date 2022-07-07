@@ -5,8 +5,8 @@ metadata:
 spec:
   enabled: true
   token: cluster-${TC_TOKEN}
-  tunnel_addr: "${PROXY_HOST}:3024"
-  web_proxy_addr: "${PROXY_HOST}:3080"
+  tunnel_addr: "proxy:3024"
+  web_proxy_addr: "proxy:3080"
   role_map:
     - remote: '*'
       local: ['access']

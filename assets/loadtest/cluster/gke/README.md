@@ -1,6 +1,6 @@
-# cluster
+# GKE
 
-Automation for creating the `loadtest` kubernetes cluster.
+Automation for creating the `loadtest` GKE cluster.
 
 ## Usage
 
@@ -14,7 +14,7 @@ If you are running this automation for the first time, you may be asked to run
 `terraform init` before continuing.
 
 
-To create/resize the cluster, edit [`terraform.tfvars`](./terraform.tfvars)
+To create/resize the cluster, edit [`terraform.tfvars`](terraform.tfvars)
 as needed, then run:
 
 ```bash
@@ -32,7 +32,7 @@ Once the cluster is up, configure `kubectl` with the appropriate credentials:
 $ make get-creds
 ```
 
-You should now be ready to proceed with test-specific setup (e.g. [k8s](../k8s)).
+You should now be ready to proceed with test-specific setup (e.g. [k8s](../../k8s)).
 
 ---
 

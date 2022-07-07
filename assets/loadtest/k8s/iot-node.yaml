@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - image: ${TELEPORT_IMAGE}
-          name: teleport
+          name: teleporta
           args: ["-d", "--insecure", "--diag-addr=0.0.0.0:3434"]
           ports:
             - name: nodessh
@@ -47,8 +47,306 @@ spec:
               port: 3434
             timeoutSeconds: 1
           volumeMounts:
-            - mountPath: /etc/teleport
+            - mountPath: /etc/teleport/teleport.yaml
               name: config
+              subPath: teleporta.yaml
+              readOnly: true
+        - image: ${TELEPORT_IMAGE}
+          name: teleportb
+          args: [ "-d", "--insecure", "--diag-addr=0.0.0.0:3435" ]
+          ports:
+            - name: nodessh
+              containerPort: 3023
+              protocol: TCP
+            - name: diag
+              containerPort: 3435
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 3435
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3435
+            timeoutSeconds: 1
+          volumeMounts:
+            - mountPath: /etc/teleport/teleport.yaml
+              name: config
+              subPath: teleportb.yaml
+              readOnly: true
+        - image: ${TELEPORT_IMAGE}
+          name: teleportc
+          args: [ "-d", "--insecure", "--diag-addr=0.0.0.0:3436" ]
+          ports:
+            - name: nodessh
+              containerPort: 3024
+              protocol: TCP
+            - name: diag
+              containerPort: 3436
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 3436
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3436
+            timeoutSeconds: 1
+          volumeMounts:
+            - mountPath: /etc/teleport/teleport.yaml
+              name: config
+              subPath: teleportc.yaml
+              readOnly: true
+        - image: ${TELEPORT_IMAGE}
+          name: teleportd
+          args: [ "-d", "--insecure", "--diag-addr=0.0.0.0:3437" ]
+          ports:
+            - name: nodessh
+              containerPort: 3025
+              protocol: TCP
+            - name: diag
+              containerPort: 3437
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 3437
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3437
+            timeoutSeconds: 1
+          volumeMounts:
+            - mountPath: /etc/teleport/teleport.yaml
+              name: config
+              subPath: teleportd.yaml
+              readOnly: true
+        - image: ${TELEPORT_IMAGE}
+          name: teleporte
+          args: [ "-d", "--insecure", "--diag-addr=0.0.0.0:3438" ]
+          ports:
+            - name: nodessh
+              containerPort: 3026
+              protocol: TCP
+            - name: diag
+              containerPort: 3438
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 3438
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3438
+            timeoutSeconds: 1
+          volumeMounts:
+            - mountPath: /etc/teleport/teleport.yaml
+              name: config
+              subPath: teleporte.yaml
+              readOnly: true
+        - image: ${TELEPORT_IMAGE}
+          name: teleportf
+          args: ["-d", "--insecure", "--diag-addr=0.0.0.0:3439"]
+          ports:
+            - name: nodessh
+              containerPort: 3027
+              protocol: TCP
+            - name: diag
+              containerPort: 3439
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 3439
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3439
+            timeoutSeconds: 1
+          volumeMounts:
+            - mountPath: /etc/teleport/teleport.yaml
+              name: config
+              subPath: teleportf.yaml
+              readOnly: true
+        - image: ${TELEPORT_IMAGE}
+          name: teleportg
+          args: [ "-d", "--insecure", "--diag-addr=0.0.0.0:3440" ]
+          ports:
+            - name: nodessh
+              containerPort: 3028
+              protocol: TCP
+            - name: diag
+              containerPort: 3440
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 3440
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3440
+            timeoutSeconds: 1
+          volumeMounts:
+            - mountPath: /etc/teleport/teleport.yaml
+              name: config
+              subPath: teleportg.yaml
+              readOnly: true
+        - image: ${TELEPORT_IMAGE}
+          name: teleporth
+          args: [ "-d", "--insecure", "--diag-addr=0.0.0.0:3441" ]
+          ports:
+            - name: nodessh
+              containerPort: 3029
+              protocol: TCP
+            - name: diag
+              containerPort: 3434
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 3441
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3441
+            timeoutSeconds: 1
+          volumeMounts:
+            - mountPath: /etc/teleport/teleport.yaml
+              name: config
+              subPath: teleporth.yaml
+              readOnly: true
+        - image: ${TELEPORT_IMAGE}
+          name: teleporti
+          args: [ "-d", "--insecure", "--diag-addr=0.0.0.0:3442" ]
+          ports:
+            - name: nodessh
+              containerPort: 3030
+              protocol: TCP
+            - name: diag
+              containerPort: 3442
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 3442
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3442
+            timeoutSeconds: 1
+          volumeMounts:
+            - mountPath: /etc/teleport/teleport.yaml
+              name: config
+              subPath: teleporti.yaml
+              readOnly: true
+        - image: ${TELEPORT_IMAGE}
+          name: teleportj
+          args: [ "-d", "--insecure", "--diag-addr=0.0.0.0:3443" ]
+          ports:
+            - name: nodessh
+              containerPort: 3031
+              protocol: TCP
+            - name: diag
+              containerPort: 3443
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 3443
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            failureThreshold: 3
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 3443
+            timeoutSeconds: 1
+          volumeMounts:
+            - mountPath: /etc/teleport/teleport.yaml
+              name: config
+              subPath: teleportj.yaml
               readOnly: true
       volumes:
         - configMap:

@@ -4,7 +4,7 @@ teleport:
     severity: DEBUG
   storage:
     type: dir
-  auth_servers: ["${PROXY_HOST}:3080"]
+  auth_servers: ["proxy:3080"]
   auth_token: "node-${NODE_TOKEN}"
 auth_service:
   enabled: false
@@ -12,3 +12,4 @@ proxy_service:
   enabled: false
 ssh_service:
   enabled: true
+  listen_addr: 0.0.0.0:${LISTEN_ADDR}

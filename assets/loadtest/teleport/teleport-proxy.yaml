@@ -19,7 +19,5 @@ ssh_service:
 
 proxy_service:
   enabled: yes
-  https_cert_file: /etc/teleport-tls/tls.crt
-  https_key_file: /etc/teleport-tls/tls.key
   public_addr: "${PROXY_HOST}:3080"
-  tunnel_public_addr: "${PROXY_HOST}:3024"
+  tunnel_public_addr: "proxy:3024"
