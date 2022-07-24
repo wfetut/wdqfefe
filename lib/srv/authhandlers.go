@@ -250,7 +250,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	cert, ok := key.(*ssh.Certificate)
 	log.Debugf("%v auth attempt with key %v, %#v", cid, fingerprint, cert)
 	if !ok {
-		log.Debugf("auth attempt, unsupported key type")
+		log.Debugf("auth attempt, unsupported key type: %T", key)
 		return nil, trace.BadParameter("unsupported key type: %v", fingerprint)
 	}
 	if len(cert.ValidPrincipals) == 0 {

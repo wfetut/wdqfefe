@@ -19,6 +19,7 @@ limitations under the License.
 package sshutils
 
 import (
+	"crypto"
 	"crypto/subtle"
 	"fmt"
 	"io"
@@ -162,11 +163,15 @@ func AsAuthMethod(sshCert *ssh.Certificate, privKey []byte) (ssh.AuthMethod, err
 
 // AsAgentKeys converts Key struct to a []*agent.AddedKey. All elements
 // of the []*agent.AddedKey slice need to be loaded into the agent!
-func AsAgentKeys(sshCert *ssh.Certificate, privKey []byte) ([]agent.AddedKey, error) {
+func AsAgentKeys(sshCert *ssh.Certificate, privKey crypto.PrivateKey) ([]agent.AddedKey, error) {
+	privateKey := privKey
 	// unmarshal private key bytes into a *rsa.PrivateKey
-	privateKey, err := ssh.ParseRawPrivateKey(privKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if pkey, ok := privKey.([]uint8); ok {
+		var err error
+		privateKey, err = ssh.ParseRawPrivateKey(pkey)
+		if err != nil {
+			return nil, trace.Wrap(err, privateKey)
+		}
 	}
 
 	// put a teleport identifier along with the teleport user into the comment field

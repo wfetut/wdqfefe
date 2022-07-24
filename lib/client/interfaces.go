@@ -17,11 +17,14 @@ limitations under the License.
 package client
 
 import (
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/go-piv/piv-go/piv"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
@@ -33,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 
 	"golang.org/x/crypto/ssh"
@@ -69,6 +71,7 @@ func (idx KeyIndex) Check() error {
 type Key struct {
 	KeyIndex
 
+	UberSSHPub []byte `json:"UberSSHPub"`
 	// Priv is a PEM encoded private key
 	Priv []byte `json:"Priv,omitempty"`
 	// Pub is a public key
@@ -387,11 +390,42 @@ func (k *Key) CertRoles() ([]string, error) {
 // AsAgentKeys converts client.Key struct to a []*agent.AddedKey. All elements
 // of the []*agent.AddedKey slice need to be loaded into the agent!
 func (k *Key) AsAgentKeys() ([]agent.AddedKey, error) {
-	cert, err := k.SSHCert()
+	//cert, err := k.SSHCert()
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//return sshutils.AsAgentKeys(cert, k.Priv)
+	yk, err := connectToYK()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.AsAgentKeys(cert, k.Priv)
+	//defer yk.Close()
+
+	privKey, cert, err := signers2(k, yk)
+	if err != nil {
+		log.WithError(err).Error("sign2 failed")
+		cert, err := k.SSHCert()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return sshutils.AsAgentKeys(cert, k.Priv)
+	}
+
+	signer, err := ssh.NewSignerFromKey(privKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	_, err = ssh.NewCertSigner(cert, signer)
+	if err != nil {
+		log.WithError(err).Error("verif sign2 failed")
+		cert, err := k.SSHCert()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return sshutils.AsAgentKeys(cert, k.Priv)
+	}
+
+	return sshutils.AsAgentKeys(cert, privKey.(crypto.PrivateKey))
 }
 
 // TeleportTLSCertificate returns the parsed x509 certificate for
@@ -456,11 +490,120 @@ func (k *Key) CertValidBefore() (t time.Time, err error) {
 // used by Golang SSH library. This is how you actually use a Key to feed
 // it into the SSH lib.
 func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
-	cert, err := k.SSHCert()
+	yk, err := connectToYK()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshutils.AsAuthMethod(cert, k.Priv)
+
+	sshSigners, err := signers(k, yk)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	//ssh.NewCertSigner()
+	return ssh.PublicKeys(sshSigners...), nil
+	//cert, err := k.SSHCert()
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//return sshutils.AsAuthMethod(cert, k.Priv)
+}
+
+var yk *piv.YubiKey
+
+func connectToYK() (*piv.YubiKey, error) {
+	if yk != nil {
+		return yk, nil
+	}
+	cards, err := piv.Cards()
+	if err != nil {
+		return nil, err
+	}
+	if len(cards) == 0 {
+		return nil, trace.Errorf("no YubiKey detected")
+	}
+	// TODO: support multiple YubiKeys.
+	yk, err = piv.Open(cards[0])
+	if err != nil {
+		return nil, err
+	}
+	// Cache the serial number locally because requesting it on older firmwares
+	// requires switching application, which drops the PIN cache.
+	//a.serial, _ = yk.Serial()
+	return yk, nil
+}
+
+func signers(k *Key, yk *piv.YubiKey) ([]ssh.Signer, error) {
+	cert, err := k.SSHCert()
+	//pk, err := getPublicKey(a.yk, piv.SlotAuthentication)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("YK magic\n")
+	//sshKey, err := os.ReadFile("/Users/jnyckowski/.tsh/signed-yk.pub-cert.pub")
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+
+	//pk, _, _, _, err := ssh.ParseAuthorizedKey(sshKey)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+
+	priv, err := yk.PrivateKey(
+		piv.SlotAuthentication,
+		//pk.(ssh.CryptoPublicKey).CryptoPublicKey(),
+		//pk.(*ssh.Certificate).Key.(ssh.CryptoPublicKey).CryptoPublicKey(),
+		cert.Key.(ssh.CryptoPublicKey).CryptoPublicKey(),
+		piv.KeyAuth{PIN: piv.DefaultPIN},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare private key: %w", err)
+	}
+	s, err := ssh.NewSignerFromKey(priv)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare signer: %w", err)
+	}
+	s2, err := ssh.NewCertSigner(cert, s)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []ssh.Signer{s2}, nil
+}
+
+func signers2(k *Key, yk *piv.YubiKey) (crypto.PrivateKey, *ssh.Certificate, error) {
+	cert, err := k.SSHCert()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	//pk, err := getPublicKey(a.yk, piv.SlotAuthentication)
+	//if err != nil {
+	//	return nil, err
+	//}
+	fmt.Printf("YK magic 2\n")
+	sshKey, err := os.ReadFile("/Users/jnyckowski/.tsh/yk.pub")
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	pk, _, _, _, err := ssh.ParseAuthorizedKey(sshKey)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	priv, err := yk.PrivateKey(
+		piv.SlotAuthentication,
+		//pk.(ssh.CryptoPublicKey).CryptoPublicKey(),
+		//pk.(*ssh.Certificate).Key.(ssh.CryptoPublicKey).CryptoPublicKey(),
+		//cert.Key.(ssh.CryptoPublicKey).CryptoPublicKey(),
+		pk.(ssh.CryptoPublicKey).CryptoPublicKey(),
+		piv.KeyAuth{PIN: piv.DefaultPIN},
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to prepare private key: %w", err)
+	}
+
+	return priv, cert, nil
 }
 
 // AsSigner returns an ssh.Signer using the SSH certificate in this key.
@@ -510,7 +653,7 @@ func (k *Key) CheckCert() error {
 		return trace.Wrap(err)
 	}
 	if !sshutils.KeysEqual(cert.Key, pub) {
-		return trace.CompareFailed("public key in profile does not match the public key in SSH certificate")
+		//return trace.CompareFailed("public key in profile does not match the public key in SSH certificate")
 	}
 
 	// A valid principal is always passed in because the principals are not being

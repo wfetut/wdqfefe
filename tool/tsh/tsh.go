@@ -675,6 +675,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	login.Flag("verbose", "Show extra status information").Short('v').BoolVar(&cf.Verbose)
 	login.Alias(loginUsageFooter)
 
+	sign := app.Command("sign", "foo.....")
+
 	// logout deletes obtained session certificates in ~/.tsh
 	logout := app.Command("logout", "Delete a cluster certificate")
 
@@ -878,6 +880,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onListClusters(&cf)
 	case login.FullCommand():
 		err = onLogin(&cf)
+	case sign.FullCommand():
+		err = onSign(&cf)
 	case logout.FullCommand():
 		if err := refuseArgs(logout.FullCommand(), args); err != nil {
 			return trace.Wrap(err)
@@ -1195,6 +1199,88 @@ func exportFile(ctx context.Context, path string, format string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func onSign(cf *CLIConf) error {
+	// special case: --request-roles=no disables auto-request behavior.
+	if cf.DesiredRoles == "no" {
+		//autoRequest = false
+		cf.DesiredRoles = ""
+	}
+
+	if cf.IdentityFileIn != "" {
+		return trace.BadParameter("-i flag cannot be used here")
+	}
+
+	cf.IdentityFormat = identityfile.FormatOpenSSH
+	switch cf.IdentityFormat {
+	case identityfile.FormatFile, identityfile.FormatOpenSSH, identityfile.FormatKubernetes:
+	default:
+		return trace.BadParameter("invalid identity format: %s", cf.IdentityFormat)
+	}
+
+	// Get the status of the active profile as well as the status
+	// of any other proxies the user is logged into.
+	profile, _, err := client.Status(cf.HomePath, cf.Proxy)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	// make the teleport client and retrieve the certificate from the proxy:
+	tc, err := makeClient(cf, true)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tc.HomePath = cf.HomePath
+
+	if true {
+		cf.SiteName = "example.com"
+		sshKey, err := os.ReadFile("/Users/jnyckowski/.tsh/yk.pub")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_ = sshKey
+
+		_, err = tc.PingAndShowMOTD(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		certOptions := client.WithAllCerts
+
+		key, err := tc.LocalAgent().GetKey(cf.SiteName, certOptions...)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// trigger reissue, preserving any active requests.
+		err = tc.ReissueUserCerts(cf.Context, client.CertCacheKeep, client.ReissueParams{
+			AccessRequests: profile.ActiveRequests.AccessRequests,
+			RouteToCluster: cf.SiteName,
+			ExistingCreds: &client.Key{
+				UberSSHPub: sshKey,
+				Pub:        key.Pub,
+				TLSCert:    key.TLSCert,
+				Cert:       key.Cert,
+				Priv:       key.Priv,
+				TrustedCA:  key.TrustedCA,
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := tc.SaveProfile(cf.HomePath, true); err != nil {
+			return trace.Wrap(err)
+		}
+		//if err := updateKubeConfig(cf, tc, ""); err != nil {
+		//	return trace.Wrap(err)
+		//}
+
+		return trace.Wrap(onStatus(cf))
+	}
+
 	return nil
 }
 

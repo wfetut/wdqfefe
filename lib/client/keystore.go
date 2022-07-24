@@ -279,7 +279,7 @@ func (fs *FSLocalKeyStore) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error
 	priv, err := os.ReadFile(fs.UserKeyPath(idx))
 	if err != nil {
 		fs.log.Error(err)
-		return nil, trace.ConvertSystemError(err)
+		//return nil, trace.ConvertSystemError(err)
 	}
 	pub, err := os.ReadFile(fs.sshCAsPath(idx))
 	if err != nil {

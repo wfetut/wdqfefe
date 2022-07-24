@@ -317,7 +317,7 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 	switch params.usage() {
 	case proto.UserCertsRequest_All:
 		key.Cert = certs.SSH
-		key.TLSCert = certs.TLS
+		//key.TLSCert = certs.TLS
 
 		// DELETE IN 7.0
 		// Database certs have to be requested with CertUsage All because
@@ -538,7 +538,7 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 	}
 
 	return &proto.UserCertsRequest{
-		PublicKey:             key.Pub,
+		PublicKey:             key.UberSSHPub,
 		Username:              tlsCert.Subject.CommonName,
 		Expires:               tlsCert.NotAfter,
 		RouteToCluster:        params.RouteToCluster,

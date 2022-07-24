@@ -418,6 +418,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	sconn, chans, reqs, err := ssh.NewServerConn(wrappedConn, &s.cfg)
 	if err != nil {
 		conn.SetDeadline(time.Time{})
+		logrus.WithError(err).Error("FAILED......")
 		return
 	}
 
