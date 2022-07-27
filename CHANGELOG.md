@@ -1,5 +1,32 @@
 # Changelog
 
+## 10.0.3
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Fixed "no suitable devices found" libfido2 error. [#14795](https://github.com/gravitational/teleport/pull/14795)
+* Fixed "access denied" error when joining a session. [#14770](https://github.com/gravitational/teleport/pull/14770)
+* Fixed issue with `tsh status` not respecting `TELEPORT_HOME` environment variable. [#14335](https://github.com/gravitational/teleport/pull/14335)
+* Fixed issue with Ctrl-C hanging for paused sessions. [#14511](https://github.com/gravitational/teleport/pull/14511)
+* Fixed "access denied" error when creating tokens in web UI. [#14624](https://github.com/gravitational/teleport/pull/14624)
+* Fixed issue with resource access request being lost when assuming a role access request. [#14711](https://github.com/gravitational/teleport/pull/14711)
+* Fixed issue with `tbot` not exiting correctly in one-shot mode. [#14683](https://github.com/gravitational/teleport/pull/14683)
+* Fixed issue with time not being correctly set on `session.upload` events. [#14559](https://github.com/gravitational/teleport/pull/14559)
+* Fixed issue with Teleport components not becoming ready when desktop access is enabled. [#14839](https://github.com/gravitational/teleport/pull/14839)
+* Improved error message for failed SSO authorization. [#14595](https://github.com/gravitational/teleport/pull/14595)
+* Improved error when starting database service with invalid configuration. [#14515](https://github.com/gravitational/teleport/pull/14515)
+* Updated `tsh proxy ssh` to automatically re-log user in. [#14814](https://github.com/gravitational/teleport/pull/14814)
+* Added TouchID credential picker. [#14643](https://github.com/gravitational/teleport/pull/14643)
+* Added ability to set public addresses in teleport-cluster Helm chart. [#14768](https://github.com/gravitational/teleport/pull/14768)
+* Added support for application and database dynamic registration in Helm charts. [#14881](https://github.com/gravitational/teleport/pull/14881)
+* Added ability to override AWS database name via `teleport.dev/database-name` tag. [#14799](https://github.com/gravitational/teleport/pull/14799)
+* Added extra flags to `teleport db configure` command. [#14654](https://github.com/gravitational/teleport/pull/14654)
+* Added `tsh request drop` command. [#14843](https://github.com/gravitational/teleport/pull/14843)
+* Added ability to call `tsh proxy db` without calling `tsh db login` first. [#14798](https://github.com/gravitational/teleport/pull/14798)
+* Added Prometheus metrics for S3 requests. [#14664](https://github.com/gravitational/teleport/pull/14664)
+* Added Prometheus metrics for DynamoDB requests. [#14757](https://github.com/gravitational/teleport/pull/14757)
+* Added support for exporting traces to a file. [#14746](https://github.com/gravitational/teleport/pull/14746)
+
 ## 10.0.2
 
 This release of Teleport contains multiple improvements and bug fixes.
