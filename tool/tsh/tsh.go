@@ -37,6 +37,16 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
+
+	"github.com/gravitational/kingpin"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -66,16 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
-	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
-
-	"github.com/gravitational/kingpin"
+	"github.com/gravitational/teleport/lib/web"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -202,6 +203,8 @@ type CLIConf struct {
 	BenchRate int
 	// BenchInteractive indicates that we should create interactive session
 	BenchInteractive bool
+	// BenchWebSession indicates that we should create interactive web session
+	BenchWebSession bool
 	// BenchExport exports the latency profile
 	BenchExport bool
 	// BenchExportPath saves the latency profile in provided path
@@ -716,6 +719,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
+	bench.Flag("web", "Create interactive web session").BoolVar(&cf.BenchWebSession)
 	bench.Flag("export", "Export the latency profile").BoolVar(&cf.BenchExport)
 	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
@@ -1395,7 +1399,7 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// -i flag specified? save the retrieved cert into an identity file
-	makeIdentityFile := (cf.IdentityFileOut != "")
+	makeIdentityFile := cf.IdentityFileOut != ""
 
 	// stdin hijack is OK for login, since it tsh doesn't read input after the
 	// login ceremony is complete.
@@ -2657,13 +2661,24 @@ func onBenchmark(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	var pc *web.ProxyClient
+	if cf.BenchWebSession {
+		clt, err := makeProxyWebClient(cf.Context, tc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		pc = clt
+	}
+
 	cnf := benchmark.Config{
 		Command:       cf.RemoteCommand,
 		MinimumWindow: cf.BenchDuration,
 		Rate:          cf.BenchRate,
 		Interactive:   cf.BenchInteractive,
+		Web:           cf.BenchWebSession,
 	}
-	result, err := cnf.Benchmark(cf.Context, tc)
+	result, err := cnf.Benchmark(cf.Context, tc, pc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		return trace.Wrap(&exitCodeError{code: 255})
@@ -3098,6 +3113,29 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	tc.Config.Invited = cf.Invited
 	tc.Config.DisplayParticipantRequirements = cf.displayParticipantRequirements
 	return tc, nil
+}
+
+// makeProxyWebClient takes the command-line configuration and a proxy address and constructs & returns
+// a fully configured TeleportClient object which is constructed from the web api
+func makeProxyWebClient(ctx context.Context, tc *client.TeleportClient) (*web.ProxyClient, error) {
+	webSess, cookies, err := tc.LoginWeb(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	webclt, err := web.NewProxyClient(url.URL{
+		Scheme: "https",
+		Host:   tc.WebProxyAddr,
+	},
+		webSess,
+		cookies,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return webclt, nil
+
 }
 
 type mfaModeOpts struct {
