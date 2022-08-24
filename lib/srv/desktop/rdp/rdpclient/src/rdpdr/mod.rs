@@ -115,6 +115,7 @@ impl Client {
         } else {
             debug!("creating rdpdr client with directory sharing disabled")
         }
+        debug!("Smartcard Pin is: {}", cfg.pin);
         Client {
             vchan: vchan::Client::new(),
             scard: scard::Client::new(cfg.cert_der, cfg.key_der, cfg.pin),
