@@ -74,6 +74,21 @@ Run `./install` from `teleport-jira` or place the executable in `/usr/bin` or `/
 
 {/* TODO: Add instructions to verify that the installation works*/}
 
+## Step 3/8. Configure HTTPS for the plugin
+
+The Jira Access Request plugin serves a Jira webhook, an HTTP server that Jira
+notifies wheen it updates your project. The plugin uses this webhook to listen
+for changes in tasks that have to do with Access Requests and manage those
+Access Requests in response.
+
+Jira requires webhooks to use HTTPS (this also prevents third parties from
+intercepting data about your Jira project and Teleport cluyster). To enable
+HTTPS on your Jira plugin, we will use the Electronic Frontier Foundation's
+Certbot to communicate with Let's Encrypt to fetch a free certificate and
+private key.
+
+{/* TODO: add instructions for this */}
+
 ## Step 3/7. Create a user and role for the plugin
 
 (!docs/pages/includes/plugins/rbac.mdx!)
@@ -178,7 +193,7 @@ Edit the configuration file for your environment. We will show you how to set
 each value below.
 
 {/* TODO: check the current config settings and plan changes to the rest of thi
-section */}
+section*/}
 
 ### `[teleport]`
 
@@ -210,10 +225,15 @@ The `[jira]` section requires a few things:
 3. Your Jira API token that you've created above.
 4. A Jira Project key, available in Project settings.
 
-The `[http]` setting block describes how the plugin's HTTP server works. The HTTP server is responsible for listening for updates from Jira, and processing updates, like when someone drags a task from Inbox to Approved column.
+### `[http]`
 
-You must provide an address the server should listen on, and a certificate to use. It's possible to
-run the Jira plugin on the same server as the Teleport Proxy, so you can use the same TLS certificate.
+The `[http]` setting block describes how the plugin's HTTP server works. The
+HTTP server is responsible for listening for updates from Jira, and processing
+updates, like when someone drags a task from Inbox to Approved column.
+
+You must provide an address the server should listen on, and a certificate to
+use. It's possible to run the Jira plugin on the same server as the Teleport
+Proxy, so you can use the same TLS certificate.
 
 </TabItem>
 <TabItem label="Teleport Cloud" scope="cloud">
