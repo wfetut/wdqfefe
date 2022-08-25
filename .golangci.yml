@@ -16,7 +16,7 @@ linters:
     - bodyclose
     - deadcode
     - depguard
-    - goimports
+    #- goimports
     - gosimple
     - govet
     - ineffassign

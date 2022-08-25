@@ -43,7 +43,7 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.9.0 && \
 # Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
 RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.11.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = "e61379ff0a27277fbe0aca29ccc34ff93c57b359" ] && \    
+    [ "$(git rev-parse HEAD)" = "e61379ff0a27277fbe0aca29ccc34ff93c57b359" ] && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
@@ -165,8 +165,8 @@ ENV GOPATH="/go" \
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install golangci-lint.
-RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.46.0/golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
-     cp golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
+RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.49.0/golangci-lint-1.49.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
+     cp golangci-lint-1.49.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
      rm -r golangci-lint*)
 
 # Install helm.
