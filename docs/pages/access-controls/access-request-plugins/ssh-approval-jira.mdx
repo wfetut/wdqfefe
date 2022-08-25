@@ -14,19 +14,32 @@ guide*/}
 
 (!/docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-- A Jira account with owner privileges that enable you to set up webhooks, issue
-  types, and workflows. {/* TODO: See what the minimum requirements are now*/}
+- A Jira account with owner privileges that enable you to set up webhooks and
+  workflows.
+
+- An environment where you will run the Jira plugin. This is either:
+
+  a. A Linux virtual machine with ports 80, 443, and 8081 open, plus a means of
+  accessing the host (e.g., SSH with an open SSH port). 
+
+  {/* TODO: Add advice to restrict 80 and 443 to Let's Encrypt and 8081 to Jira.
+  Link to where to get the IP addresses for these services*/}
+
+  b. A Kubernetes cluster.
+
+- A registered domain name. We will use this to run a webhook that Jira will
+  notify when your project changes.
 
 (!/docs/pages/includes/tctl.mdx!)
 
-## Step 1/7. Define RBAC resources
+## Step 1/9. Define RBAC resources
 
 Before you set up the Jira plugin, you will need to enable Role Access Requests
 in your Teleport cluster.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
-## Step 2/7. Install the Teleport Jira plugin
+## Step 2/9. Install the Teleport Jira plugin
 
 <ScopedBlock scope={["enterprise", "oss"]}>
 
@@ -74,7 +87,7 @@ Run `./install` from `teleport-jira` or place the executable in `/usr/bin` or `/
 
 {/* TODO: Add instructions to verify that the installation works*/}
 
-## Step 3/8. Configure HTTPS for the plugin
+## Step 3/9. Fetch HTTPS credentials for the plugin
 
 The Jira Access Request plugin serves a Jira webhook, an HTTP server that Jira
 notifies wheen it updates your project. The plugin uses this webhook to listen
@@ -83,24 +96,218 @@ Access Requests in response.
 
 Jira requires webhooks to use HTTPS (this also prevents third parties from
 intercepting data about your Jira project and Teleport cluyster). To enable
-HTTPS on your Jira plugin, we will use the Electronic Frontier Foundation's
-Certbot to communicate with Let's Encrypt to fetch a free certificate and
-private key.
+HTTPS on your Jira plugin, we will fetch TLS credentials from Let's Encrypt. 
 
-{/* TODO: Add the DNS include--or modify it for the plugin--since we'll set up a
-separate domain name for the plugin */}
+The technique you will use for fetching credentials depends on whether you are
+running the plugin as an executable on a host (e.g., an EC2 instance) or on
+Kubernetes.
 
-{/* TODO: add instructions for using Caddy*/}
+<Notice type="warning">
 
-## Step 3/7. Create a user and role for the plugin
+The instructions in this section for managing TLS credentials are only for
+illustrating how the plugin uses TLS credentials. Your organization probably
+has its own system for managing TLS credentials, and that is the system you
+should use in production.
+
+</Notice>
+
+So Jira can access the plugin, create a DNS A record that associates your domain
+name with the IP address of the webhook.
+
+<Tabs dropdownCaption="Environment type">
+    <TabItem options="Executable" label="AWS Route 53">
+    ```code
+    # Tip for finding AWS zone id by the domain name.
+    $ MYIP="$(curl https://ipv4.icanhazip.com/)"
+    $ MYZONE_DNS="example.com"
+    $ MYZONE=$(aws route53 list-hosted-zones-by-name --dns-name=${MYZONE_DNS?} | jq -r '.HostedZones[0].Id' | sed s_/hostedzone/__)
+
+    # The fully qualified domain name for your Teleport Proxy Service.
+    # These commands will also create an A record for a wildcard subdomain.
+    $ MYDNS="tele.example.com"
+
+    # Create a JSON file changeset for AWS.
+    $ jq -n --arg ip ${MYIP?} --arg dns ${MYDNS?} '{"Comment": "Create records", "Changes": [{"Action": "CREATE","ResourceRecordSet": {"Name": $dns, "Type": "A", "TTL": 300, "ResourceRecords": [{ "Value": $ip}]}},{"Action": "CREATE", "ResourceRecordSet": {"Name": ("*." + $dns), "Type": "A", "TTL": 300, "ResourceRecords": [{ "Value": $ip}]}}]}' > myrecords.json
+
+    # Review records before applying.
+    $ cat myrecords.json | jq
+    # Apply the records and capture change id
+    $ CHANGEID=$(aws route53 change-resource-record-sets --hosted-zone-id ${MYZONE?} --change-batch file://myrecords.json | jq -r '.ChangeInfo.Id')
+
+    # Verify that change has been applied
+    $ aws route53 get-change --id ${CHANGEID?} | jq '.ChangeInfo.Status'
+    # "INSYNC"
+    ```
+  </TabItem>
+  <TabItem options="Executable" label="GCP Cloud DNS">
+    ```code
+    $ MYZONE="myzone"
+    # The fully qualified domain name for your Teleport Proxy Service.
+    # These commands will also create an A record for a wildcard subdomain.
+    $ MYDNS="tele.example.com"
+    $ MYIP="$(curl https://ipv4.icanhazip.com/)"
+
+    $ gcloud dns record-sets transaction start --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
+    ```
+  </TabItem>
+  <TabItem options="Helm Chart" label="AWS Route 53 ">
+    ```code
+    $ MYIP=$(kubectl -n teleport get service teleport-jira-plugin -o jsonpath='{.status.loadBalancer.ingress[0].ip }')
+    $ MYZONE_DNS="example.com"
+    $ MYZONE=$(aws route53 list-hosted-zones-by-name --dns-name=${MYZONE_DNS?} | jq -r '.HostedZones[0].Id' | sed s_/hostedzone/__)
+
+    # The fully qualified domain name for your Teleport Proxy Service.
+    # These commands will also create an A record for a wildcard subdomain.
+    $ MYDNS="tele.example.com"
+
+    # Create a JSON file changeset for AWS.
+    $ jq -n --arg ip ${MYIP?} --arg dns ${MYDNS?} '{"Comment": "Create records", "Changes": [{"Action": "CREATE","ResourceRecordSet": {"Name": $dns, "Type": "A", "TTL": 300, "ResourceRecords": [{ "Value": $ip}]}},{"Action": "CREATE", "ResourceRecordSet": {"Name": ("*." + $dns), "Type": "A", "TTL": 300, "ResourceRecords": [{ "Value": $ip}]}}]}' > myrecords.json
+
+    # Review records before applying.
+    $ cat myrecords.json | jq
+    # Apply the records and capture change id
+    $ CHANGEID=$(aws route53 change-resource-record-sets --hosted-zone-id ${MYZONE?} --change-batch file://myrecords.json | jq -r '.ChangeInfo.Id')
+
+    # Verify that change has been applied
+    $ aws route53 get-change --id ${CHANGEID?} | jq '.ChangeInfo.Status'
+    # "INSYNC"
+    ```
+  </TabItem>
+  <TabItem options="Helm Chart" label="GCP Cloud DNS ">
+    ```code
+    $ MYZONE="myzone"
+    # The fully qualified domain name for your Teleport Proxy Service.
+    # These commands will also create an A record for a wildcard subdomain.
+    $ MYDNS="tele.example.com"
+    $ MYIP=$(kubectl -n teleport get service teleport-jira-plugin -o jsonpath='{.status.loadBalancer.ingress[0].ip }')
+
+    $ gcloud dns record-sets transaction start --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
+    $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
+    ```
+  </TabItem>
+
+</Tabs>
+
+<Tabs>
+
+<TabItem label="Executable">
+
+We will use Caddy to run a webserver to communicate with Let's Encrypt and
+manage TLS credentials.
+
+First, install Caddy on the host where you will run the plugin. Follow the
+instructions for your system in Caddy's [installation
+guide](https://caddyserver.com/docs/install).
+
+Create a directory called `teleport-jira`, which is where we will configure
+Caddy to store TLS credentials.
+
+Create a file called `Caddyfile` with the following content. Replace
+`example.com` with the domain name you created earlier.
+
+```text
+
+storage file_system /var/teleport-jira
+
+https://example.com {}
+
+```
+
+Run Caddy. Caddy will fetch credentials from Let's Encrypt automatically and
+place them in `/var/teleport-jira`.
+
+{/* TODO: use systemd or the `caddy start` command*/}
+
+{/* TODO: Step to verify that this worked*/}
+
+</TabItem>
+<TabItem label="Helm Chart">
+
+Use cert-manager to communicate with Let's Encrypt and generate a Kubernetes
+secret containing TLS credentials that the pugin can use. 
+
+If you do not have `cert-manager` already configured in the Kubernetes cluster
+where you are installing Teleport, add the Jetstack Helm chart repository which
+hosts the `cert-manager` chart, and install the chart:
+
+```code
+$ helm repo add jetstack https://charts.jetstack.io
+$ helm repo update
+$ helm install cert-manager jetstack/cert-manager \
+--create-namespace \
+--namespace cert-manager \
+--set installCRDs=true
+```
+
+Install the NGINX ingress controller, which `cert-manager` will use to expose a
+web server to Let's Encrypt:
+
+```code
+$ helm upgrade --install ingress-nginx ingress-nginx \
+--repo https://kubernetes.github.io/ingress-nginx \
+--namespace cert-manager
+```
+
+{/* TODO: Not sure if we need the `set
+extraArgs="{--issuer-ambient-credentials}` line from the AWS Helm guide here*/}
+
+Once `cert-manager` is installed, create and apply an `Issuer` resource that
+configures `cert-manager` to fetch TLS credentials from Let's Encrypt. Create a
+file called `issuer.yaml` with the following content:
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt-production
+  namespace: teleport
+spec:
+  acme:
+    email: email@address.com                                # Change this
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-production
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+```
+
+`cert-manager` will create a new Kubernetes `Ingress` resource, and the `nginx`
+controller will expose a web server that Let's Encrypt will use, via the
+ACME-HTTP01 challenge, to prove that you have control over your domain name.
+
+You'll need to replace `email@address.com` with an email address where you can
+receive communications from Let's Encrypt.
+
+After you have created the `Issuer` and updated the values, add it to your
+cluster using `kubectl`:
+
+```code
+$ kubectl create namespace teleport
+$ kubectl create -f issuer.yaml
+```
+
+{/* TODO: Step to verify that this worked*/}
+</TabItem>
+</Tabs>
+
+## Step 4/9. Create a user and role for the plugin
 
 (!docs/pages/includes/plugins/rbac.mdx!)
 
-## Step 4/7. Export the access plugin identity
+## Step 5/9. Export the access plugin identity
 
 (!docs/pages/includes/plugins/identity-export.mdx!)
 
-## Step 5/7. Set up a Jira project
+## Step 6/9. Set up a Jira project
 
 {/* TODO: Make sure this section is still accurate*/}
 
@@ -147,14 +354,13 @@ later to configure the plugin.
 For Jira Server, the URL of the API tokens page will be different depending on
 your installation.
 
-### Set up Jira webhooks
+### Set up a Jira webhook
 
 Go to Settings → General → System → Webhooks and create a new webhook for Jira
 to tell the Teleport plugin about updates.
 
-For the webhook URL, use the URL that you'll run the plugin on. It needs to be a
-publicly accessible URL (we will show you how to set this up later). Jira
-requires the webhook listener to run over HTTPS.
+For the webhook URL, use the URL you created a DNS record for earlier in this
+guide.
 
 The webhook needs to be notified only about new issues being created, issues
 being updated, or deleted. You can leave all the other boxes empty.
@@ -177,7 +383,7 @@ In the webhook settings page, make sure that the webhook will only send Issue
 Updated updates. It's not critical if anything else gets sent, since the plugin
 will just ignore everything else.
 
-## Step 5/7. Configure the plugin
+## Step 7/9. Configure the plugin
 
 At this point, you have generated credentials that the Jira plugin will use to
 connect to Teleport. You will now configure the plugin to use these credentials
@@ -195,8 +401,7 @@ $ sudo mv teleport-jira.toml /etc
 Edit the configuration file for your environment. We will show you how to set
 each value below.
 
-{/* TODO: check the current config settings and plan changes to the rest of thi
-section*/}
+{/* TODO: Add Helm tabs for each config section*/}
 
 ### `[teleport]`
 
@@ -219,25 +424,6 @@ If you exported a client key, client certificate, and root CAs earlier, fill in
 the `client_key`, `client_crt`, and `root_cas` fields with the paths to these
 files and leave `identity` commented out.
 
-### `[jira]`
-
-The `[jira]` section requires a few things:
-
-1. Your Jira Cloud or Jira Server URL. For Jira Cloud, it looks something like `yourcompany.atlassian.net`.
-2. Your username on Jira, i.e. [ben@goteleport.com](mailto:ben@goteleport.com)
-3. Your Jira API token that you've created above.
-4. A Jira Project key, available in Project settings.
-
-### `[http]`
-
-The `[http]` setting block describes how the plugin's HTTP server works. The
-HTTP server is responsible for listening for updates from Jira, and processing
-updates, like when someone drags a task from Inbox to Approved column.
-
-You must provide an address the server should listen on, and a certificate to
-use. It's possible to run the Jira plugin on the same server as the Teleport
-Proxy, so you can use the same TLS certificate.
-
 </TabItem>
 <TabItem label="Teleport Cloud" scope="cloud">
 
@@ -250,6 +436,28 @@ comment out the other fields.
 
 </TabItem>
 </Tabs>
+
+### `[jira]`
+
+Assign `url` to the URL of your Jira tenant, e.g.,
+`https://[your-jira].atlassian.net"`, `username` to the user name of your Jira
+bot, and `api_token` to the API token you retrieved earlier. Also assign
+`project` to the project key for your project. {/* TODO: indicate how to get
+the project key*/}
+
+### `[http]`
+
+The `[http]` setting block describes how the plugin's webhook works. 
+
+`listen_addr` indicates the address that the plugin will listen on, and defaults
+to `:8081`. If you opened 8081 on your plugin host as we recommended earlier in
+the guide, you can leave this option unset.
+
+`public_addr` is the public address of your webhook. This is the domain name you
+added to the DNS A record you created earlier.
+
+`key_file` and `cert_file` correspond to the private key and certificate you
+generated earlier via Caddy. {/*TODO: Which file paths are these?*/}
 
 The final configuration will resemble the following:
 
@@ -278,7 +486,7 @@ kubectl create secret generic teleport-plugin-jira-identity --from-file=auth_id=
 </TabItem>
 </Tabs>
 
-## Step 6/6. Test the Jira plugin
+## Step 8/9. Test the Jira plugin
 
 After finishing your configuration, you can now run the plugin and test your
 Jira-based Access Request flow:
@@ -302,12 +510,13 @@ $ helm install teleport-plugin-jira teleport/teleport-plugin-jira \
 
 (!docs/pages/includes/plugins/create-request.mdx!)
 
-The recipients you configured earlier should receive notifications of the
-request by email. 
+{/* TODO: Indicate what happens in Jira when you create an Access Request*/}
 
 ### Resolve the request
 
 (!docs/pages/includes/plugins/resolve-request.mdx!)
+
+{/* TODO: Indicate what happens in Jira when you resolve the request */}
 
 <Admonition title="Auditing Access Requests">
 
@@ -322,7 +531,7 @@ Request Reviewed` in the Teleport Web UI <ScopedBlock scope={["oss",
 "enterprise"]}>and `access_request.review` if reviewing the audit log on the
 Auth Service host</ScopedBlock>.
 
-## Step 7/7. Set up systemd
+## Step 9/9. Set up systemd
 
 In production, we recommend starting the Teleport plugin daemon via an init
 system like systemd. Here's the recommended Teleport plugin service unit file
