@@ -3,7 +3,7 @@ title: Teleport Access Requests with Jira
 description: How to set up the Teleport Jira plugin to notify users when another user requests elevated privileges.
 ---
 
-This guide will explain how to setup Teleport with Jira. Teleport's Jira
+This guide will explain how to set up Teleport with Jira. Teleport's Jira
 integration allows you to treat Teleport access and permission requests using
 Jira tickets.
 
@@ -36,7 +36,9 @@ in your Teleport cluster.
 
 ## Step 2/9. Install the Teleport Jira plugin
 
-{/* TODO: Add Helm instructions here*/}
+Install the Teleport Jira plugin following the instructions below, which depend
+on whether you are deploying the plugin on a host (e.g., an EC2 instance) or a
+Kubernetes cluster.
 
 <ScopedBlock scope={["enterprise", "oss"]}>
 
@@ -44,11 +46,15 @@ We recommend installing Teleport plugins on the same host as the Teleport Proxy
 Service. This is an ideal location as plugins have a low memory footprint, and
 will require both public internet access and Teleport Auth Service access. 
 
+If you are deploying on Kubernetes, we recommend installing the Jira plugin in
+the same Kubernetes cluster as the Teleport Proxy Service so the two services
+can share TLS credentials.
+
 </ScopedBlock>
 <ScopedBlock scope="cloud">
 
-Install the Teleport Jira plugin on a host that can access both your Teleport
-Cloud tenant and Jira.
+Install the Teleport Jira plugin on a host (or in a Kubernetes cluster) that can
+access both your Teleport Cloud tenant and Jira.
 
 </ScopedBlock>
 
@@ -82,36 +88,37 @@ Run `./install` from `teleport-jira` or place the executable in `/usr/bin` or `/
 </TabItem>
 </Tabs>
 
-{/* TODO: Add instructions to verify that the installation works*/}
-
 ## Step 3/9. Set up HTTPS for the plugin
 
-The Jira Access Request plugin serves a Jira webhook over HTTP. The Teleport
-Access Request plugin uses this webhook to listen for changes in tasks that have
-to do with Access Requests and manages those Access Requests in response.
+The Jira Access Request plugin serves a Jira webhook, which Jira notifies when
+there are any changes in your Jira project (e.g., a user moves a task from one
+column to another). When a change has to do with an Access Request, the Jira
+plugin applies changes to Access Requests in Teleport.
 
-Jira requires webhooks to use HTTPS (this also prevents third parties from
-intercepting data about your Jira project and Teleport cluyster). To enable
-HTTPS on your Jira plugin, we will fetch TLS credentials from Let's Encrypt. 
+{/* TODO: Be more specific about what the webhook does*/}
+
+Jira requires webhooks to use HTTPS, which prevents third parties from
+intercepting data about your Jira project and Teleport cluster. To enable HTTPS
+on your Jira plugin, we will fetch TLS credentials from Let's Encrypt. 
 
 <Notice type="tip" scope="enterprise">
 
-You can skip this step if you are running the plugin on the Teleport Proxy
-Service host. Later, you will configure the plugin to use the same TLS
-credentials that the Proxy Service uses to serve the Teleport Web UI.
+You can skip this step if you are running the plugin on the same host or
+Kubernetes cluster as the Teleport Proxy Service. Later, you can configure the
+plugin to use the same TLS credentials that the Proxy Service uses to serve the
+Teleport Web UI.
 
 </Notice>
 
 ### Create a domain name for the webhook
 
 Jira will need to access your webhook over the public internet, so you will need
-to assign a domain name to your webhook. Create a DNS A record that associates
-your domain name with the IP address of the webhook. Here are some examples of
-how to create a domain name on AWS and Google Cloud, both for a Linux host and
-Kubernetes.
+to assign a domain name to your webhook. Create a DNS record that associates
+your domain name with the Jira webhook. Here are some examples of how to create
+a domain name on AWS and Google Cloud, both for a Linux host and Kubernetes.
 
 <Tabs dropdownSelected="Linux Host" dropdownCaption="Environment type">
-    <TabItem options="Linux Host" label="AWS Route 53">
+<TabItem options="Linux Host" label="AWS Route 53">
     ```code
     $ MYIP="$(curl https://ipv4.icanhazip.com/)"
     $ MYZONE_DNS="example.com"
@@ -133,8 +140,8 @@ Kubernetes.
     $ aws route53 get-change --id ${CHANGEID?} | jq '.ChangeInfo.Status'
     # "INSYNC"
     ```
-  </TabItem>
-  <TabItem options="Linux Host" label="GCP Cloud DNS">
+</TabItem>
+<TabItem options="Linux Host" label="GCP Cloud DNS">
     ```code
     $ MYZONE="myzone"
     # The fully qualified domain name for your Teleport Proxy Service.
@@ -171,23 +178,25 @@ Kubernetes.
     $ aws route53 get-change --id ${CHANGEID?} | jq '.ChangeInfo.Status'
     # "INSYNC"
     ```
-  </TabItem>
-  <TabItem options="Helm Chart" label="GCP Cloud DNS ">
+</TabItem>
+<TabItem options="Helm Chart" label="GCP Cloud DNS ">
+
+Switch your Kubernetes context to the namespace you are using for your Teleport
+resources and run the following commands:
+
     ```code
     $ MYZONE="myzone"
     # The fully qualified domain name for your Teleport Proxy Service.
     # These commands will also create an A record for a wildcard subdomain.
     $ MYDNS="tele.example.com"
-    $ MYIP=$(kubectl -n teleport get service teleport-jira-plugin -o jsonpath='{.status.loadBalancer.ingress[0].ip }')
+    $ MYIP=$(kubectl get service teleport-jira-plugin -o jsonpath='{.status.loadBalancer.ingress[0].ip }')
 
     $ gcloud dns record-sets transaction start --zone="${MYZONE?}"
     $ gcloud dns record-sets transaction add ${MYIP?} --name="${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
-    $ gcloud dns record-sets transaction add ${MYIP?} --name="*.${MYDNS?}" --ttl="30" --type="A" --zone="${MYZONE?}"
     $ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
     $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
     ```
-  </TabItem>
-
+</TabItem>
 </Tabs>
 
 ### Set up TLS credentials for the webhook
@@ -549,10 +558,21 @@ with the domain name you created for the plugin earlier:
 
 The final configuration will resemble the following:
 
+<Tabs>
+<TabItem options="Executable" label="Connect to the Proxy Service">
+
+```toml
+(!examples/resources/plugins/teleport-jira-cloud.toml!)
+```
+
+</TabItem>
+<TabItem options="Executable" label="Connect to the Auth Service">
+
 ```toml
 (!examples/resources/plugins/teleport-jira-self-hosted.toml!)
 ```
-</TabItem>
+
+</TabItem> 
 <TabItem 
 options="Helm Chart" 
 label="Connect to the Proxy Service "
