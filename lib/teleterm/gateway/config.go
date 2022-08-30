@@ -35,7 +35,7 @@ type Config struct {
 	// TargetName is the remote resource name
 	TargetName string
 	// TargetURI is the remote resource URI
-	TargetURI string
+	TargetURI uri.ResourceURI
 	// TargetUser is the target user name
 	TargetUser string
 	// TargetSubresourceName points at a subresource of the remote resource, for example a database
@@ -91,7 +91,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing target name")
 	}
 
-	if c.TargetURI == "" {
+	if c.TargetURI.String() == "" {
 		return trace.BadParameter("missing target URI")
 	}
 

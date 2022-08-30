@@ -19,6 +19,7 @@ package clusters
 import (
 	"context"
 
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 
 	"github.com/gravitational/trace"
@@ -26,7 +27,7 @@ import (
 
 type CreateGatewayParams struct {
 	// TargetURI is the cluster resource URI
-	TargetURI string
+	TargetURI uri.ResourceURI
 	// TargetUser is the target user name
 	TargetUser string
 	// TargetSubresourceName points at a subresource of the remote resource, for example a database

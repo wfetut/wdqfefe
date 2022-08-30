@@ -152,7 +152,7 @@ func (g *Gateway) SetURI(newURI uri.ResourceURI) {
 	g.cfg.URI = newURI
 }
 
-func (g *Gateway) TargetURI() string {
+func (g *Gateway) TargetURI() uri.ResourceURI {
 	return g.cfg.TargetURI
 }
 

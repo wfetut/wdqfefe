@@ -92,6 +92,26 @@ func (r ResourceURI) GetLeafClusterName() string {
 	return result.Params["leaf"]
 }
 
+// ToClusterURI strips any resource-specific information other than the cluster to which a given
+// resource belongs to.
+//
+// If called on a root cluster resource URI, it'll return the URI of the root cluster.
+// If called on a leaf cluster resource URI, it'll return the URI of the leaf cluster.
+// If called on a root cluster URI or a leaf cluster URI, it's a noop.
+//
+// TODO: Replace ParseClusterURI usage with ToClusterURI.
+func (r ResourceURI) ToClusterURI() ResourceURI {
+	profileName := r.GetProfileName()
+	leafClusterName := r.GetLeafClusterName()
+
+	clusterURI := NewClusterURI(profileName)
+	if leafClusterName != "" {
+		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
+	}
+
+	return clusterURI
+}
+
 // AppendServer appends server segment to the URI
 func (r ResourceURI) AppendServer(id string) ResourceURI {
 	r.path = fmt.Sprintf("%v/servers/%v", r.path, id)
