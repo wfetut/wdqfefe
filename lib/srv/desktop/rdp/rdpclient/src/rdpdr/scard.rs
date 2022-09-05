@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::errors::{invalid_data_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE};
+use super::{DeviceControlRequest, DeviceControlResponse, ServerDeviceAnnounceResponse};
+use crate::errors::{
+    invalid_data_error, rejected_by_server_error, NTSTATUS_OK, SPECIAL_NO_RESPONSE,
+};
 use crate::piv;
 use crate::Payload;
 use bitflags::bitflags;
@@ -27,10 +30,10 @@ use std::convert::TryInto;
 use std::io::{Read, Write};
 use uuid::Uuid;
 
-// Client implements the smartcard emulator, forwarded over an RDP virtual channel.
-// Spec: https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPESC/%5bMS-RDPESC%5d.pdf
-//
-// This emulator always reports a single card reader with a single active card called "Teleport".
+/// Client implements the smartcard emulator, forwarded over an RDP virtual channel.
+/// Spec: https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPESC/%5bMS-RDPESC%5d.pdf
+///
+/// This emulator always reports a single card reader with a single active card called "Teleport".
 pub struct Client {
     // contexts holds all the active contexts for the server, established using
     // SCARD_IOCTL_ESTABLISHCONTEXT. Some IOCTLs are context-specific and pass it as argument.
@@ -43,14 +46,20 @@ pub struct Client {
     pin: String,
 }
 
+pub struct Config {
+    pub cert_der: Vec<u8>,
+    pub key_der: Vec<u8>,
+    pub pin: String,
+}
+
 impl Client {
-    pub fn new(cert_der: Vec<u8>, key_der: Vec<u8>, pin: String) -> Self {
+    pub fn new(cfg: Config) -> Self {
         Self {
             contexts: Contexts::new(),
             uuid: Uuid::new_v4(),
-            cert_der,
-            key_der,
-            pin,
+            cert_der: cfg.cert_der,
+            key_der: cfg.key_der,
+            pin: cfg.pin,
         }
     }
 
@@ -105,6 +114,36 @@ impl Client {
         } else {
             Ok((SPECIAL_NO_RESPONSE, vec![]))
         }
+    }
+
+    pub fn handle_device_reply(
+        &mut self,
+        res: ServerDeviceAnnounceResponse,
+    ) -> RdpResult<Vec<Vec<u8>>> {
+        if res.result_code != NTSTATUS_OK {
+            // End the session, we cannot continue without
+            // the smart card being redirected.
+            return Err(rejected_by_server_error(&format!(
+                        "ServerDeviceAnnounceResponse for smartcard redirection failed with result code NTSTATUS({})",
+                        &res.result_code
+                    )));
+        }
+        debug!("ServerDeviceAnnounceResponse for smartcard redirection succeeded");
+        Ok(vec![])
+    }
+
+    pub fn process_irp_device_control(
+        &mut self,
+        ioctl: DeviceControlRequest,
+        payload: &mut Payload,
+    ) -> RdpResult<Vec<u8>> {
+        let (code, res) = self.ioctl(ioctl.io_control_code, payload)?;
+        if code == SPECIAL_NO_RESPONSE {
+            return Ok(vec![]);
+        }
+        let resp = DeviceControlResponse::new(&ioctl, code, res);
+        debug!("sending RDP: {:?}", resp);
+        resp.encode()
     }
 
     fn handle_access_started_event(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {

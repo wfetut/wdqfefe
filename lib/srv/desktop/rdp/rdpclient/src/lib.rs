@@ -562,18 +562,22 @@ fn connect_rdp_inner(
 
     // Client for the "rdpdr" channel - smartcard emulation and drive redirection.
     let rdpdr = rdpdr::Client::new(rdpdr::Config {
-        cert_der: params.cert_der,
-        key_der: params.key_der,
-        pin,
-        allow_directory_sharing: params.allow_directory_sharing,
-        tdp_sd_acknowledge,
-        tdp_sd_info_request,
-        tdp_sd_create_request,
-        tdp_sd_delete_request,
-        tdp_sd_list_request,
-        tdp_sd_read_request,
-        tdp_sd_write_request,
-        tdp_sd_move_request,
+        scard_cfg: rdpdr::scard::Config {
+            cert_der: params.cert_der,
+            key_der: params.key_der,
+            pin,
+        },
+        dir_cfg: rdpdr::dir::Config {
+            allow_directory_sharing: params.allow_directory_sharing,
+            tdp_sd_acknowledge,
+            tdp_sd_info_request,
+            tdp_sd_create_request,
+            tdp_sd_delete_request,
+            tdp_sd_list_request,
+            tdp_sd_read_request,
+            tdp_sd_write_request,
+            tdp_sd_move_request,
+        },
     });
 
     // Client for the "cliprdr" channel - clipboard sharing.
