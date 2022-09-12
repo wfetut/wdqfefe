@@ -729,6 +729,14 @@ impl Context {
     }
 }
 
+impl Encode for Context {
+    fn encode(&self) -> RdpResult<Message> {
+        let mut w = vec![];
+        self.encode_value(&mut w);
+        Ok(w)
+    }
+}
+
 // encode_ptr/decode_ptr and various encode_value/decode_value functions implement the strange NDR
 // protocol. See the big comment above with encoding notes.
 fn encode_ptr(length: u32, index: &mut u32, w: &mut dyn Write) -> RdpResult<()> {
@@ -760,7 +768,9 @@ fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<u32> {
 #[allow(dead_code, non_camel_case_types)]
 struct ListReaders_Call {
     context: Context,
+    groups_ptr_length: u32,
     groups_length: u32,
+    groups_ptr: u32,
     groups: Vec<String>,
     readers_is_null: bool,
     readers_size: u32,
@@ -783,6 +793,8 @@ impl ListReaders_Call {
         if groups_ptr == 0 {
             return Ok(Self {
                 context,
+                groups_ptr_length,
+                groups_ptr,
                 groups_length: 0,
                 groups: Vec::new(),
                 readers_is_null,
@@ -797,6 +809,8 @@ impl ListReaders_Call {
         } else {
             Ok(Self {
                 context,
+                groups_ptr_length,
+                groups_ptr,
                 groups_length,
                 groups,
                 readers_is_null,
@@ -805,6 +819,17 @@ impl ListReaders_Call {
         }
     }
 }
+
+// impl Encode for ListReaders_Call {
+//     fn encode(&self) -> RdpResult<Message> {
+//         let mut w = vec![];
+//         w.extend(RPCEStreamHeader::new().encode()?);
+//         RPCETypeHeader::new(0).encode(&mut w)?;
+//         w.extend(self.context.encode()?);
+//         w.write_u32::<LittleEndian>(self.scope as u32)?;
+//         Ok(w)
+//     }
+// }
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
