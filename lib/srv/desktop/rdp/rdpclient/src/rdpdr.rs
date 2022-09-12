@@ -22,6 +22,7 @@ use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error, NTSTATUS_OK,
     SPECIAL_NO_RESPONSE,
 };
+use crate::rdpdr::scard::NoResponse;
 use crate::{test_debug, util, Encode, Messages};
 use crate::{vchan, Message};
 use crate::{
@@ -353,7 +354,11 @@ impl Client {
         } else {
             // Drive redirection, mimic FreeRDP's "no-op"
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L677-L684
-            DeviceControlResponse::new(&ioctl, NTSTATUS::STATUS_SUCCESS.to_u32().unwrap(), vec![])
+            DeviceControlResponse::new(
+                &ioctl,
+                NTSTATUS::STATUS_SUCCESS.to_u32().unwrap(),
+                Box::new(NoResponse {}),
+            )
         };
         debug!("sending RDP: {:?}", resp);
         let resp = self
@@ -2278,15 +2283,13 @@ impl DeviceIoResponse {
 #[derive(Debug)]
 struct DeviceControlResponse {
     header: DeviceIoResponse,
-    output_buffer_length: u32,
-    output_buffer: Vec<u8>,
+    output_buffer: Box<dyn Encode>,
 }
 
 impl DeviceControlResponse {
-    fn new(req: &DeviceControlRequest, io_status: u32, output: Vec<u8>) -> Self {
+    fn new(req: &DeviceControlRequest, io_status: u32, output: Box<dyn Encode>) -> Self {
         Self {
             header: DeviceIoResponse::new(&req.header, io_status),
-            output_buffer_length: output.length() as u32,
             output_buffer: output,
         }
     }
@@ -2296,8 +2299,9 @@ impl Encode for DeviceControlResponse {
     fn encode(&self) -> RdpResult<Message> {
         let mut w = vec![];
         w.extend_from_slice(&self.header.encode()?);
-        w.write_u32::<LittleEndian>(self.output_buffer_length)?;
-        w.extend_from_slice(&self.output_buffer);
+        let output_buffer = self.output_buffer.encode()?;
+        w.write_u32::<LittleEndian>(output_buffer.len() as u32)?; // output_buffer_length
+        w.extend_from_slice(&output_buffer);
         Ok(w)
     }
 }
@@ -4163,7 +4167,7 @@ type SharedDirectoryMoveResponseHandler =
 #[cfg(test)]
 mod tests {
     use super::{
-        scard::{IoctlCode, ScardAccessStartedEvent_Call},
+        scard::{IoctlCode, Long_Return, ReturnCode, ScardAccessStartedEvent_Call},
         *,
     };
     use crate::{
@@ -4531,11 +4535,7 @@ mod tests {
                         completion_id: 1,
                         io_status: 0,
                     },
-                    output_buffer_length: 24,
-                    output_buffer: vec![
-                        1, 16, 8, 0, 204, 204, 204, 204, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0,
-                    ],
+                    output_buffer: Box::new(Long_Return::new(ReturnCode::SCARD_S_SUCCESS)),
                 }),
             )],
         );

@@ -1880,6 +1880,6 @@ pub(crate) type Payload = Cursor<Vec<u8>>;
 pub(crate) type Message = Vec<u8>;
 pub(crate) type Messages = Vec<Message>;
 
-trait Encode: std::fmt::Debug {
+pub trait Encode: std::fmt::Debug {
     fn encode(&self) -> RdpResult<Message>;
 }
