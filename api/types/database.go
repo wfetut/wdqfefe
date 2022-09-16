@@ -511,7 +511,8 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 		d.Spec.AWS.MemoryDB.TLSEnabled = endpointInfo.TransitEncryptionEnabled
 		d.Spec.AWS.MemoryDB.EndpointType = endpointInfo.EndpointType
-	case strings.Contains(d.Spec.URI, AzureEndpointSuffix):
+	case strings.Contains(d.Spec.URI, AzureEndpointSuffix),
+		strings.Contains(d.Spec.URI, AzureCosmosEndpointSuffix):
 		name, err := parseAzureEndpoint(d.Spec.URI)
 		if err != nil {
 			return trace.Wrap(err)
@@ -530,9 +531,10 @@ func parseAzureEndpoint(endpoint string) (name string, err error) {
 		return "", trace.Wrap(err)
 	}
 	// Azure endpoint looks like this:
-	// name.mysql.database.azure.com
+	// - name.mysql.database.azure.com
+	// - name.mongo.cosmos.azure.com
 	parts := strings.Split(host, ".")
-	if !strings.HasSuffix(host, AzureEndpointSuffix) || len(parts) != 5 {
+	if (!strings.HasSuffix(host, AzureEndpointSuffix) && !strings.HasSuffix(host, AzureCosmosEndpointSuffix)) || len(parts) != 5 {
 		return "", trace.BadParameter("failed to parse %v as Azure endpoint", endpoint)
 	}
 	return parts[0], nil
@@ -724,6 +726,8 @@ func (d Databases) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
 const (
 	// AzureEndpointSuffix is the Azure database endpoint suffix.
 	AzureEndpointSuffix = ".database.azure.com"
+	// AzureCosmosEndpointSuffix is the Azure Cosmos database endpoint suffix.
+	AzureCosmosEndpointSuffix = ".cosmos.azure.com"
 )
 
 type arnTemplateInput struct {

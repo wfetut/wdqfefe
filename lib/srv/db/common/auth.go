@@ -35,6 +35,9 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/cosmos/armcosmos"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/rds/rdsutils"
@@ -64,6 +67,8 @@ type Auth interface {
 	GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error)
 	// GetAuthPreference returns the cluster authentication config.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+	// GetCosmosDBConnString returns a connection string for Mongo CosmosDB.
+	GetCosmosDBConnString(ctx context.Context, sessionCtx *Session) (string, error)
 	// Closer releases all resources used by authenticator.
 	io.Closer
 }
@@ -281,10 +286,14 @@ func (a *dbAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *Session) (
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+
 	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{
 			// Access token scope for connecting to Postgres/MySQL database.
 			"https://ossrdbms-aad.database.windows.net/.default",
+			// TODO(gabrielcorado): for testing with Azure token, we need to
+			// figure out how to get the correct scope for the database type.
+			// "https://documents.azure.com/.default",
 		},
 	})
 	if err != nil {
@@ -516,6 +525,80 @@ func (a *dbAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 // Close releases all resources used by authenticator.
 func (a *dbAuth) Close() error {
 	return a.cfg.Clients.Close()
+}
+
+// GetCosmosDBConnString returns a connection string for CosmosDB.
+// TODO(gabrielcorado): Check if the UpdateMongoUserDefinition is slow just
+// beceuase it is in preview.
+func (a *dbAuth) GetCosmosDBConnString(ctx context.Context, session *Session) (string, error) {
+	cred, err := a.cfg.Clients.GetAzureCredential()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// token := "123123"
+	token, err := utils.CryptoRandomHex(libauth.TokenLenBytes)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// TODO(gabrielcorado): fetch subscription-id from configuration
+	client, err := armcosmos.NewMongoDBResourcesClient("<subscription-id>", cred, nil)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	fmt.Println("-->> Begin updating CosmosDB user")
+	res, err := client.BeginCreateUpdateMongoUserDefinition(
+		ctx,
+		// User ID is defined as "databaseName.userName".
+		fmt.Sprintf("%s.%s", session.DatabaseName, session.DatabaseUser),
+		// TODO(gabrielcorado): fetch resource group from configuration.
+		"<resource-group>",
+		session.Database.GetAzure().Name, // Account name.
+		armcosmos.MongoUserDefinitionCreateUpdateParameters{
+			Properties: &armcosmos.MongoUserDefinitionResource{
+				// TODO(gabrielcorado): move to a constant.
+				Mechanisms:   to.Ptr("SCRAM-SHA-256"),
+				DatabaseName: to.Ptr(session.DatabaseName),
+				UserName:     to.Ptr(session.DatabaseUser),
+				Password:     to.Ptr(token),
+				Roles: []*armcosmos.Role{
+					{
+						// TODO(gabrielcorado): check what permission we want to set for users.
+						// Role: to.Ptr("readWrite"),
+						Role: to.Ptr("read"),
+						Db:   to.Ptr(session.DatabaseName),
+					},
+				},
+			},
+		},
+		nil,
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	fmt.Println("-->> Starting pooling for CosmosDB user creation")
+	_, err = res.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{
+		Frequency: time.Second,
+	})
+	fmt.Println("-->> Pooling complete for CosmosDB user creation", err)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// TODO(gabrielcorado): maybe make this a constant? or a separated function?
+	// TODO(gabrielcorado): consider returning the MongoDB ConnString struct.
+	return fmt.Sprintf(
+		"mongodb://%s:%s@%s/%s?ssl=true&replicaSet=globaldb&retrywrites=false&maxIdleTimeMS=120000&appName=@%s@&authMechanism=SCRAM-SHA-256&authSource=%s&maxIdleTimeMS=120000&connectTimeoutMS=120000",
+		session.DatabaseUser,
+		token,
+		session.Database.GetURI(),
+		session.DatabaseName,
+		session.Database.GetAzure().Name,
+		session.DatabaseName,
+	), nil
 }
 
 // getVerifyCloudSQLCertificate returns a function that performs verification
