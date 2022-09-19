@@ -54,6 +54,10 @@ var openSSHVersionRegex = regexp.MustCompile(`^OpenSSH_(?P<major>\d+)\.(?P<minor
 // RSA deprecation workaround should be added to generated ssh_config.
 var openSSHMinVersionForRSAWorkaround = semver.New("8.5.0")
 
+// openSSHMinVersionForHostAlgos is the first version that understands all host keys required by us.
+// HostKeyAlgorithms will be added to ssh config if the version is above listed here.
+var openSSHMinVersionForHostAlgos = semver.New("7.8.0")
+
 const (
 	// sshConfigName is the name of the ssh_config file on disk
 	sshConfigName = "ssh_config"
@@ -227,6 +231,13 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, currentIdentity
 		log.Debugf("OpenSSH version %s will use workaround for RSA deprecation", version)
 	}
 
+	addHostAlgos := true
+	if version.LessThan(*openSSHMinVersionForHostAlgos) {
+		addHostAlgos = false
+	} else {
+		log.Debugf("OpenSSH version %s will add HostKeyAlgorithms to ssh config")
+	}
+
 	executablePath, err := c.getExecutablePath()
 	if err != nil {
 		return trace.Wrap(err)
@@ -237,14 +248,15 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, currentIdentity
 	identityFilePath := filepath.Join(destDir, identity.PrivateKeyKey)
 	certificateFilePath := filepath.Join(destDir, identity.SSHCertKey)
 	if err := sshConfigTemplate.Execute(&sshConfigBuilder, sshConfigParameters{
-		ClusterName:          clusterName.GetClusterName(),
-		ProxyHost:            proxyHost,
-		KnownHostsPath:       knownHostsPath,
-		IdentityFilePath:     identityFilePath,
-		CertificateFilePath:  certificateFilePath,
-		IncludeRSAWorkaround: rsaWorkaround,
-		TBotPath:             executablePath,
-		DestinationDir:       destDir,
+		ClusterName:              clusterName.GetClusterName(),
+		ProxyHost:                proxyHost,
+		KnownHostsPath:           knownHostsPath,
+		IdentityFilePath:         identityFilePath,
+		CertificateFilePath:      certificateFilePath,
+		IncludeRSAWorkaround:     rsaWorkaround,
+		IncludeTeleportHostAlgos: addHostAlgos,
+		TBotPath:                 executablePath,
+		DestinationDir:           destDir,
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -273,6 +285,8 @@ type sshConfigParameters struct {
 	// override to re-enable RSA certs for just Teleport hosts, however it is
 	// only supported on OpenSSH 8.5 and later.
 	IncludeRSAWorkaround bool
+
+	IncludeTeleportHostAlgos bool
 }
 
 var sshConfigTemplate = template.Must(template.New("ssh-config").Parse(`
@@ -284,7 +298,8 @@ Host *.{{ .ClusterName }} {{ .ProxyHost }}
     IdentityFile "{{ .IdentityFilePath }}"
     CertificateFile "{{ .CertificateFilePath }}"
     HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com{{- if .IncludeRSAWorkaround }}
-    PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com{{- end }}
+    PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com{{- end }}{{- if .IncludeTeleportHostAlgos }}
+    HostKeyAlgorithms rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com{{- end }}
 
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}
