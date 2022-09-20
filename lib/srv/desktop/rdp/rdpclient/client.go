@@ -317,7 +317,6 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				); errCode != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("MouseMove: write_rdp_pointer @ (%v,%v): %v", m.X, m.Y, errCode)
 					return
 				}
 			case tdp.MouseButton:
@@ -343,8 +342,6 @@ func (c *Client) start() {
 						wheel:  C.PointerWheelNone,
 					},
 				); errCode != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("MouseButton: write_rdp_pointer @ (%v, %v) button=%v state=%v: %v",
-						mouseX, mouseY, button, m.State, errCode)
 					return
 				}
 			case tdp.MouseWheel:
@@ -373,8 +370,6 @@ func (c *Client) start() {
 						wheel_delta: C.int16_t(m.Delta),
 					},
 				); errCode != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("MouseWheel: write_rdp_pointer @ (%v, %v) wheel=%v delta=%v: %v",
-						mouseX, mouseY, wheel, m.Delta, errCode)
 					return
 				}
 			case tdp.KeyboardButton:
@@ -385,8 +380,6 @@ func (c *Client) start() {
 						down: m.State == tdp.ButtonPressed,
 					},
 				); errCode != C.ErrCodeSuccess {
-					c.cfg.Log.Warningf("KeyboardButton: write_rdp_keyboard code=%v state=%v: %v",
-						m.KeyCode, m.State, errCode)
 					return
 				}
 			case tdp.ClipboardData:
@@ -396,7 +389,6 @@ func (c *Client) start() {
 						(*C.uint8_t)(unsafe.Pointer(&m[0])),
 						C.uint32_t(len(m)),
 					); errCode != C.ErrCodeSuccess {
-						c.cfg.Log.Warningf("ClipboardData: update_clipboard (len=%v): %v", len(m), errCode)
 						return
 					}
 				} else {
@@ -410,7 +402,7 @@ func (c *Client) start() {
 						directory_id: C.uint32_t(m.DirectoryID),
 						name:         driveName,
 					}); errCode != C.ErrCodeSuccess {
-						c.cfg.Log.Errorf("SharedDirectoryAnnounce: failed with %v", errCode)
+						c.cfg.Log.Errorf("Device announce failed: %v", errCode)
 						return
 					}
 				}

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -74,6 +75,7 @@ func TestSSH(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			tc.fn(t, s)
 		})
 	}
@@ -81,7 +83,9 @@ func TestSSH(t *testing.T) {
 
 func testRootClusterSSHAccess(t *testing.T, s *suite) {
 	tshHome := mustLogin(t, s)
-	err := Run(context.Background(), []string{
+	ctx := context.Background()
+
+	err := Run(ctx, []string{
 		"ssh",
 		s.root.Config.Hostname,
 		"echo", "hello",
@@ -89,7 +93,7 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 	require.NoError(t, err)
 
 	identityFile := mustLoginIdentity(t, s)
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 		"--insecure",
 		"-i", identityFile,
@@ -102,19 +106,18 @@ func testRootClusterSSHAccess(t *testing.T, s *suite) {
 
 func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 	tshHome := mustLogin(t, s, s.leaf.Config.Auth.ClusterName.GetClusterName())
+	ctx := context.Background()
 	require.Eventually(t, func() bool {
-		err := Run(context.Background(), []string{
+		err := Run(ctx, []string{
 			"ssh",
-			"--proxy", s.root.Config.Proxy.WebAddr.String(),
 			s.leaf.Config.Hostname,
 			"echo", "hello",
 		}, setHomePath(tshHome))
-		t.Logf("ssh to leaf failed %v", err)
 		return err == nil
 	}, 5*time.Second, time.Second)
 
 	identityFile := mustLoginIdentity(t, s)
-	err := Run(context.Background(), []string{
+	err := Run(ctx, []string{
 		"--proxy", s.root.Config.Proxy.WebAddr.String(),
 		"--insecure",
 		"-i", identityFile,
@@ -129,9 +132,9 @@ func testLeafClusterSSHAccess(t *testing.T, s *suite) {
 func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	// login to root
 	tshHome := mustLogin(t, s, s.root.Config.Auth.ClusterName.GetClusterName())
-
+	ctx := context.Background()
 	// Switch to leaf cluster
-	err := Run(context.Background(), []string{
+	err := Run(ctx, []string{
 		"login",
 		"--insecure",
 		s.leaf.Config.Auth.ClusterName.GetClusterName(),
@@ -139,7 +142,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 	require.NoError(t, err)
 
 	// Connect to leaf node though jump host set to leaf proxy SSH port.
-	err = Run(context.Background(), []string{
+	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
 		"-J", s.leaf.Config.Proxy.SSHAddr.Addr,
@@ -150,7 +153,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 
 	t.Run("root cluster online", func(t *testing.T) {
 		// Connect to leaf node though jump host set to proxy web port where TLS Routing is enabled.
-		err = Run(context.Background(), []string{
+		err = Run(ctx, []string{
 			"ssh",
 			"--insecure",
 			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
@@ -166,7 +169,7 @@ func testJumpHostSSHAccess(t *testing.T, s *suite) {
 		require.NoError(t, err)
 
 		// Check JumpHost flow when root cluster is offline.
-		err = Run(context.Background(), []string{
+		err = Run(ctx, []string{
 			"ssh",
 			"--insecure",
 			"-J", s.leaf.Config.Proxy.WebAddr.Addr,
@@ -232,13 +235,6 @@ func TestProxySSH(t *testing.T) {
 				require.NoError(t, err)
 			})
 
-			t.Run("re-login", func(t *testing.T) {
-				t.Parallel()
-
-				err := runProxySSH(proxyRequest, setHomePath(mustLogin(t, s)), setMockSSOLogin(t, s))
-				require.NoError(t, err)
-			})
-
 			t.Run("identity file", func(t *testing.T) {
 				t.Parallel()
 
@@ -250,7 +246,7 @@ func TestProxySSH(t *testing.T) {
 				t.Parallel()
 
 				invalidLoginRequest := fmt.Sprintf("%s@%s", "invalidUser", proxyRequest)
-				err := runProxySSH(invalidLoginRequest, setHomePath(mustLogin(t, s)), setMockSSOLogin(t, s))
+				err := runProxySSH(invalidLoginRequest, setHomePath(mustLogin(t, s)))
 				require.Error(t, err)
 				require.True(t, utils.IsHandshakeFailedError(err), "expected handshake error, got %v", err)
 			})
@@ -382,58 +378,6 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 	}
 }
 
-func TestEnvVarCommand(t *testing.T) {
-	tests := []struct {
-		inputFormat  string
-		inputKey     string
-		inputValue   string
-		expectOutput string
-		expectError  bool
-	}{
-		{
-			inputFormat:  envVarFormatText,
-			inputKey:     "key",
-			inputValue:   "value",
-			expectOutput: "key=value",
-		},
-		{
-			inputFormat:  envVarFormatUnix,
-			inputKey:     "key",
-			inputValue:   "value",
-			expectOutput: "export key=value",
-		},
-		{
-			inputFormat:  envVarFormatWindowsCommandPrompt,
-			inputKey:     "key",
-			inputValue:   "value",
-			expectOutput: "set key=value",
-		},
-		{
-			inputFormat:  envVarFormatWindowsPowershell,
-			inputKey:     "key",
-			inputValue:   "value",
-			expectOutput: "$Env:key=\"value\"",
-		},
-		{
-			inputFormat: "unknown",
-			inputKey:    "key",
-			inputValue:  "value",
-			expectError: true,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.inputFormat, func(t *testing.T) {
-			actualOutput, err := envVarCommand(test.inputFormat, test.inputKey, test.inputValue)
-			if test.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, test.expectOutput, actualOutput)
-			}
-		})
-	}
-}
-
 func createAgent(t *testing.T) string {
 	t.Helper()
 
@@ -517,7 +461,7 @@ func mustGetOpenSSHConfigFile(t *testing.T) string {
 
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "ssh_config")
-	err = os.WriteFile(configPath, buff.Bytes(), 0600)
+	err = ioutil.WriteFile(configPath, buff.Bytes(), 0600)
 	require.NoError(t, err)
 
 	return configPath
@@ -585,5 +529,5 @@ func mustFindFailedNodeLoginAttempt(t *testing.T, s *suite, nodeLogin string) {
 			return
 		}
 	}
-	t.Errorf("failed to find AuthAttemptFailureCode event (0/%d events matched)", len(av))
+	t.Error("failed to find AuthAttemptFailureCode event")
 }

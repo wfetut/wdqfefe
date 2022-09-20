@@ -131,10 +131,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AccessRequestCreate{
 			AccessRequestCreate: e,
 		}
-	case *AccessRequestResourceSearch:
-		out.Event = &OneOf_AccessRequestResourceSearch{
-			AccessRequestResourceSearch: e,
-		}
 	case *RoleCreate:
 		out.Event = &OneOf_RoleCreate{
 			RoleCreate: e,
@@ -190,10 +186,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *AppSessionStart:
 		out.Event = &OneOf_AppSessionStart{
 			AppSessionStart: e,
-		}
-	case *AppSessionEnd:
-		out.Event = &OneOf_AppSessionEnd{
-			AppSessionEnd: e,
 		}
 	case *AppSessionChunk:
 		out.Event = &OneOf_AppSessionChunk{
@@ -387,14 +379,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_MySQLRefresh{
 			MySQLRefresh: e,
 		}
-	case *SQLServerRPCRequest:
-		out.Event = &OneOf_SQLServerRPCRequest{
-			SQLServerRPCRequest: e,
-		}
-	case *DatabaseSessionMalformedPacket:
-		out.Event = &OneOf_DatabaseSessionMalformedPacket{
-			DatabaseSessionMalformedPacket: e,
-		}
 	case *RenewableCertificateGenerationMismatch:
 		out.Event = &OneOf_RenewableCertificateGenerationMismatch{
 			RenewableCertificateGenerationMismatch: e,
@@ -403,10 +387,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SFTP{
 			SFTP: e,
 		}
-	case *UpgradeWindowStartUpdate:
-		out.Event = &OneOf_UpgradeWindowStartUpdate{
-			UpgradeWindowStartUpdate: e,
-		}
 	case *SessionRecordingAccess:
 		out.Event = &OneOf_SessionRecordingAccess{
 			SessionRecordingAccess: e,
@@ -414,18 +394,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *Unknown:
 		out.Event = &OneOf_Unknown{
 			Unknown: e,
-		}
-	case *KubernetesClusterCreate:
-		out.Event = &OneOf_KubernetesClusterCreate{
-			KubernetesClusterCreate: e,
-		}
-	case *KubernetesClusterUpdate:
-		out.Event = &OneOf_KubernetesClusterUpdate{
-			KubernetesClusterUpdate: e,
-		}
-	case *KubernetesClusterDelete:
-		out.Event = &OneOf_KubernetesClusterDelete{
-			KubernetesClusterDelete: e,
 		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

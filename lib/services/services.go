@@ -31,13 +31,8 @@ type Services interface {
 	Restrictions
 	Apps
 	Databases
-	Kubernetes
 	AppSession
-	SnowflakeSession
 	types.WebSessionsGetter
 	types.WebTokensGetter
 	WindowsDesktops
 }
-
-// RotationGetter returns the rotation state.
-type RotationGetter func(role types.SystemRole) (*types.Rotation, error)

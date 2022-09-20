@@ -30,7 +30,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -42,7 +41,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 )
 
@@ -59,13 +57,8 @@ const (
 	challengeHeaderKey = "x-teleport-challenge"
 )
 
-var (
-	authTeleportVersion = semver.New(teleport.Version)
-)
-
 // validateSTSHost returns an error if the given stsHost is not a valid regional
-// endpoint for the AWS STS service, or nil if it is valid. If fips is true, the
-// endpoint must be a valid FIPS endpoint.
+// endpoint for the AWS STS service, or nil if it is valid.
 //
 // This is a security-critical check: we are allowing the client to tell us
 // which URL we should use to validate their identity. If the client could pass
@@ -75,33 +68,21 @@ var (
 // To keep this validation simple and secure, we check the given endpoint
 // against a static list of known valid endpoints. We will need to update this
 // list as AWS adds new regions.
-func validateSTSHost(stsHost string, cfg *iamRegisterConfig) error {
+func validateSTSHost(stsHost string) error {
 	valid := apiutils.SliceContainsStr(validSTSEndpoints, stsHost)
-	if !valid {
-		return trace.AccessDenied("IAM join request uses unknown STS host %q. "+
-			"This could mean that the Teleport Node attempting to join the cluster is "+
-			"running in a new AWS region which is unknown to this Teleport auth server. "+
-			"Alternatively, if this URL looks suspicious, an attacker may be attempting to "+
-			"join your Teleport cluster. "+
-			"Following is the list of valid STS endpoints known to this auth server. "+
-			"If a legitimate STS endpoint is not included, please file an issue at "+
-			"https://github.com/gravitational/teleport. %v",
-			stsHost, validSTSEndpoints)
+	if valid {
+		return nil
 	}
 
-	if cfg.fips && !apiutils.SliceContainsStr(fipsSTSEndpoints, stsHost) {
-		if cfg.authVersion.LessThan(semver.Version{Major: 12}) {
-			log.Warnf("Non-FIPS STS endpoint (%s) was used by a node joining "+
-				"the cluster with the IAM join method. "+
-				"Ensure that all nodes joining the cluster are up to date and also run in FIPS mode. "+
-				"This will be an error in Teleport 12.0.0.",
-				stsHost)
-		} else {
-			return trace.AccessDenied("node selected non-FIPS STS endpoint (%s) for the IAM join method", stsHost)
-		}
-	}
-
-	return nil
+	return trace.AccessDenied("IAM join request uses unknown STS host %q. "+
+		"This could mean that the Teleport Node attempting to join the cluster is "+
+		"running in a new AWS region which is unknown to this Teleport auth server. "+
+		"Alternatively, if this URL looks suspicious, an attacker may be attempting to "+
+		"join your Teleport cluster. "+
+		"Following is the list of valid STS endpoints known to this auth server. "+
+		"If a legitimate STS endpoint is not included, please file an issue at "+
+		"https://github.com/gravitational/teleport. %v",
+		stsHost, validSTSEndpoints)
 }
 
 // validateSTSIdentityRequest checks that a received sts:GetCallerIdentity
@@ -121,7 +102,7 @@ func validateSTSHost(stsHost string, cfg *iamRegisterConfig) error {
 //
 // Action=GetCallerIdentity&Version=2011-06-15
 // ```
-func validateSTSIdentityRequest(req *http.Request, challenge string, cfg *iamRegisterConfig) (err error) {
+func validateSTSIdentityRequest(req *http.Request, challenge string) (err error) {
 	defer func() {
 		// Always log a warning on the Auth server if the function detects an
 		// invalid sts:GetCallerIdentity request, it's either going to be caused
@@ -131,7 +112,7 @@ func validateSTSIdentityRequest(req *http.Request, challenge string, cfg *iamReg
 		}
 	}()
 
-	if err := validateSTSHost(req.Host, cfg); err != nil {
+	if err := validateSTSHost(req.Host); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -220,7 +201,7 @@ func stsClientFromContext(ctx context.Context) stsClient {
 func executeSTSIdentityRequest(ctx context.Context, req *http.Request) (*awsIdentity, error) {
 	client := stsClientFromContext(ctx)
 
-	// set the http request context so it can be canceled
+	// set the http request context so it can be cancelled
 	req = req.WithContext(ctx)
 	resp, err := client.Do(req)
 	if err != nil {
@@ -296,7 +277,7 @@ func checkIAMAllowRules(identity *awsIdentity, allowRules []*types.TokenRule) er
 
 // checkIAMRequest checks if the given request satisfies the token rules and
 // included the required challenge.
-func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *proto.RegisterUsingIAMMethodRequest, cfg *iamRegisterConfig) error {
+func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *proto.RegisterUsingIAMMethodRequest) error {
 	tokenName := req.RegisterUsingTokenRequest.Token
 	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
@@ -314,7 +295,7 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 
 	// validate that the host, method, and headers are correct and the expected
 	// challenge is included in the signed portion of the request
-	if err := validateSTSIdentityRequest(identityRequest, challenge, cfg); err != nil {
+	if err := validateSTSIdentityRequest(identityRequest, challenge); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -344,44 +325,13 @@ func generateChallenge() (string, error) {
 	return base64.RawStdEncoding.EncodeToString(challengeRawBytes), nil
 }
 
-type iamRegisterConfig struct {
-	authVersion *semver.Version
-	fips        bool
-}
-
-func defaultIAMRegisterConfig(fips bool) *iamRegisterConfig {
-	return &iamRegisterConfig{
-		authVersion: authTeleportVersion,
-		fips:        fips,
-	}
-}
-
-type iamRegisterOption func(cfg *iamRegisterConfig)
-
-func withAuthVersion(v *semver.Version) iamRegisterOption {
-	return func(cfg *iamRegisterConfig) {
-		cfg.authVersion = v
-	}
-}
-
-func withFips(fips bool) iamRegisterOption {
-	return func(cfg *iamRegisterConfig) {
-		cfg.fips = fips
-	}
-}
-
 // RegisterUsingIAMMethod registers the caller using the IAM join method and
 // returns signed certs to join the cluster.
 //
 // The caller must provide a ChallengeResponseFunc which returns a
 // *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
 // including the challenge as a signed header.
-func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc, opts ...iamRegisterOption) (*proto.Certs, error) {
-	cfg := defaultIAMRegisterConfig(a.fips)
-	for _, opt := range opts {
-		opt(cfg)
-	}
-
+func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc) (*proto.Certs, error) {
 	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
 	if !ok {
 		return nil, trace.BadParameter("logic error: client address was not set")
@@ -410,7 +360,7 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 	}
 
 	// check that the GetCallerIdentity request is valid and matches the token
-	if err := a.checkIAMRequest(ctx, challenge, req, cfg); err != nil {
+	if err := a.checkIAMRequest(ctx, challenge, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

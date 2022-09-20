@@ -29,8 +29,9 @@ resource.
   kind: cluster_auth_preference
   metadata:
     name: cluster-auth-preference
-  spec:    
-    type: oidc
+  spec:
+    authentication:
+      type: oidc
   version: v2
   ```
 

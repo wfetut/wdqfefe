@@ -67,7 +67,6 @@ func NewCollector(cfg CollectorConfig) (*Collector, error) {
 	var tlsConfig *tls.Config
 	creds := insecure.NewCredentials()
 	if cfg.TLSConfig != nil {
-		tlsConfig = cfg.TLSConfig.Clone()
 		creds = credentials.NewTLS(tlsConfig)
 	}
 
@@ -78,7 +77,7 @@ func NewCollector(cfg CollectorConfig) (*Collector, error) {
 		tlsConfing: tlsConfig,
 	}
 
-	c.httpServer = &http.Server{Handler: c, TLSConfig: tlsConfig.Clone()}
+	c.httpServer = &http.Server{Handler: c, TLSConfig: tlsConfig}
 
 	coltracepb.RegisterTraceServiceServer(c.grpcServer, c)
 

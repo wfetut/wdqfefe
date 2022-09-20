@@ -21,10 +21,22 @@ import (
 )
 
 func main() {
-
-	// aggregate common and oss-specific command variants
-	commands := common.Commands()
-	commands = append(commands, common.OSSCommands()...)
-
+	commands := []common.CLICommand{
+		&common.UserCommand{},
+		&common.NodeCommand{},
+		&common.TokensCommand{},
+		&common.AuthCommand{},
+		&common.ResourceCommand{},
+		&common.StatusCommand{},
+		&common.TopCommand{},
+		&common.AccessRequestCommand{},
+		&common.AppsCommand{},
+		&common.DBCommand{},
+		&common.KubeCommand{},
+		&common.DesktopCommand{},
+		&common.AccessCommand{},
+		&common.LockCommand{},
+		&common.BotsCommand{},
+	}
 	common.Run(commands)
 }

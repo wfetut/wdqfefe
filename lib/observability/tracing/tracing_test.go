@@ -248,8 +248,7 @@ func TestTraceProvider(t *testing.T) {
 	tlsCertificate, err := generateTLSCertificate()
 	require.NoError(t, err)
 	tlsConfig := &tls.Config{
-		Certificates:       []tls.Certificate{tlsCertificate},
-		InsecureSkipVerify: true,
+		Certificates: []tls.Certificate{tlsCertificate},
 	}
 
 	cases := []struct {
@@ -339,7 +338,6 @@ func TestTraceProvider(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		tt := tt // capture range variable
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			collector, err := NewCollector(CollectorConfig{
