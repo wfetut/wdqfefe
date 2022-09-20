@@ -37,7 +37,7 @@ import (
 // template
 type TemplateSSHClient struct {
 	ProxyPort uint16 `yaml:"proxy_port"`
-	generator *config.SSHConfigGenerator
+	generator config.SSHConfigGenerator
 }
 
 const (

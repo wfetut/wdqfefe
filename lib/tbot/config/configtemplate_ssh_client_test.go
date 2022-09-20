@@ -159,7 +159,7 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 
 			template := TemplateSSHClient{
 				ProxyPort: 1337,
-				generator: config.NewCustomSSHConfigGenerator(getSSHVersion, getExecutablePath),
+				generator: *config.NewCustomSSHConfigGenerator(getSSHVersion, getExecutablePath),
 			}
 			// ident is passed in, but not used.
 			var ident *identity.Identity
