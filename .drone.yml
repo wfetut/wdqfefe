@@ -1207,20 +1207,17 @@ steps:
       # plus the just-packaged charts listed above
       - helm repo index /go/chart
 
-  - name: Upload to S3
-    image: plugins/s3
-    settings:
-      bucket:
+  - name: "Helm: Publish chart repository to S3"
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
         from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
-      access_key:
+      AWS_ACCESS_KEY_ID:
         from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
-      secret_key:
+      AWS_SECRET_ACCESS_KEY:
         from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
-      region: us-east-2
-      acl: public-read
-      source: /go/chart/*
-      target: /
-      strip_prefix: /go/chart
+    commands:
+      - aws s3 sync /go/chart s3://$AWS_S3_BUCKET/ 
 
   - name: Send Slack notification
     image: plugins/slack
@@ -4367,6 +4364,6 @@ volumes:
       name: drone-s3-debrepo-pvc
 ---
 kind: signature
-hmac: 4a3df7fd7a3d608a741d11981e4fb7bcfb558630e4d90aef713837510160c365
+hmac: 8c20f560d769ad281f5498218974ead59ab17806b9a70c0c314c9e009983167c
 
 ...
