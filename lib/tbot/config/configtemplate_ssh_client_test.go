@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
@@ -109,61 +110,92 @@ func (t *templateSSHClientMockBot) AuthPing(ctx context.Context) (*proto.PingRes
 	return &ping, err
 }
 
-func (t *templateSSHClientMockBot) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
+func (t *templateSSHClientMockBot) ProxyPing(_ context.Context) (*webclient.PingResponse, error) {
 	return nil, trace.NotImplemented("not implemented")
 }
 
 func TestTemplateSSHClient_Render(t *testing.T) {
-	dir := t.TempDir()
-	mockAuth := &templateSSHClientAuthMock{
-		t:           t,
-		clusterName: "black-mesa",
-	}
-	mockBot := &templateSSHClientMockBot{
-		mockAuth: mockAuth,
-	}
-	template := TemplateSSHClient{
-		ProxyPort: 1337,
-		getSSHVersion: func() (*semver.Version, error) {
-			return openSSHMinVersionForRSAWorkaround, nil
+	tests := []struct {
+		name       string
+		sshVersion *semver.Version
+		goldenName string
+	}{
+		{
+			name:       "all enabled",
+			sshVersion: semver.New("8.5.0"),
+			goldenName: "ssh_config",
 		},
-		getExecutablePath: func() (string, error) {
-			return "/path/to/tbot", nil
+		{
+			name:       "no accepted algorithms",
+			sshVersion: semver.New("8.0.0"),
+			goldenName: "ssh_config_no_accepted_algos",
 		},
-	}
-	// ident is passed in, but not used.
-	var ident *identity.Identity
-	dest := &DestinationConfig{
-		DestinationMixin: DestinationMixin{
-			Directory: &DestinationDirectory{
-				Path:     dir,
-				Symlinks: botfs.SymlinksInsecure,
-				ACLs:     botfs.ACLOff,
-			},
+		{
+			name:       "no accepted and host keys algorithms",
+			sshVersion: semver.New("7.3.0"),
+			goldenName: "ssh_config_no_host_keys_algos",
 		},
 	}
 
-	err := template.Render(context.Background(), mockBot, ident, dest)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	replaceTestDir := func(b []byte) []byte {
-		return bytes.ReplaceAll(b, []byte(dir), []byte("/test/dir"))
-	}
+			dir := t.TempDir()
+			mockAuth := &templateSSHClientAuthMock{
+				t:           t,
+				clusterName: "black-mesa",
+			}
+			mockBot := &templateSSHClientMockBot{
+				mockAuth: mockAuth,
+			}
+			getSSHVersion := func() (*semver.Version, error) {
+				return tt.sshVersion, nil
+			}
+			getExecutablePath := func() (string, error) {
+				return "/path/to/tbot", nil
+			}
 
-	knownHostBytes, err := os.ReadFile(filepath.Join(dir, knownHostsName))
-	require.NoError(t, err)
-	knownHostBytes = replaceTestDir(knownHostBytes)
-	sshConfigBytes, err := os.ReadFile(filepath.Join(dir, sshConfigName))
-	require.NoError(t, err)
-	sshConfigBytes = replaceTestDir(sshConfigBytes)
-	if golden.ShouldSet() {
-		golden.SetNamed(t, "known_hosts", knownHostBytes)
-		golden.SetNamed(t, "ssh_config", sshConfigBytes)
+			template := TemplateSSHClient{
+				ProxyPort: 1337,
+				generator: config.NewCustomSSHConfigGenerator(getSSHVersion, getExecutablePath),
+			}
+			// ident is passed in, but not used.
+			var ident *identity.Identity
+			dest := &DestinationConfig{
+				DestinationMixin: DestinationMixin{
+					Directory: &DestinationDirectory{
+						Path:     dir,
+						Symlinks: botfs.SymlinksInsecure,
+						ACLs:     botfs.ACLOff,
+					},
+				},
+			}
+
+			err := template.Render(context.Background(), mockBot, ident, dest)
+			require.NoError(t, err)
+
+			replaceTestDir := func(b []byte) []byte {
+				return bytes.ReplaceAll(b, []byte(dir), []byte("/test/dir"))
+			}
+
+			knownHostBytes, err := os.ReadFile(filepath.Join(dir, knownHostsName))
+			require.NoError(t, err)
+			knownHostBytes = replaceTestDir(knownHostBytes)
+			sshConfigBytes, err := os.ReadFile(filepath.Join(dir, sshConfigName))
+			require.NoError(t, err)
+			sshConfigBytes = replaceTestDir(sshConfigBytes)
+			if golden.ShouldSet() {
+				golden.SetNamed(t, "known_hosts", knownHostBytes)
+				golden.SetNamed(t, "ssh_config", sshConfigBytes)
+			}
+			require.Equal(
+				t, string(golden.GetNamed(t, "known_hosts")), string(knownHostBytes),
+			)
+			require.Equal(
+				t, string(golden.GetNamed(t, tt.goldenName)), string(sshConfigBytes),
+			)
+		})
 	}
-	require.Equal(
-		t, string(golden.GetNamed(t, "known_hosts")), string(knownHostBytes),
-	)
-	require.Equal(
-		t, string(golden.GetNamed(t, "ssh_config")), string(sshConfigBytes),
-	)
 }

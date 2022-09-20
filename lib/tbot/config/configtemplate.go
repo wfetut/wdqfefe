@@ -90,7 +90,7 @@ type Template interface {
 	Name() string
 
 	// Describe generates a list of all files this ConfigTemplate will generate
-	// at runtime. Currently ConfigTemplates are required to know this
+	// at runtime. Currently, ConfigTemplates are required to know this
 	// statically as this must be callable without any auth clients (or any
 	// secrets) for use with `tbot init`. If an arbitrary number of files must
 	// be generated, they should be placed in a subdirectory.

@@ -7,7 +7,6 @@ Host *.black-mesa tele.blackmesa.gov
     IdentityFile "/test/dir/key"
     CertificateFile "/test/dir/key-cert.pub"
     HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
-    PubkeyAcceptedAlgorithms +ssh-rsa-cert-v01@openssh.com
     HostKeyAlgorithms rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com
 
 # Flags for all black-mesa hosts except the proxy
