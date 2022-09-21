@@ -20,51 +20,29 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"text/template"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/lib/config"
+
+	"github.com/gravitational/trace"
 )
-
-// TODO: remove PubkeyAcceptedKeyTypes once we finish deprecating SHA1
-const sshConfigTemplate = `
-# Common flags for all {{ .ClusterName }} hosts
-Host *.{{ .ClusterName }} {{ .ProxyHost }}
-    UserKnownHostsFile "{{ .KnownHostsPath }}"
-    IdentityFile "{{ .IdentityFilePath }}"
-    CertificateFile "{{ .CertificateFilePath }}"
-    PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
-    HostKeyAlgorithms rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com
-
-# Flags for all {{ .ClusterName }} hosts except the proxy
-Host *.{{ .ClusterName }} !{{ .ProxyHost }}
-    Port 3022
-    ProxyCommand "{{ .TSHPath }}" proxy ssh --cluster={{ .ClusterName }} --proxy={{ .ProxyHost }} %r@%h:%p
-`
-
-type hostConfigParameters struct {
-	ClusterName         string
-	KnownHostsPath      string
-	IdentityFilePath    string
-	CertificateFilePath string
-	ProxyHost           string
-	TSHPath             string
-}
 
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`
 // template string.
-func writeSSHConfig(sb *strings.Builder, params hostConfigParameters) error {
-	t, err := template.New("ssh-config").Parse(sshConfigTemplate)
+func writeSSHConfig(sb *strings.Builder, params config.SSHConfigParameters) error {
+	sshConfig := config.SSHConfigGenerator{
+		AppName: "tsh", // TODO(jakule): Move to a constructor?
+	}
+	sshConfig.CheckAndSetDefaults()
+
+	cfg, err := sshConfig.GenerateSSHConfig(params.DestinationDir, params.ClusterName, params.ProxyHost)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = t.Execute(sb, params)
-	if err != nil {
-		return trace.WrapWithMessage(err, "error generating SSH configuration from template")
-	}
+	// Append ssh config to the passed string builder.
+	sb.WriteString(cfg.String())
 
 	return nil
 }
@@ -111,26 +89,28 @@ func onConfig(cf *CLIConf) error {
 	fmt.Fprintln(&sb)
 	fmt.Fprintf(&sb, "#\n# Begin generated Teleport configuration for %s from `tsh config`\n#\n", tc.Config.WebProxyAddr)
 
-	err = writeSSHConfig(&sb, hostConfigParameters{
+	err = writeSSHConfig(&sb, config.SSHConfigParameters{
+		AppName:             "tsh",
 		ClusterName:         rootClusterName,
 		KnownHostsPath:      knownHostsPath,
 		IdentityFilePath:    identityFilePath,
 		CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName),
 		ProxyHost:           proxyHost,
-		TSHPath:             cf.executablePath,
+		ExecutablePath:      cf.executablePath,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	for _, leafCluster := range leafClusters {
-		err = writeSSHConfig(&sb, hostConfigParameters{
+		err = writeSSHConfig(&sb, config.SSHConfigParameters{
+			AppName:             "tsh",
 			ClusterName:         leafCluster.GetName(),
 			KnownHostsPath:      knownHostsPath,
 			IdentityFilePath:    identityFilePath,
 			CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName),
 			ProxyHost:           proxyHost,
-			TSHPath:             cf.executablePath,
+			ExecutablePath:      cf.executablePath,
 		})
 		if err != nil {
 			return trace.Wrap(err)

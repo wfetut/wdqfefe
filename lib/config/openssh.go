@@ -30,7 +30,6 @@ import (
 	"text/template"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -53,6 +52,7 @@ var (
 const knownHostsName = "known_hosts" // TODO(jakule): copied
 
 type SSHConfigGenerator struct {
+	AppName           string
 	getSSHVersion     func() (*semver.Version, error)
 	getExecutablePath func() (string, error)
 }
@@ -128,9 +128,17 @@ func (s *SSHConfigGenerator) CheckAndSetDefaults() {
 	if s.getExecutablePath == nil {
 		s.getExecutablePath = os.Executable
 	}
+
+	if s.AppName == "" {
+		s.AppName = "tbot" // TODO(jakule): remove
+	}
 }
 
-func (s *SSHConfigGenerator) GenerateSSHConfig(destDir string, clusterName types.ClusterName, proxyHost string) (strings.Builder, error) {
+func (s *SSHConfigGenerator) GenerateSSHConfig(destDir, clusterName, proxyHost string) (strings.Builder, error) {
+	if clusterName == "" {
+		return strings.Builder{}, trace.Errorf("cluster name is empty")
+	}
+
 	// Default to including the RSA deprecation workaround.
 	rsaWorkaround := true
 	version, err := s.getSSHVersion()
@@ -156,19 +164,21 @@ func (s *SSHConfigGenerator) GenerateSSHConfig(destDir string, clusterName types
 		return strings.Builder{}, trace.Wrap(err)
 	}
 
-	var sshConfigBuilder strings.Builder
 	knownHostsPath := filepath.Join(destDir, knownHostsName)
 	identityFilePath := filepath.Join(destDir, identity.PrivateKeyKey)
 	certificateFilePath := filepath.Join(destDir, identity.SSHCertKey)
-	if err := sshConfigTemplate.Execute(&sshConfigBuilder, sshConfigParameters{
-		ClusterName:              clusterName.GetClusterName(),
+
+	var sshConfigBuilder strings.Builder
+	if err := sshConfigTemplate.Execute(&sshConfigBuilder, SSHConfigParameters{
+		AppName:                  s.AppName,
+		ClusterName:              clusterName,
 		ProxyHost:                proxyHost,
 		KnownHostsPath:           knownHostsPath,
 		IdentityFilePath:         identityFilePath,
 		CertificateFilePath:      certificateFilePath,
 		IncludeRSAWorkaround:     rsaWorkaround,
 		IncludeTeleportHostAlgos: addHostAlgos,
-		TBotPath:                 executablePath,
+		ExecutablePath:           executablePath,
 		DestinationDir:           destDir,
 	}); err != nil {
 		return strings.Builder{}, trace.Wrap(err)
@@ -177,13 +187,14 @@ func (s *SSHConfigGenerator) GenerateSSHConfig(destDir string, clusterName types
 	return sshConfigBuilder, nil
 }
 
-type sshConfigParameters struct {
+type SSHConfigParameters struct {
+	AppName             string
 	ClusterName         string
 	KnownHostsPath      string
 	IdentityFilePath    string
 	CertificateFilePath string
 	ProxyHost           string
-	TBotPath            string
+	ExecutablePath      string
 	DestinationDir      string
 
 	// IncludeRSAWorkaround controls whether the RSA deprecation workaround is
@@ -213,7 +224,27 @@ Host *.{{ .ClusterName }} {{ .ProxyHost }}
 # Flags for all {{ .ClusterName }} hosts except the proxy
 Host *.{{ .ClusterName }} !{{ .ProxyHost }}
     Port 3022
-    ProxyCommand "{{ .TBotPath }}" proxy --destination-dir={{ .DestinationDir }} --proxy={{ .ProxyHost }} ssh --cluster={{ .ClusterName }}  %r@%h:%p
+{{- if eq .AppName "tsh" }}
+    ProxyCommand "{{ .ExecutablePath }}" proxy ssh --cluster={{ .ClusterName }} --proxy={{ .ProxyHost }} %r@%h:%p
+{{- end }}{{- if eq .AppName "tbot" }}
+    ProxyCommand "{{ .ExecutablePath }}" proxy --destination-dir={{ .DestinationDir }} --proxy={{ .ProxyHost }} ssh --cluster={{ .ClusterName }}  %r@%h:%p
+{{- end }}
 
 # End generated Teleport configuration
 `))
+
+//// TODO: remove PubkeyAcceptedKeyTypes once we finish deprecating SHA1
+//const sshConfigTemplate = `
+//# Common flags for all {{ .ClusterName }} hosts
+//Host *.{{ .ClusterName }} {{ .ProxyHost }}
+//    UserKnownHostsFile "{{ .KnownHostsPath }}"
+//    IdentityFile "{{ .IdentityFilePath }}"
+//    CertificateFile "{{ .CertificateFilePath }}"
+//    PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
+//    HostKeyAlgorithms rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com
+//
+//# Flags for all {{ .ClusterName }} hosts except the proxy
+//Host *.{{ .ClusterName }} !{{ .ProxyHost }}
+//    Port 3022
+//    ProxyCommand "{{ .TSHPath }}" proxy ssh --cluster={{ .ClusterName }} --proxy={{ .ProxyHost }} %r@%h:%p
+//`

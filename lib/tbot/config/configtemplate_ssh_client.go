@@ -143,7 +143,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 		return nil
 	}
 
-	sshConfigBuilder, err := c.generator.GenerateSSHConfig(destDir, clusterName, proxyHost)
+	sshConfigBuilder, err := c.generator.GenerateSSHConfig(destDir, clusterName.GetClusterName(), proxyHost)
 	if err != nil {
 		return trace.Wrap(err)
 	}
