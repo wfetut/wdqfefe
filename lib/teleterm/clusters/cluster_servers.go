@@ -99,6 +99,7 @@ func (c *Cluster) GetServers(ctx context.Context, r *api.GetServersRequest) (*Ge
 			ResourceType:        types.KindNode,
 			Limit:               r.Limit,
 			SortBy:              sortBy,
+			StartKey:            r.StartKey,
 			PredicateExpression: r.Query,
 			SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
 			UseSearchAsRoles:    r.SearchAsRoles == "yes",

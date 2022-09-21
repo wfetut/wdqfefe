@@ -98,6 +98,12 @@ func (r ResourceURI) AppendServer(id string) ResourceURI {
 	return r
 }
 
+// AppendAccessRequest appends access request segment to the URI
+func (r ResourceURI) AppendAccessRequest(id string) ResourceURI {
+	r.path = fmt.Sprintf("%v/access_requests/%v", r.path, id)
+	return r
+}
+
 // AppendLeafCluster appends leaf cluster segment to the URI
 func (r ResourceURI) AppendLeafCluster(name string) ResourceURI {
 	r.path = fmt.Sprintf("%v/leaves/%v", r.path, name)

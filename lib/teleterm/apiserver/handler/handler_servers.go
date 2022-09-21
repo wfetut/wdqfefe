@@ -41,14 +41,17 @@ func (s *Handler) GetAllServers(ctx context.Context, req *api.GetAllServersReque
 
 // GetServers accepts parameterized input to enable searching, sorting, and pagination
 func (s *Handler) GetServers(ctx context.Context, req *api.GetServersRequest) (*api.GetServersResponse, error) {
-	servers, err := s.DaemonService.GetServers(ctx, req)
+	resp, err := s.DaemonService.GetServers(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := &api.GetServersResponse{}
-	for _, srv := range servers {
-		response.Servers = append(response.Servers, newAPIServer(srv))
+	response := &api.GetServersResponse{
+		TotalCount: int32(resp.TotalCount),
+		StartKey:   resp.StartKey,
+	}
+	for _, srv := range resp.Servers {
+		response.Agents = append(response.Agents, newAPIServer(srv))
 	}
 
 	return response, nil

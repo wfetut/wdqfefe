@@ -1154,6 +1154,9 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	// we will be making unnecessary trips and doing needless work of deserializing every
 	// item for every subset.
 	if req.RequiresFakePagination() {
+		fmt.Println("*******************")
+		fmt.Println("*******************")
+		fmt.Printf("req: %+v\n", req)
 		resp, err := a.listResourcesWithSort(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
