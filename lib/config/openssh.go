@@ -58,10 +58,12 @@ type SSHConfigGenerator struct {
 }
 
 func NewCustomSSHConfigGenerator(
+	appName string,
 	getSSHVersion func() (*semver.Version, error),
 	getExecutablePath func() (string, error),
 ) *SSHConfigGenerator {
 	return &SSHConfigGenerator{
+		AppName:           appName,
 		getSSHVersion:     getSSHVersion,
 		getExecutablePath: getExecutablePath,
 	}

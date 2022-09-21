@@ -67,7 +67,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -76,9 +75,10 @@ import (
 func pathForFile(t *testing.T, name string) string {
 	pathComponents := []string{
 		"testdata",
+		t.Name(),
 		// Split returns input string if separator is not found, so
 		// taking the first element is always safe.
-		strings.Split(t.Name(), string(os.PathSeparator))[0],
+		//strings.Split(t.Name(), string(os.PathSeparator))[0],
 	}
 
 	if name != "" {

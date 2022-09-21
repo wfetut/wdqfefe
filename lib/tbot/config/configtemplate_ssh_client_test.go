@@ -75,7 +75,7 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 
 			template := TemplateSSHClient{
 				ProxyPort: 1337,
-				generator: *config.NewCustomSSHConfigGenerator(getSSHVersion, getExecutablePath),
+				generator: *config.NewCustomSSHConfigGenerator("tbot", getSSHVersion, getExecutablePath),
 			}
 			// ident is passed in, but not used.
 			var ident *identity.Identity
@@ -110,7 +110,7 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 				t, string(golden.GetNamed(t, "known_hosts")), string(knownHostBytes),
 			)
 			require.Equal(
-				t, string(golden.GetNamed(t, tt.goldenName)), string(sshConfigBytes),
+				t, string(golden.GetNamed(t, "ssh_config")), string(sshConfigBytes),
 			)
 		})
 	}
