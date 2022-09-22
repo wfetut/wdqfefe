@@ -30,6 +30,7 @@ import (
 	"text/template"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -48,22 +49,16 @@ var (
 	openSSHMinVersionForHostAlgos = semver.New("7.8.0")
 )
 
-// knownHostsName is the name of the known_hosts file on disk
-const knownHostsName = "known_hosts" // TODO(jakule): copied
-
 type SSHConfigGenerator struct {
-	AppName           string
 	getSSHVersion     func() (*semver.Version, error)
 	getExecutablePath func() (string, error)
 }
 
 func NewCustomSSHConfigGenerator(
-	appName string,
 	getSSHVersion func() (*semver.Version, error),
 	getExecutablePath func() (string, error),
 ) *SSHConfigGenerator {
 	return &SSHConfigGenerator{
-		AppName:           appName,
 		getSSHVersion:     getSSHVersion,
 		getExecutablePath: getExecutablePath,
 	}
@@ -130,15 +125,13 @@ func (s *SSHConfigGenerator) CheckAndSetDefaults() {
 	if s.getExecutablePath == nil {
 		s.getExecutablePath = os.Executable
 	}
-
-	if s.AppName == "" {
-		s.AppName = "tbot" // TODO(jakule): remove
-	}
 }
 
-func (s *SSHConfigGenerator) GenerateSSHConfig(destDir, clusterName, proxyHost string) (strings.Builder, error) {
-	if clusterName == "" {
-		return strings.Builder{}, trace.Errorf("cluster name is empty")
+func (s *SSHConfigGenerator) GenerateSSHConfig(params *SSHConfigParameters) (strings.Builder, error) {
+	s.CheckAndSetDefaults()
+
+	if err := params.CheckAndSetDefaults(); err != nil {
+		return strings.Builder{}, trace.Wrap(err)
 	}
 
 	// Default to including the RSA deprecation workaround.
@@ -161,27 +154,30 @@ func (s *SSHConfigGenerator) GenerateSSHConfig(destDir, clusterName, proxyHost s
 		log.Debugf("OpenSSH version %s will add HostKeyAlgorithms to ssh config", version)
 	}
 
-	executablePath, err := s.getExecutablePath()
-	if err != nil {
-		return strings.Builder{}, trace.Wrap(err)
+	executablePath := params.ExecutablePath
+	if executablePath == "" {
+		executablePath, err = s.getExecutablePath()
+		if err != nil {
+			return strings.Builder{}, trace.Wrap(err)
+		}
 	}
 
-	knownHostsPath := filepath.Join(destDir, knownHostsName)
-	identityFilePath := filepath.Join(destDir, identity.PrivateKeyKey)
-	certificateFilePath := filepath.Join(destDir, identity.SSHCertKey)
+	knownHostsPath := filepath.Join(params.DestinationDir, teleport.KnownHosts)
+	identityFilePath := filepath.Join(params.DestinationDir, identity.PrivateKeyKey)
+	certificateFilePath := filepath.Join(params.DestinationDir, identity.SSHCertKey)
 
 	var sshConfigBuilder strings.Builder
 	if err := sshConfigTemplate.Execute(&sshConfigBuilder, SSHConfigParameters{
-		AppName:                  s.AppName,
-		ClusterName:              clusterName,
-		ProxyHost:                proxyHost,
+		AppName:                  params.AppName,
+		ClusterName:              params.ClusterName,
+		ProxyHost:                params.ProxyHost,
 		KnownHostsPath:           knownHostsPath,
 		IdentityFilePath:         identityFilePath,
 		CertificateFilePath:      certificateFilePath,
 		IncludeRSAWorkaround:     rsaWorkaround,
 		IncludeTeleportHostAlgos: addHostAlgos,
 		ExecutablePath:           executablePath,
-		DestinationDir:           destDir,
+		DestinationDir:           params.DestinationDir,
 	}); err != nil {
 		return strings.Builder{}, trace.Wrap(err)
 	}
@@ -211,8 +207,17 @@ type SSHConfigParameters struct {
 	IncludeTeleportHostAlgos bool
 }
 
+func (c *SSHConfigParameters) CheckAndSetDefaults() error {
+	if c.AppName == "" {
+		return trace.BadParameter("AppName is missing")
+	}
+
+	return nil
+}
+
+// TODO: remove PubkeyAcceptedKeyTypes once we finish deprecating SHA1
 var sshConfigTemplate = template.Must(template.New("ssh-config").Parse(`
-# Begin generated Teleport configuration for {{ .ProxyHost }} by tbot
+# Begin generated Teleport configuration for {{ .ProxyHost }} by {{ .AppName }}
 
 # Common flags for all {{ .ClusterName }} hosts
 Host *.{{ .ClusterName }} {{ .ProxyHost }}
@@ -234,19 +239,3 @@ Host *.{{ .ClusterName }} !{{ .ProxyHost }}
 
 # End generated Teleport configuration
 `))
-
-//// TODO: remove PubkeyAcceptedKeyTypes once we finish deprecating SHA1
-//const sshConfigTemplate = `
-//# Common flags for all {{ .ClusterName }} hosts
-//Host *.{{ .ClusterName }} {{ .ProxyHost }}
-//    UserKnownHostsFile "{{ .KnownHostsPath }}"
-//    IdentityFile "{{ .IdentityFilePath }}"
-//    CertificateFile "{{ .CertificateFilePath }}"
-//    PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
-//    HostKeyAlgorithms rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com
-//
-//# Flags for all {{ .ClusterName }} hosts except the proxy
-//Host *.{{ .ClusterName }} !{{ .ProxyHost }}
-//    Port 3022
-//    ProxyCommand "{{ .TSHPath }}" proxy ssh --cluster={{ .ClusterName }} --proxy={{ .ProxyHost }} %r@%h:%p
-//`

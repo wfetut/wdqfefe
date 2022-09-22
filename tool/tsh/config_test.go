@@ -20,12 +20,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/stretchr/testify/require"
 )
 
 // TestWriteSSHConfig tests the writeSSHConfig template output.
 func TestWriteSSHConfig(t *testing.T) {
 	want := `
+# Begin generated Teleport configuration for localhost by tsh
+
 # Common flags for all test-cluster hosts
 Host *.test-cluster localhost
     UserKnownHostsFile "/tmp/know_host"
@@ -38,16 +41,19 @@ Host *.test-cluster localhost
 Host *.test-cluster !localhost
     Port 3022
     ProxyCommand "/bin/tsh" proxy ssh --cluster=test-cluster --proxy=localhost %r@%h:%p
+
+# End generated Teleport configuration
 `
 
 	var sb strings.Builder
-	err := writeSSHConfig(&sb, hostConfigParameters{
+	err := writeSSHConfig(&sb, &config.SSHConfigParameters{
+		AppName:             "tsh",
 		ClusterName:         "test-cluster",
 		KnownHostsPath:      "/tmp/know_host",
 		IdentityFilePath:    "/tmp/alice",
 		CertificateFilePath: "/tmp/localhost-cert.pub",
 		ProxyHost:           "localhost",
-		TSHPath:             "/bin/tsh",
+		ExecutablePath:      "/bin/tsh",
 	})
 	require.NoError(t, err)
 	require.Equal(t, want, sb.String())

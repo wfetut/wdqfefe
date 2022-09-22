@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -96,7 +97,7 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 				return bytes.ReplaceAll(b, []byte(dir), []byte("/test/dir"))
 			}
 
-			knownHostBytes, err := os.ReadFile(filepath.Join(dir, knownHostsName))
+			knownHostBytes, err := os.ReadFile(filepath.Join(dir, teleport.KnownHosts))
 			require.NoError(t, err)
 			knownHostBytes = replaceTestDir(knownHostBytes)
 			sshConfigBytes, err := os.ReadFile(filepath.Join(dir, sshConfigName))

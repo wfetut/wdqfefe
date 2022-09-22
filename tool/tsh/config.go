@@ -30,13 +30,10 @@ import (
 
 // writeSSHConfig generates an OpenSSH config block from the `sshConfigTemplate`
 // template string.
-func writeSSHConfig(sb *strings.Builder, params config.SSHConfigParameters) error {
-	sshConfig := config.SSHConfigGenerator{
-		AppName: "tsh", // TODO(jakule): Move to a constructor?
-	}
-	sshConfig.CheckAndSetDefaults()
+func writeSSHConfig(sb *strings.Builder, params *config.SSHConfigParameters) error {
+	sshConfig := config.SSHConfigGenerator{}
 
-	cfg, err := sshConfig.GenerateSSHConfig(params.DestinationDir, params.ClusterName, params.ProxyHost)
+	cfg, err := sshConfig.GenerateSSHConfig(params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -89,7 +86,7 @@ func onConfig(cf *CLIConf) error {
 	fmt.Fprintln(&sb)
 	fmt.Fprintf(&sb, "#\n# Begin generated Teleport configuration for %s from `tsh config`\n#\n", tc.Config.WebProxyAddr)
 
-	err = writeSSHConfig(&sb, config.SSHConfigParameters{
+	err = writeSSHConfig(&sb, &config.SSHConfigParameters{
 		AppName:             "tsh",
 		ClusterName:         rootClusterName,
 		KnownHostsPath:      knownHostsPath,
@@ -103,7 +100,7 @@ func onConfig(cf *CLIConf) error {
 	}
 
 	for _, leafCluster := range leafClusters {
-		err = writeSSHConfig(&sb, config.SSHConfigParameters{
+		err = writeSSHConfig(&sb, &config.SSHConfigParameters{
 			AppName:             "tsh",
 			ClusterName:         leafCluster.GetName(),
 			KnownHostsPath:      knownHostsPath,

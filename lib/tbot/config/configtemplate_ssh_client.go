@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config"
@@ -43,9 +44,6 @@ type TemplateSSHClient struct {
 const (
 	// sshConfigName is the name of the ssh_config file on disk
 	sshConfigName = "ssh_config"
-
-	// knownHostsName is the name of the known_hosts file on disk
-	knownHostsName = "known_hosts"
 )
 
 func (c *TemplateSSHClient) CheckAndSetDefaults() error {
@@ -127,7 +125,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 		return trace.Wrap(err)
 	}
 
-	if err := dest.Write(knownHostsName, []byte(knownHosts)); err != nil {
+	if err := dest.Write(teleport.KnownHosts, []byte(knownHosts)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -143,7 +141,17 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 		return nil
 	}
 
-	sshConfigBuilder, err := c.generator.GenerateSSHConfig(destDir, clusterName.GetClusterName(), proxyHost)
+	sshConfigParams := &config.SSHConfigParameters{
+		AppName:             "tbot",
+		ClusterName:         clusterName.GetClusterName(),
+		KnownHostsPath:      "",
+		IdentityFilePath:    "",
+		CertificateFilePath: "",
+		ProxyHost:           proxyHost,
+		DestinationDir:      destDir,
+	}
+
+	sshConfigBuilder, err := c.generator.GenerateSSHConfig(sshConfigParams)
 	if err != nil {
 		return trace.Wrap(err)
 	}
