@@ -244,6 +244,7 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 				params.AccessRequests = append(params.AccessRequests, reqID)
 			}
 		}
+
 		err = c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, params)
 		if err != nil {
 			return trace.Wrap(err)

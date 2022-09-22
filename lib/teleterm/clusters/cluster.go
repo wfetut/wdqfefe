@@ -18,6 +18,7 @@ package clusters
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -123,6 +124,9 @@ func (c *Cluster) GetRequestableRoles(ctx context.Context) ([]string, error) {
 
 // GetLoggedInUser returns currently logged-in user
 func (c *Cluster) GetLoggedInUser() LoggedInUser {
+	fmt.Println("--------------------")
+	fmt.Printf("logggedin: %+v\n", c.status)
+	fmt.Println("--------------------")
 	return LoggedInUser{
 		Name:           c.status.Username,
 		SSHLogins:      c.status.Logins,
