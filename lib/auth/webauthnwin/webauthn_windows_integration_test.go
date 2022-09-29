@@ -44,6 +44,9 @@ import (
 // - FIDO2 security key capable of passwordless login.
 func TestIntegrationWithWindowsWebautn(t *testing.T) {
 	// TODO(tobiaszheller): add some flags when to run.
+	if !webauthnwin.IsAvailable() {
+		t.Skip("Test not available in current platform setup")
+	}
 
 	const origin = "https://goteleport.com"
 	const llamaUserName = "llama"
@@ -109,7 +112,7 @@ func TestIntegrationWithWindowsWebautn(t *testing.T) {
 			"(press security button on UI twice)")
 		cc, sessionData, err := web.BeginRegistration(llamaUser,
 			webauthn.WithAuthenticatorSelection(protocol.AuthenticatorSelection{
-				AuthenticatorAttachment: protocol.Platform,
+				AuthenticatorAttachment: protocol.CrossPlatform,
 			}),
 			// Let's use direct attestion to verify if user really selected
 			// security device.
