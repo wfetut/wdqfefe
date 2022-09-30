@@ -25,6 +25,7 @@ use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::{Read, Write};
+use std::time::Instant;
 use uuid::Uuid;
 
 // Client implements the smartcard emulator, forwarded over an RDP virtual channel.
@@ -41,6 +42,7 @@ pub struct Client {
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
     pin: String,
+    start: Option<Instant>,
     getstatuschangew: u32,
 }
 
@@ -52,6 +54,7 @@ impl Client {
             cert_der,
             key_der,
             pin,
+            start: None,
             getstatuschangew: 0,
         }
     }
@@ -99,9 +102,13 @@ impl Client {
     }
 
     fn handle_access_started_event(
-        &self,
+        &mut self,
         input: &mut Payload,
     ) -> RdpResult<Option<Box<dyn Encode>>> {
+        if self.start.is_none() {
+            self.start = Some(Instant::now());
+        }
+
         let req = ScardAccessStartedEvent_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -164,6 +171,8 @@ impl Client {
     ) -> RdpResult<Option<Box<dyn Encode>>> {
         self.getstatuschangew += 1;
         if self.getstatuschangew >= 80 {
+            let elapsed = self.start.unwrap().elapsed();
+            debug!("elapsed = {:?}", elapsed);
             panic!("done")
         }
 
