@@ -351,9 +351,17 @@ type SetupConfigFn func(c Config) Config
 //
 // This which can be used if the upstream AccessPoint goes offline
 type Cache struct {
-	Config
+	// generation is a counter that is incremented each time a healthy
+	// state is established.  A generation of zero means that a healthy
+	// state was never established.  Note that a generation of zero does
+	// not preclude `ok` being true in the case that we have loaded a
+	// previously healthy state from the backend.
+	generation atomic.Uint64
 
-	// Entry is a logging entry
+	// closed indicates that the cache has been closed
+	closed atomic.Bool
+
+	Config
 	*log.Entry
 
 	// rw is used to prevent reads of invalid cache states.  From a
@@ -367,13 +375,6 @@ type Cache struct {
 	// ok indicates whether the cache is in a valid state for reads.
 	// If `ok` is `false`, reads are forwarded directly to the backend.
 	ok bool
-
-	// generation is a counter that is incremented each time a healthy
-	// state is established.  A generation of zero means that a healthy
-	// state was never established.  Note that a generation of zero does
-	// not preclude `ok` being true in the case that we have loaded a
-	// previously healthy state from the backend.
-	generation atomic.Uint64
 
 	// initOnce protects initC and initErr.
 	initOnce sync.Once
@@ -414,9 +415,6 @@ type Cache struct {
 	webTokenCache         types.WebTokenInterface
 	windowsDesktopsCache  services.WindowsDesktops
 	eventsFanout          *services.FanoutSet
-
-	// closed indicates that the cache has been closed
-	closed atomic.Bool
 }
 
 func (c *Cache) setInitError(err error) {
