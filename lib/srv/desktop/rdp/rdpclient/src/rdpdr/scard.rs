@@ -25,6 +25,7 @@ use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::{Read, Write};
+use std::time::Instant;
 use uuid::Uuid;
 
 // Client implements the smartcard emulator, forwarded over an RDP virtual channel.
@@ -41,6 +42,8 @@ pub struct Client {
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
     pin: String,
+    start: Option<Instant>,
+    getstatuschangew: u32,
 }
 
 impl Client {
@@ -51,6 +54,8 @@ impl Client {
             cert_der,
             key_der,
             pin,
+            start: None,
+            getstatuschangew: 0,
         }
     }
 
@@ -103,7 +108,11 @@ impl Client {
         }
     }
 
-    fn handle_access_started_event(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_access_started_event(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+        if self.start.is_none() {
+            self.start = Some(Instant::now());
+        }
+
         let req = ScardAccessStartedEvent_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -154,7 +163,14 @@ impl Client {
         Ok(Some(resp.encode()?))
     }
 
-    fn handle_get_status_change(&self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+    fn handle_get_status_change(&mut self, input: &mut Payload) -> RdpResult<Option<Vec<u8>>> {
+        self.getstatuschangew += 1;
+        if self.getstatuschangew >= 80 {
+            let elapsed = self.start.unwrap().elapsed();
+            debug!("elapsed = {:?}", elapsed);
+            panic!("done")
+        }
+
         let req = GetStatusChange_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = GetStatusChange_Return::new(ReturnCode::SCARD_S_SUCCESS, req);
