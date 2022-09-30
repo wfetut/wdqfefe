@@ -41,6 +41,7 @@ pub struct Client {
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
     pin: String,
+    getstatuschangew: u32,
 }
 
 impl Client {
@@ -51,6 +52,7 @@ impl Client {
             cert_der,
             key_der,
             pin,
+            getstatuschangew: 0,
         }
     }
 
@@ -171,7 +173,15 @@ impl Client {
         Ok(Some(Box::new(resp)))
     }
 
-    fn handle_get_status_change(&self, input: &mut Payload) -> RdpResult<Option<Box<dyn Encode>>> {
+    fn handle_get_status_change(
+        &mut self,
+        input: &mut Payload,
+    ) -> RdpResult<Option<Box<dyn Encode>>> {
+        self.getstatuschangew += 1;
+        if self.getstatuschangew >= 80 {
+            panic!("done")
+        }
+
         let req = GetStatusChange_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = GetStatusChange_Return::new(ReturnCode::SCARD_S_SUCCESS, req);
