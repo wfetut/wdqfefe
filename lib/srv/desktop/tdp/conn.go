@@ -104,6 +104,10 @@ func (c *Conn) OutputMessage(m Message) error {
 	return trace.Wrap(err)
 }
 
+func (c *Conn) Write(b []byte) (int, error) {
+	return c.rw.Write(b)
+}
+
 // SendError is a convenience function for sending an error message.
 func (c *Conn) SendError(message string) error {
 	return c.OutputMessage(Error{Message: message})

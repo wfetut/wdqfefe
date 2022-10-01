@@ -65,6 +65,7 @@ package rdpclient
 import "C"
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"image"
 	"io"
@@ -565,41 +566,28 @@ func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	uptr := (*uint8)(ptr)
 	data := unsafe.Slice(uptr, C.int(cb.data_len))
 
-	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
-	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
-	// a byte slice with 4-byte segments representing pixels (RGBA).
-	//
-	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/8ab64b94-59cb-43f4-97ca-79613838e0bd
-	//
-	for i := 0; i < len(data); i += 4 {
-		data[i], data[i+2] = data[i+2], data[i]
-	}
+	buf := make([]byte, 0, 21)
+	buf = append(buf, byte(tdp.TypePNG2Frame))
+	buf = binary.BigEndian.AppendUint32(buf, uint32(len(data)))
+	buf = binary.BigEndian.AppendUint32(buf, uint32(cb.dest_left))
+	buf = binary.BigEndian.AppendUint32(buf, uint32(cb.dest_top))
+	buf = binary.BigEndian.AppendUint32(buf, uint32(cb.dest_right))
+	buf = binary.BigEndian.AppendUint32(buf, uint32(cb.dest_bottom))
 
-	rect := image.Rectangle{
-		Min: image.Pt(int(cb.dest_left), int(cb.dest_top)),
-		Max: image.Pt(int(cb.dest_right)+1, int(cb.dest_bottom)+1),
-	}
-
-	var img *image.RGBA
-	isFullBitmap := cb.dest_right-cb.dest_left == 63 &&
-		cb.dest_bottom-cb.dest_top == 63
-	if isFullBitmap {
-		if c.img == nil {
-			c.img = image.NewRGBA(rect)
-		} else {
-			c.img.Rect = rect
-		}
-		img = c.img
-	} else {
-		img = image.NewRGBA(rect)
-	}
-
-	copy(img.Pix, data)
-
-	if err := c.cfg.Conn.OutputMessage(tdp.NewPNG(img, c.cfg.Encoder)); err != nil {
-		c.cfg.Log.Errorf("failed to send PNG frame %v: %v", img.Rect, err)
+	if _, err := c.cfg.Conn.Write(buf); err != nil {
+		c.cfg.Log.Error("failed to write PNG header")
 		return C.ErrCodeFailure
 	}
+
+	if _, err := c.cfg.Conn.Write(data); err != nil {
+		c.cfg.Log.Error("failed to write PNG data")
+		return C.ErrCodeFailure
+	}
+
+	// if err := c.cfg.Conn.OutputMessage(tdp.NewPNG(img, c.cfg.Encoder)); err != nil {
+	// 	c.cfg.Log.Errorf("failed to send PNG frame %v: %v", img.Rect, err)
+	// 	return C.ErrCodeFailure
+	// }
 	return C.ErrCodeSuccess
 }
 
