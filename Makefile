@@ -33,7 +33,7 @@ ADDFLAGS ?=
 PWD ?= `pwd`
 TELEPORT_DEBUG ?= false
 GITTAG=v$(VERSION)
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
+BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath -buildmode=pie
 CGOFLAG ?= CGO_ENABLED=1
 
 OS ?= $(shell go env GOOS)
