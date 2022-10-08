@@ -18,6 +18,8 @@ package sshutils
 
 import (
 	"crypto"
+	"fmt"
+	"io"
 
 	"github.com/gravitational/teleport/api/utils/sshutils"
 
@@ -25,6 +27,18 @@ import (
 
 	"github.com/gravitational/trace"
 )
+
+type LegacyRSASigner struct {
+	ssh.Signer
+}
+
+func (s *LegacyRSASigner) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
+	v, ok := s.Signer.(ssh.AlgorithmSigner)
+	if !ok {
+		return nil, fmt.Errorf("invalid signer")
+	}
+	return v.SignWithAlgorithm(rand, data, ssh.KeyAlgoRSA)
+}
 
 // NewSigner returns new ssh Signer from private key + certificate pair.  The
 // signer can be used to create "auth methods" i.e. login into Teleport SSH
@@ -40,7 +54,11 @@ func NewSigner(keyBytes, certBytes []byte) (ssh.Signer, error) {
 		return nil, trace.Wrap(err, "failed to parse SSH certificate")
 	}
 
-	return ssh.NewCertSigner(cert, keySigner)
+	signer, err := ssh.NewCertSigner(cert, keySigner)
+	if err != nil {
+		return nil, err
+	}
+	return &LegacyRSASigner{signer}, nil
 }
 
 // CryptoPublicKey extracts public key from RSA public key in authorized_keys format

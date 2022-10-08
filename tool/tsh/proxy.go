@@ -191,12 +191,14 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 	defer upstreamConn.Close()
 
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
+	fmt.Printf("yes\n")
 	client, err := makeSSHClient(ctx, upstreamConn, remoteProxyAddr, &ssh.ClientConfig{
 		User: tc.HostLogin,
 		Auth: []ssh.AuthMethod{
 			ssh.PublicKeysCallback(tc.LocalAgent().Signers),
 		},
-		HostKeyCallback: tc.HostKeyCallback,
+		HostKeyCallback:   tc.HostKeyCallback,
+		HostKeyAlgorithms: []string{"ssh-rsa", "ssh-rsa-cert-v01@openssh.com"},
 	})
 	if err != nil {
 		return trace.Wrap(err)

@@ -17,6 +17,7 @@ package keystore
 import (
 	"crypto"
 
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
@@ -106,7 +107,7 @@ func (c *rawKeyStore) GetSSHSigner(ca types.CertAuthority) (ssh.Signer, error) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return signer, nil
+			return &sshutils.LegacyRSASigner{signer}, nil
 		}
 	}
 	return nil, trace.NotFound("no raw SSH key pairs found in CA for %q", ca.GetClusterName())

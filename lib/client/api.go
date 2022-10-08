@@ -3124,10 +3124,12 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 		return nil, trace.BadParameter("no SSH auth methods loaded, are you logged in?")
 	}
 
+	//fmt.Printf("aaaaaaa\n")
 	sshConfig := &ssh.ClientConfig{
-		User:            tc.getProxySSHPrincipal(),
-		HostKeyCallback: hostKeyCallback,
-		Auth:            authMethods,
+		User:              tc.getProxySSHPrincipal(),
+		HostKeyCallback:   hostKeyCallback,
+		Auth:              authMethods,
+		HostKeyAlgorithms: []string{"ssh-rsa", "ssh-rsa-cert-v01@openssh.com"},
 	}
 
 	sshClient, err := makeProxySSHClient(ctx, tc, sshConfig)

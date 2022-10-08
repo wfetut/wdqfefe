@@ -1604,9 +1604,10 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 	)
 
 	sshConfig := &ssh.ClientConfig{
-		User:            user,
-		Auth:            authMethods,
-		HostKeyCallback: proxy.hostKeyCallback,
+		User:              user,
+		Auth:              authMethods,
+		HostKeyCallback:   proxy.hostKeyCallback,
+		HostKeyAlgorithms: []string{"ssh-rsa", "ssh-rsa-cert-v01@openssh.com"},
 	}
 	conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, nodeAddress.ProxyFormat(), sshConfig)
 	if err != nil {

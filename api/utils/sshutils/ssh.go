@@ -21,11 +21,11 @@ package sshutils
 import (
 	"crypto"
 	"crypto/subtle"
+	"fmt"
 	"io"
 	"net"
 
 	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 )
@@ -108,8 +108,9 @@ func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, sshCAs .
 	}
 
 	cfg := &ssh.ClientConfig{
-		Auth:    []ssh.AuthMethod{authMethod},
-		Timeout: defaults.DefaultDialTimeout,
+		Auth:              []ssh.AuthMethod{authMethod},
+		Timeout:           defaults.DefaultDialTimeout,
+		HostKeyAlgorithms: []string{"ssh-rsa", "ssh-rsa-cert-v01@openssh.com"},
 	}
 
 	// The KeyId is not always a valid principal, so we use the first valid principal instead.
@@ -129,6 +130,18 @@ func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, sshCAs .
 	return cfg, nil
 }
 
+type LegacyRSASigner struct {
+	ssh.Signer
+}
+
+func (s *LegacyRSASigner) Sign(rand io.Reader, data []byte) (*ssh.Signature, error) {
+	v, ok := s.Signer.(ssh.AlgorithmSigner)
+	if !ok {
+		return nil, fmt.Errorf("invalid signer")
+	}
+	return v.SignWithAlgorithm(rand, data, ssh.KeyAlgoRSA)
+}
+
 // SSHSigner returns an ssh.Signer from certificate and private key
 func SSHSigner(sshCert *ssh.Certificate, signer crypto.Signer) (ssh.Signer, error) {
 	sshSigner, err := ssh.NewSignerFromKey(signer)
@@ -139,7 +152,7 @@ func SSHSigner(sshCert *ssh.Certificate, signer crypto.Signer) (ssh.Signer, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sshSigner, nil
+	return &LegacyRSASigner{sshSigner}, nil
 }
 
 // AsAuthMethod returns an "auth method" interface, a common abstraction
