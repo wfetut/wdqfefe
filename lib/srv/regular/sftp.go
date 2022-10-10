@@ -55,7 +55,7 @@ func newSFTPSubsys() (*sftpSubsys, error) {
 	}, nil
 }
 
-func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverCtx *srv.ServerContext) error {
+func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch ssh.Channel, _ *ssh.Request, serverCtx *srv.ServerContext) error {
 	// Check that file copying is allowed Node-wide again here in case
 	// this connection was proxied, the proxy doesn't know if file copying
 	// is allowed for certain Nodes.

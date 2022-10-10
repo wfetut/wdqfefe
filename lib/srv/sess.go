@@ -1039,6 +1039,7 @@ func (s *session) startTerminal(ctx context.Context, scx *ServerContext) error {
 		scx.Errorf("Unable to run shell command: %v.", err)
 		return trace.ConvertSystemError(err)
 	}
+	scx.SetPID(s.term.PID())
 
 	return nil
 }

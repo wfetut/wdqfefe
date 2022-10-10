@@ -181,6 +181,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 		inputWriter.Close()
 	}()
 
+	e.Ctx.SetPID(e.Cmd.Process.Pid)
 	e.Ctx.Infof("Started local command execution: %q", e.Command)
 
 	return nil, nil

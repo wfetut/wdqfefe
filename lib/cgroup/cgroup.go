@@ -145,11 +145,18 @@ func (s *Service) Remove(sessionID string) error {
 	return nil
 }
 
-// Place  place a process in the cgroup for that session.
+// Place places a process in the cgroup for that session.
 func (s *Service) Place(sessionID string, pid int) error {
+	if pid < 0 {
+		return trace.Errorf("pid cannot be negative, passed: %d", pid)
+	}
+	if sessionID == "" {
+		return trace.Errorf("sessionID cannot be empty")
+	}
+
 	// Open cgroup.procs file for the cgroup.
-	filepath := filepath.Join(s.teleportRoot, sessionID, cgroupProcs)
-	f, err := os.OpenFile(filepath, os.O_APPEND|os.O_WRONLY, fileMode)
+	procsPath := filepath.Join(s.teleportRoot, sessionID, cgroupProcs)
+	f, err := os.OpenFile(procsPath, os.O_APPEND|os.O_WRONLY, fileMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -161,7 +168,8 @@ func (s *Service) Place(sessionID string, pid int) error {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	// Sync explicitly. Return error if write fails.
+	return trace.Wrap(f.Sync())
 }
 
 // readPids returns a slice of PIDs from a file. Used to get list of all PIDs
@@ -205,7 +213,7 @@ func writePids(path string, pids []string) error {
 	return nil
 }
 
-// cleanupHierarchy removes any cgroups for any exisiting sessions.
+// cleanupHierarchy removes any cgroups for any existing sessions.
 func (s *Service) cleanupHierarchy() error {
 	var sessions []string
 
@@ -242,8 +250,7 @@ func (s *Service) cleanupHierarchy() error {
 
 	// Remove all sessions that were found.
 	for _, sessionID := range sessions {
-		err := s.Remove(sessionID)
-		if err != nil {
+		if err := s.Remove(sessionID); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -299,7 +306,7 @@ func (s *Service) mount() error {
 	// kernels 4.18 and above for this feature.
 	//
 	//   The mountflags argument may have the magic number 0xC0ED (MS_MGC_VAL)
-	//   in the top 16 bits.  (All of the other flags discussed in DESCRIPTION
+	//   in the top 16 bits.  (All the other flags discussed in DESCRIPTION
 	//   occupy the low order 16 bits of mountflags.)  Specifying MS_MGC_VAL
 	//   was required in kernel versions prior to 2.4, but since Linux 2.4 is
 	//   no longer required and is ignored if specified.

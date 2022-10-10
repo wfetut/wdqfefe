@@ -201,12 +201,12 @@ func (s *Service) Close() error {
 	s.conn.close()
 
 	// Close cgroup service.
-	s.cgroup.Close()
+	err := s.cgroup.Close()
 
 	// Signal to the loop pulling events off the perf buffer to shutdown.
 	s.closeFunc()
 
-	return nil
+	return err
 }
 
 // OpenSession will place a process within a cgroup and being monitoring all
@@ -290,7 +290,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		return
 	}
 
-	// If the event comes from a unmonitored process/cgroup, don't process it.
+	// If the event comes from an unmonitored process/cgroup, don't process it.
 	ctx, ok := s.watch.Get(event.CgroupID)
 	if !ok {
 		return
@@ -316,7 +316,11 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 
 		argv := (*C.char)(unsafe.Pointer(&event.Argv))
 		buf = append(buf, C.GoString(argv))
-		s.argsCache.Set(strconv.FormatUint(event.PID, 10), buf, 24*time.Hour)
+		err := s.argsCache.Set(strconv.FormatUint(event.PID, 10), buf, 24*time.Hour)
+		if err != nil {
+			log.Debugf("Failed set args cache: %v.", err)
+			return
+		}
 	// The event has returned, emit the fully parsed event.
 	case eventRet:
 		// The args should have come in a previous event, find them by PID.
@@ -326,7 +330,10 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			lostCommandEvents.Add(float64(1))
 			return
 		}
-		argv := args.([]string)
+		argv, ok := args.([]string)
+		if !ok {
+			log.Errorf("argv has unexpected format. Expected []string, got %T", args)
+		}
 
 		// Emit "command" event.
 		sessionID := ctx.SessionID()
@@ -356,7 +363,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			Path:       argv[0],
 			Argv:       argv[1:],
 		}
-		if err := ctx.StreamWriter().EmitAuditEvent(ctx.Context, sessionCommandEvent); err != nil {
+		if err := ctx.StreamWriter().EmitAuditEvent(context.TODO(), sessionCommandEvent); err != nil {
 			log.WithError(err).Warn("Failed to emit command event.")
 		}
 

@@ -367,6 +367,8 @@ type ServerContext struct {
 
 	// JoinOnly is set if the connection was created using a join-only principal and may only be used to join other sessions.
 	JoinOnly bool
+
+	pid int
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -536,17 +538,19 @@ func (c *ServerContext) StreamWriter() events.StreamWriter {
 	return c.session.Recorder()
 }
 
+func (c *ServerContext) SetPID(pid int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.pid = pid
+}
+
 // GetPID returns the PID of the Teleport process that was re-execed
 // or -1 if the process has not yet completed spawning.
 func (c *ServerContext) GetPID() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if c.term == nil {
-		return -1
-	}
-
-	return c.term.PID()
+	return c.pid
 }
 
 // CreateOrJoinSession will look in the SessionRegistry for the session ID. If
@@ -1177,7 +1181,7 @@ func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error
 	return lockTargets, nil
 }
 
-// SetRequest sets the ssh request that was issued by the client.
+// SetSSHRequest sets the ssh request that was issued by the client.
 // Will return an error if called more than once for a single server context.
 func (c *ServerContext) SetSSHRequest(e *ssh.Request) error {
 	c.mu.Lock()
@@ -1190,7 +1194,7 @@ func (c *ServerContext) SetSSHRequest(e *ssh.Request) error {
 	return nil
 }
 
-// GetRequest returns the ssh request that was issued by the client and saved on
+// GetSSHRequest returns the ssh request that was issued by the client and saved on
 // this ServerContext by SetExecRequest, or an error if it has not been set.
 func (c *ServerContext) GetSSHRequest() (*ssh.Request, error) {
 	c.mu.RLock()
