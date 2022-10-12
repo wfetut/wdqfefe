@@ -506,14 +506,13 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - git clone https://github.com/gravitational/webapps.git .
   - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init packages/webapps.e
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init e
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init --recursive webassets || true
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init packages/webapps.e
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   environment:
@@ -4399,9 +4398,6 @@ steps:
     -F /dev/null' git submodule update --init e
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init --recursive webassets || true
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init packages/webapps.e
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   - mkdir -p $WORKSPACE_DIR/go/artifacts
@@ -4628,9 +4624,6 @@ steps:
     -F /dev/null' git submodule update --init e
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init --recursive webassets || true
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init packages/webapps.e
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   - mkdir -p $WORKSPACE_DIR/go/artifacts
@@ -4829,9 +4822,6 @@ steps:
     -F /dev/null' git submodule update --init e
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init --recursive webassets || true
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init packages/webapps.e
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   - mkdir -p $WORKSPACE_DIR/go/artifacts
@@ -8790,14 +8780,13 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - git clone https://github.com/gravitational/webapps.git .
   - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
+  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
+    -F /dev/null' git submodule update --init packages/webapps.e
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init e
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init --recursive webassets || true
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init packages/webapps.e
   - rm -rf $WORKSPACE_DIR/.ssh
   - mkdir -p $WORKSPACE_DIR/go/cache
   - mkdir -p $WORKSPACE_DIR/go/artifacts
@@ -8977,6 +8966,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: b064105f376e642977c057f2f150abdb7255c6b2df0af4bb98fc5e0260f1c750
+hmac: 77b06908f82db11aa8658a71650f0b5f2c4ea5f80788c841c38582a09e894321
 
 ...

@@ -264,6 +264,7 @@ func pushCheckoutCommandsDarwin(artifactConfig darwinArtifactConfig) []string {
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
 			`git clone https://github.com/gravitational/webapps.git .`,
 			`git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)`,
+			`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init packages/webapps.e`,
 			`cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport`,
 		)
 	}
@@ -272,8 +273,6 @@ func pushCheckoutCommandsDarwin(artifactConfig darwinArtifactConfig) []string {
 		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e`,
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true`,
-		`cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps`,
-		`GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init packages/webapps.e`,
 		`rm -rf $WORKSPACE_DIR/.ssh`,
 		`mkdir -p $WORKSPACE_DIR/go/cache`,
 	)
