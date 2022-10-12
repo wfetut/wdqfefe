@@ -498,15 +498,15 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
+    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
+  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
+  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
   - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - git clone https://github.com/gravitational/webapps.git .
   - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
-    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init e
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
@@ -8782,15 +8782,15 @@ steps:
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
   - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
   - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
+    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
+  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
+  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
   - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/webapps
   - git clone https://github.com/gravitational/webapps.git .
   - git checkout $($WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets/webapps/webapps-version.sh)
   - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
-    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
     -F /dev/null' git submodule update --init e
   - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
@@ -8977,6 +8977,6 @@ steps:
     WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
 ---
 kind: signature
-hmac: 0b2fed5fd5450f6701ef0bfc2ccd90e40590bd73d8ed9ba3c8bbeea6b978c8d7
+hmac: b064105f376e642977c057f2f150abdb7255c6b2df0af4bb98fc5e0260f1c750
 
 ...
