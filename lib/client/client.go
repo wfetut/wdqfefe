@@ -1067,7 +1067,7 @@ func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context) (auth.Client
 	return proxy.ConnectToCluster(ctx, clusterName)
 }
 
-func (proxy *ProxyClient) loadTLS(clusterName string) (*tls.Config, error) {
+func (proxy *ProxyClient) loadTLS(clusterName ...string) (*tls.Config, error) {
 	if proxy.teleportClient.SkipLocalAuth {
 		return proxy.teleportClient.TLS.Clone(), nil
 	}
@@ -1076,7 +1076,7 @@ func (proxy *ProxyClient) loadTLS(clusterName string) (*tls.Config, error) {
 		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
 	}
 
-	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, []string{clusterName})
+	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
@@ -1087,7 +1087,27 @@ func (proxy *ProxyClient) loadTLS(clusterName string) (*tls.Config, error) {
 // service and returns auth client. For routing purposes, TLS ServerName is set to destination auth service
 // cluster name with ALPN values set to teleport-auth protocol.
 func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Context, clusterName, proxyAddr string) (auth.ClientI, error) {
-	tlsConfig, err := proxy.loadTLS(clusterName)
+	//clusterName = "example.com"
+	//if len(proxy.teleportClient.JumpHosts) > 0 {
+	//	clusterName = proxy.teleportClient.JumpHosts[0].Addr.Host() // TODO
+	//}
+	var tlsConfig *tls.Config
+	var err error
+	if true {
+		sites, err := proxy.GetSites(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sitesNames := make([]string, 0, len(sites))
+		for _, name := range sites {
+			sitesNames = append(sitesNames, name.Name)
+		}
+		sitesNames = []string{"example.com"}
+		tlsConfig, err = proxy.loadTLS(sitesNames...)
+	} else {
+		tlsConfig, err = proxy.loadTLS(clusterName)
+	}
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

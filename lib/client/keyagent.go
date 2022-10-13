@@ -201,7 +201,7 @@ func (a *LocalKeyAgent) UpdateCluster(cluster string) {
 	a.siteName = cluster
 }
 
-// UpdateLoadAllCAs changes whether or not the local agent should load all
+// UpdateLoadAllCAs changes whether the local agent should load all
 // host CAs.
 func (a *LocalKeyAgent) UpdateLoadAllCAs(loadAllCAs bool) {
 	a.loadAllCAs = loadAllCAs

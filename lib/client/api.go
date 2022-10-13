@@ -3100,7 +3100,7 @@ func (tc *TeleportClient) connectToProxy(ctx context.Context) (*ProxyClient, err
 			clusterName = func() string {
 				// Only return the inferred cluster name if it's not the root
 				// cluster. If it's the root cluster proxy, tc.SiteName could
-				// be pointing at a leaf cluster and we don't want to override
+				// be pointing at a leaf cluster, and we don't want to override
 				// that.
 				if clusterGuesser.clusterName != rootClusterName {
 					return clusterGuesser.clusterName
@@ -3219,7 +3219,9 @@ func makeProxySSHClient(ctx context.Context, tc *TeleportClient, sshConfig *ssh.
 }
 
 func makeProxySSHClientDirect(ctx context.Context, tc *TeleportClient, sshConfig *ssh.ClientConfig, proxyAddr string) (*tracessh.Client, error) {
-	dialer := proxy.DialerFromEnvironment(tc.Config.SSHProxyAddr)
+	dialer := proxy.DialerFromEnvironment(tc.Config.SSHProxyAddr,
+		proxy.WithInsecureSkipTLSVerify(tc.InsecureSkipVerify),
+	)
 	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
 }
 
@@ -3230,7 +3232,10 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 	}
 
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
-	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(tlsConfig))
+	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr,
+		proxy.WithALPNDialer(tlsConfig),
+		proxy.WithInsecureSkipTLSVerify(tc.InsecureSkipVerify),
+	)
 	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
 }
 
@@ -4280,6 +4285,10 @@ func (tc *TeleportClient) loadTLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
+	if tc.InsecureSkipVerify {
+		tlsConfig.InsecureSkipVerify = true
+	}
+
 	return tlsConfig, nil
 }
 
