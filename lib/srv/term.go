@@ -171,7 +171,7 @@ func (t *terminal) AddParty(delta int) {
 // Run will run the terminal.
 func (t *terminal) Run(ctx context.Context) error {
 	var err error
-	defer t.closeTTY()
+	//defer t.closeTTY()
 
 	// Create the command that will actually execute.
 	t.cmd, err = ConfigureCommand(t.ctx)
@@ -225,7 +225,9 @@ func (t *terminal) Wait() (*ExecResult, error) {
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (t *terminal) Continue() {
-	t.ctx.contw.Close()
+	if err := t.ctx.contw.Close(); err != nil {
+		t.log.Warnf("failed to close server context: %v", err)
+	}
 }
 
 // Kill will force kill the terminal.
@@ -295,7 +297,9 @@ func (t *terminal) closePTY() {
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
 
-	t.pty.Close()
+	if err := t.pty.Close(); err != nil {
+		t.log.Warnf("failed to close pty: %v", err)
+	}
 	t.pty = nil
 }
 

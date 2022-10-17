@@ -622,9 +622,6 @@ func (s *session) Stop() {
 	s.BroadcastMessage("Stopping session...")
 	s.log.Infof("Stopping session %v.", s.id)
 
-	// close io copy loops
-	s.io.Close()
-
 	// Close and kill terminal
 	if s.term != nil {
 		if err := s.term.Close(); err != nil {
@@ -638,6 +635,9 @@ func (s *session) Stop() {
 			s.log.WithError(err).Debug("Failed to kill the shell")
 		}
 	}
+
+	// close io copy loops
+	s.io.Close()
 
 	// Close session tracker and mark it as terminated
 	if err := s.tracker.Close(s.serverCtx); err != nil {
