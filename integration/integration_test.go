@@ -294,14 +294,14 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 		auditSessionsURI string
 	}{
 		{
-			comment:          "normal teleport",
-			inRecordLocation: types.RecordAtNode,
-			inForwardAgent:   false,
-		}, {
-			comment:          "recording proxy",
-			inRecordLocation: types.RecordAtProxy,
-			inForwardAgent:   true,
-		}, {
+			//	comment:          "normal teleport",
+			//	inRecordLocation: types.RecordAtNode,
+			//	inForwardAgent:   false,
+			//}, {
+			//	comment:          "recording proxy",
+			//	inRecordLocation: types.RecordAtProxy,
+			//	inForwardAgent:   true,
+			//}, {
 			comment:          "normal teleport with upload to file server",
 			inRecordLocation: types.RecordAtNode,
 			inForwardAgent:   false,
@@ -311,14 +311,14 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			inRecordLocation: types.RecordAtProxy,
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
-		}, {
-			comment:          "normal teleport, sync recording",
-			inRecordLocation: types.RecordAtNodeSync,
-			inForwardAgent:   false,
-		}, {
-			comment:          "recording proxy, sync recording",
-			inRecordLocation: types.RecordAtProxySync,
-			inForwardAgent:   true,
+			//}, {
+			//	comment:          "normal teleport, sync recording",
+			//	inRecordLocation: types.RecordAtNodeSync,
+			//	inForwardAgent:   false,
+			//}, {
+			//	comment:          "recording proxy, sync recording",
+			//	inRecordLocation: types.RecordAtProxySync,
+			//	inForwardAgent:   true,
 		},
 	}
 
@@ -413,7 +413,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 			// wait until we've found the session in the audit log
 			getSession := func(site auth.ClientI) (types.SessionTracker, error) {
-				timeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				timeout, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 				defer cancel()
 				sessions, err := waitForSessionToBeEstablished(timeout, defaults.Namespace, site)
 				if err != nil {
@@ -441,8 +441,9 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// wait for session to end:
 			select {
 			case err := <-endC:
+				t.Logf("term output: %v", myTerm.AllOutput())
 				require.NoError(t, err)
-			case <-time.After(10 * time.Second):
+			case <-time.After(100 * time.Second):
 				t.Fatalf("%s: Timeout waiting for session to finish.", tt.comment)
 			}
 

@@ -291,7 +291,7 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.Sessio
 	)
 	defer span.End()
 
-	// determine what kind of a terminal we need
+	// determine what kind of terminal we need
 	termType := os.Getenv("TERM")
 	if termType == "" {
 		termType = teleport.SafeTerminalType

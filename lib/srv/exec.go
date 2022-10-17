@@ -566,6 +566,7 @@ func exitCode(err error) int {
 	case *exec.ExitError:
 		waitStatus, ok := v.Sys().(syscall.WaitStatus)
 		if !ok {
+			os.WriteFile("/tmp/file3", []byte(fmt.Sprintf("%+v", waitStatus)), 0755)
 			return teleport.RemoteCommandFailure
 		}
 		return waitStatus.ExitStatus()
@@ -574,6 +575,7 @@ func exitCode(err error) int {
 		return v.ExitStatus()
 	// An error occurred, but the type is unknown, return a generic 255 code.
 	default:
+		os.WriteFile("/tmp/file3", []byte(fmt.Sprintf("%+v", err)), 0755)
 		log.Debugf("Unknown error returned when executing command: %T: %v.", err, err)
 		return teleport.RemoteCommandFailure
 	}

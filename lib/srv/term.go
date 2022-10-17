@@ -18,6 +18,7 @@ package srv
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -521,6 +522,7 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 			}, err
 		}
 
+		os.WriteFile("/tmp/file2", []byte(fmt.Sprintf("%s %+v", execRequest.GetCommand(), err)), 0755)
 		return &ExecResult{
 			Code:    teleport.RemoteCommandFailure,
 			Command: execRequest.GetCommand(),

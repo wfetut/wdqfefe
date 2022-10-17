@@ -849,6 +849,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 }
 
 func (c *ServerContext) Close() error {
+	//return nil
 	// If the underlying connection is holding tracking information, report that
 	// to the audit log at close.
 	if stats, ok := c.NetConn.(*utils.TrackingConn); ok {
@@ -1097,7 +1098,7 @@ func closeAll(closers ...io.Closer) error {
 			continue
 		}
 
-		errs = append(errs, err)
+		errs = append(errs, fmt.Errorf("(%T): %w", err, err))
 	}
 
 	return trace.NewAggregate(errs...)

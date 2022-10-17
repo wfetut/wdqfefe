@@ -489,7 +489,7 @@ const (
 	RemoteCommandSuccess = 0
 	// RemoteCommandFailure is returned when a command has failed to execute and
 	// we don't have another status code for it.
-	RemoteCommandFailure = 255
+	RemoteCommandFailure = 251
 	// HomeDirNotFound is returned when a the "teleport checkhomedir" command cannot
 	// find the user's home directory.
 	HomeDirNotFound = 254

@@ -1496,13 +1496,17 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	scx.AddCloser(ch)
 	scx.ChannelType = teleport.ChanSession
 	scx.SetAllowFileCopying(s.allowFileCopying)
-	defer scx.Close()
+	defer func() {
+		if err := scx.Close(); err != nil {
+			s.Logger.WithError(err).Error("failed to close server context")
+		}
+	}()
 
 	ch = scx.TrackActivity(ch)
 
-	// The keep-alive loop will keep pinging the remote server and after it has
+	// The keep-alive loop will keep pinging the remote server, and after it has
 	// missed a certain number of keep-alive requests it will cancel the
-	// closeContext which signals the server to shutdown.
+	// closeContext which signals the server to shut down.
 	go srv.StartKeepAliveLoop(srv.KeepAliveParams{
 		Conns: []srv.RequestSender{
 			scx.ServerConn,

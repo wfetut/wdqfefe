@@ -282,6 +282,7 @@ func (g *TermManager) CountRead() uint64 {
 }
 
 func (g *TermManager) Close() {
+	log.Warnf("closing term manager!!!")
 	g.mu.Lock()
 	defer g.mu.Unlock()
 

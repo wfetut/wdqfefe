@@ -630,6 +630,10 @@ func (s *session) Stop() {
 		if err := s.term.Close(); err != nil {
 			s.log.WithError(err).Debug("Failed to close the shell")
 		}
+		//_, err := s.term.Wait()
+		//if err != nil {
+		//	s.log.WithError(err).Debug("Failed to wait for the shell")
+		//}
 		if err := s.term.Kill(context.TODO()); err != nil {
 			s.log.WithError(err).Debug("Failed to kill the shell")
 		}
@@ -867,7 +871,7 @@ func (s *session) setHasEnhancedRecording(val bool) {
 
 // launch launches the session.
 // Must be called under session Lock.
-func (s *session) launch(ctx *ServerContext) error {
+func (s *session) launch(_ *ServerContext) error {
 	s.log.Debugf("Launching session %v.", s.id)
 	s.BroadcastMessage("Connecting to %v over SSH", s.serverMeta.ServerHostname)
 
@@ -913,8 +917,9 @@ func (s *session) launch(ctx *ServerContext) error {
 		// returns) io.Copy will return.
 		defer close(s.doneCh)
 
-		_, err := io.Copy(s.io, s.term.PTY())
-		s.log.Debugf("Copying from PTY to writer completed with error %v.", err)
+		if _, err := io.Copy(s.io, s.term.PTY()); err != nil {
+			s.log.Debugf("Copying from PTY to writer completed with error %v.", err)
+		}
 	}()
 
 	s.term.AddParty(1)
