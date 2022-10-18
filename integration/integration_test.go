@@ -294,14 +294,14 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 		auditSessionsURI string
 	}{
 		{
-			//	comment:          "normal teleport",
-			//	inRecordLocation: types.RecordAtNode,
-			//	inForwardAgent:   false,
-			//}, {
-			//	comment:          "recording proxy",
-			//	inRecordLocation: types.RecordAtProxy,
-			//	inForwardAgent:   true,
-			//}, {
+			comment:          "normal teleport",
+			inRecordLocation: types.RecordAtNode,
+			inForwardAgent:   false,
+		}, {
+			comment:          "recording proxy",
+			inRecordLocation: types.RecordAtProxy,
+			inForwardAgent:   true,
+		}, {
 			comment:          "normal teleport with upload to file server",
 			inRecordLocation: types.RecordAtNode,
 			inForwardAgent:   false,
@@ -311,10 +311,10 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			inRecordLocation: types.RecordAtProxy,
 			inForwardAgent:   false,
 			auditSessionsURI: t.TempDir(),
-			//}, {
-			//	comment:          "normal teleport, sync recording",
-			//	inRecordLocation: types.RecordAtNodeSync,
-			//	inForwardAgent:   false,
+		}, {
+			comment:          "normal teleport, sync recording",
+			inRecordLocation: types.RecordAtNodeSync,
+			inForwardAgent:   false,
 			//}, {
 			//	comment:          "recording proxy, sync recording",
 			//	inRecordLocation: types.RecordAtProxySync,
