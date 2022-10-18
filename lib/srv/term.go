@@ -168,9 +168,9 @@ func (t *terminal) AddParty(delta int) {
 }
 
 // Run will run the terminal.
-func (t *terminal) Run(ctx context.Context) error {
+func (t *terminal) Run(_ context.Context) error {
 	var err error
-	defer t.closeTTY()
+	//defer t.closeTTY()
 
 	// Create the command that will actually execute.
 	t.cmd, err = ConfigureCommand(t.ctx)
@@ -224,11 +224,13 @@ func (t *terminal) Wait() (*ExecResult, error) {
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (t *terminal) Continue() {
-	t.ctx.contw.Close()
+	if err := t.ctx.contw.Close(); err != nil {
+		t.log.Warnf("Failed to close server context: %v", err)
+	}
 }
 
 // Kill will force kill the terminal.
-func (t *terminal) Kill(ctx context.Context) error {
+func (t *terminal) Kill(_ context.Context) error {
 	if t.cmd != nil && t.cmd.Process != nil {
 		if err := t.cmd.Process.Kill(); err != nil {
 			if err.Error() != "os: process already finished" {
@@ -294,7 +296,9 @@ func (t *terminal) closePTY() {
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
 
-	t.pty.Close()
+	if err := t.pty.Close(); err != nil {
+		t.log.Warnf("Failed to close pty: %v", err)
+	}
 	t.pty = nil
 }
 
@@ -313,7 +317,7 @@ func (t *terminal) GetWinSize() (*term.Winsize, error) {
 }
 
 // SetWinSize sets the window size of the terminal.
-func (t *terminal) SetWinSize(ctx context.Context, params rsession.TerminalParams) error {
+func (t *terminal) SetWinSize(_ context.Context, params rsession.TerminalParams) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.pty == nil {
@@ -458,7 +462,7 @@ func (b *ptyBuffer) Write(p []byte) (n int, err error) {
 }
 
 func (t *remoteTerminal) Run(ctx context.Context) error {
-	// prepare the remote remote session by setting environment variables
+	// prepare the remote session by setting environment variables
 	t.prepareRemoteSession(ctx, t.session, t.ctx)
 
 	// combine stdout and stderr

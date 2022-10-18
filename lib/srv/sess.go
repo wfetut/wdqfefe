@@ -622,9 +622,6 @@ func (s *session) Stop() {
 	s.BroadcastMessage("Stopping session...")
 	s.log.Infof("Stopping session %v.", s.id)
 
-	// close io copy loops
-	s.io.Close()
-
 	// Close and kill terminal
 	if s.term != nil {
 		if err := s.term.Close(); err != nil {
@@ -634,6 +631,9 @@ func (s *session) Stop() {
 			s.log.WithError(err).Debug("Failed to kill the shell")
 		}
 	}
+
+	// close io copy loops
+	s.io.Close()
 
 	// Close session tracker and mark it as terminated
 	if err := s.tracker.Close(s.serverCtx); err != nil {
@@ -867,7 +867,7 @@ func (s *session) setHasEnhancedRecording(val bool) {
 
 // launch launches the session.
 // Must be called under session Lock.
-func (s *session) launch(ctx *ServerContext) error {
+func (s *session) launch(_ *ServerContext) error {
 	s.log.Debugf("Launching session %v.", s.id)
 	s.BroadcastMessage("Connecting to %v over SSH", s.serverMeta.ServerHostname)
 
@@ -913,8 +913,9 @@ func (s *session) launch(ctx *ServerContext) error {
 		// returns) io.Copy will return.
 		defer close(s.doneCh)
 
-		_, err := io.Copy(s.io, s.term.PTY())
-		s.log.Debugf("Copying from PTY to writer completed with error %v.", err)
+		if _, err := io.Copy(s.io, s.term.PTY()); err != nil {
+			s.log.Debugf("Copying from PTY to writer completed with error %v.", err)
+		}
 	}()
 
 	s.term.AddParty(1)
@@ -1197,7 +1198,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 			scx.SendExecResult(*result)
 		}
 
-		// Wait a little bit to let all events filter through before closing the
+		// Wait a bit to let all events filter through before closing the
 		// BPF session so everything can be recorded.
 		time.Sleep(2 * time.Second)
 

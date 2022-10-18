@@ -298,10 +298,10 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			inRecordLocation: types.RecordAtNode,
 			inForwardAgent:   false,
 		}, {
-			comment:          "recording proxy",
-			inRecordLocation: types.RecordAtProxy,
-			inForwardAgent:   true,
-		}, {
+			//	comment:          "recording proxy",
+			//	inRecordLocation: types.RecordAtProxy,
+			//	inForwardAgent:   true,
+			//}, {
 			comment:          "normal teleport with upload to file server",
 			inRecordLocation: types.RecordAtNode,
 			inForwardAgent:   false,
