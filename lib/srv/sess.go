@@ -610,21 +610,25 @@ func (s *session) Stop() {
 		close(s.stopC)
 	}
 
+	//close(s.doneCh)
+
 	s.BroadcastMessage("Stopping session...")
 	s.log.Infof("Stopping session %v.", s.id)
-
-	// close io copy loops
-	s.io.Close()
 
 	// Close and kill terminal
 	if s.term != nil {
 		if err := s.term.Close(); err != nil {
 			s.log.WithError(err).Debug("Failed to close the shell")
 		}
+		s.term.WaitDone(context.TODO())
+
 		if err := s.term.Kill(context.TODO()); err != nil {
 			s.log.WithError(err).Debug("Failed to kill the shell")
 		}
 	}
+
+	// close io copy loops
+	s.io.Close()
 
 	// Close session tracker and mark it as terminated
 	if err := s.tracker.Close(s.serverCtx); err != nil {
@@ -902,7 +906,7 @@ func (s *session) launch(ctx *ServerContext) error {
 		// the PTY, allowing io.Copy to return. if this is a teleport forwarding
 		// node, when the remote side closes the channel (which is what s.term.PTY()
 		// returns) io.Copy will return.
-		defer close(s.doneCh)
+		//defer close(s.doneCh)
 
 		_, err := io.Copy(s.io, s.term.PTY())
 		s.log.Debugf("Copying from PTY to writer completed with error %v.", err)
@@ -914,6 +918,11 @@ func (s *session) launch(ctx *ServerContext) error {
 
 		_, err := io.Copy(s.term.PTY(), s.io)
 		s.log.Debugf("Copying from reader to PTY completed with error %v.", err)
+	}()
+
+	go func() {
+		s.term.WaitDone(context.TODO())
+		close(s.doneCh)
 	}()
 
 	return nil

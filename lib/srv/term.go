@@ -58,6 +58,8 @@ type Terminal interface {
 	// Wait will block until the terminal is complete.
 	Wait() (*ExecResult, error)
 
+	WaitDone(ctx context.Context)
+
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
 	Continue()
@@ -131,6 +133,7 @@ type terminal struct {
 
 	termType string
 	params   rsession.TerminalParams
+	waitDone chan struct{}
 }
 
 // NewLocalTerminal creates and returns a local PTY.
@@ -141,7 +144,8 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentLocalTerm,
 		}),
-		ctx: ctx,
+		ctx:      ctx,
+		waitDone: make(chan struct{}),
 	}
 
 	// Open PTY and corresponding TTY.
@@ -201,6 +205,8 @@ func (t *terminal) Run(ctx context.Context) error {
 
 // Wait will block until the terminal is complete.
 func (t *terminal) Wait() (*ExecResult, error) {
+	defer close(t.waitDone)
+
 	err := t.cmd.Wait()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -416,11 +422,12 @@ type remoteTerminal struct {
 
 	ctx *ServerContext
 
-	session   *tracessh.Session
-	params    rsession.TerminalParams
-	termModes ssh.TerminalModes
-	ptyBuffer *ptyBuffer
-	termType  string
+	session      *tracessh.Session
+	waitReturned chan struct{}
+	params       rsession.TerminalParams
+	termModes    ssh.TerminalModes
+	ptyBuffer    *ptyBuffer
+	termType     string
 }
 
 func newRemoteTerminal(ctx *ServerContext) (*remoteTerminal, error) {
@@ -432,9 +439,10 @@ func newRemoteTerminal(ctx *ServerContext) (*remoteTerminal, error) {
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRemoteTerm,
 		}),
-		ctx:       ctx,
-		session:   ctx.RemoteSession,
-		ptyBuffer: &ptyBuffer{},
+		ctx:          ctx,
+		session:      ctx.RemoteSession,
+		waitReturned: make(chan struct{}),
+		ptyBuffer:    &ptyBuffer{},
 	}
 
 	return t, nil
@@ -506,7 +514,17 @@ func (t *remoteTerminal) Run(ctx context.Context) error {
 	return nil
 }
 
+func (t *terminal) WaitDone(ctx context.Context) {
+	<-t.waitDone
+}
+
+func (t *remoteTerminal) WaitDone(ctx context.Context) {
+	<-t.waitReturned
+}
+
 func (t *remoteTerminal) Wait() (*ExecResult, error) {
+	defer close(t.waitReturned)
+
 	execRequest, err := t.ctx.GetExecRequest()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -520,6 +538,7 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 				Command: execRequest.GetCommand(),
 			}, err
 		}
+		t.log.Warnf("command failed: %T, %v", err, err)
 
 		return &ExecResult{
 			Code:    teleport.RemoteCommandFailure,
