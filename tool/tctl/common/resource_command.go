@@ -107,6 +107,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindKubernetesCluster:       rc.createKubeCluster,
 		types.KindToken:                   rc.createToken,
 		types.KindInstaller:               rc.createInstaller,
+		types.KindWindowsDesktop:          rc.createWindowsDesktop,
 	}
 	rc.config = config
 
@@ -625,6 +626,28 @@ func (rc *ResourceCommand) createInstaller(ctx context.Context, client auth.Clie
 
 	err = client.SetInstaller(ctx, inst)
 	return trace.Wrap(err)
+}
+
+func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	desktop, err := services.UnmarshalWindowsDesktop(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := client.CreateWindowsDesktop(ctx, desktop); err != nil {
+		if trace.IsAlreadyExists(err) {
+			if !rc.force {
+				return trace.AlreadyExists("windows desktop %q already exists", desktop.GetName())
+			}
+			if err := client.UpdateWindowsDesktop(ctx, desktop); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Printf("windows desktop %q has been updated\n", desktop.GetName())
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+	fmt.Printf("windows desktop %q has been created\n", desktop.GetName())
+	return nil
 }
 
 // Delete deletes resource by name
