@@ -1440,13 +1440,13 @@ func getGithubConnectors(ctx context.Context, client auth.ClientI, name string, 
 // UpsertVerb generates the correct string form of a verb based on the action taken
 func UpsertVerb(exists bool, force bool) string {
 	switch {
-	case exists == true && force == true:
+	case exists && force:
 		return "created"
-	case exists == false && force == true:
+	case !exists && force:
 		return "created"
-	case exists == true && force == false:
+	case exists && !force:
 		return "updated"
-	case exists == false && force == false:
+	case !exists && !force:
 		return "created"
 	default:
 		// Unreachable, but compiler requires this.
