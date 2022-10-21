@@ -343,10 +343,14 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				tconf.Proxy.DisableWebService = true
 				tconf.Proxy.DisableWebInterface = true
 				tconf.SSH.Enabled = true
+				tconf.Databases.Enabled = false
 				return t, nil, nil, tconf
 			}
 			teleport := suite.NewTeleportWithConfig(makeConfig())
-			defer teleport.StopAll()
+			t.Cleanup(func() {
+				err := teleport.StopAll()
+				require.NoError(t, err)
+			})
 
 			// Start a node.
 			nodeConf := suite.defaultServiceConfig()

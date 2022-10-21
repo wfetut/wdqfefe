@@ -60,6 +60,8 @@ type Terminal interface {
 
 	WaitDone(ctx context.Context)
 
+	WaitDoneDone(ctx context.Context)
+
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
 	Continue()
@@ -172,9 +174,11 @@ func (t *terminal) AddParty(delta int) {
 }
 
 // Run will run the terminal.
-func (t *terminal) Run(ctx context.Context) error {
-	var err error
-	defer t.closeTTY()
+func (t *terminal) Run(ctx context.Context) (err error) {
+	//defer func(t *terminal) {
+	//	err2 := t.closeTTY()
+	//	err = trace.NewAggregate(err, err2)
+	//}(t)
 
 	// Create the command that will actually execute.
 	t.cmd, err = ConfigureCommand(t.ctx)
@@ -205,8 +209,6 @@ func (t *terminal) Run(ctx context.Context) error {
 
 // Wait will block until the terminal is complete.
 func (t *terminal) Wait() (*ExecResult, error) {
-	defer close(t.waitDone)
-
 	err := t.cmd.Wait()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
@@ -267,16 +269,18 @@ func (t *terminal) PID() int {
 
 // Close will free resources associated with the terminal.
 func (t *terminal) Close() error {
-	err := t.closeTTY()
+	//err := t.closeTTY()
 	// note, pty is closed in the copying goroutine,
 	// not here to avoid data races
 	go t.closePTY()
-	return trace.Wrap(err)
+	//return trace.Wrap(err)
+	return nil
 }
 
 func (t *terminal) closeTTY() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	defer t.log.Debugf("Closed TTY")
 
 	if t.tty == nil {
 		return nil
@@ -300,7 +304,10 @@ func (t *terminal) closePTY() {
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
 
-	t.pty.Close()
+	err := t.pty.Close()
+	if err != nil {
+		t.log.Warnf("Failed to close PTY: %v", err)
+	}
 	t.pty = nil
 }
 
@@ -466,7 +473,7 @@ func (b *ptyBuffer) Write(p []byte) (n int, err error) {
 }
 
 func (t *remoteTerminal) Run(ctx context.Context) error {
-	// prepare the remote remote session by setting environment variables
+	// prepare the remote session by setting environment variables
 	t.prepareRemoteSession(ctx, t.session, t.ctx)
 
 	// combine stdout and stderr
@@ -522,9 +529,15 @@ func (t *remoteTerminal) WaitDone(ctx context.Context) {
 	<-t.waitReturned
 }
 
-func (t *remoteTerminal) Wait() (*ExecResult, error) {
-	defer close(t.waitReturned)
+func (t *terminal) WaitDoneDone(ctx context.Context) {
+	close(t.waitDone)
+}
 
+func (t *remoteTerminal) WaitDoneDone(ctx context.Context) {
+	close(t.waitReturned)
+}
+
+func (t *remoteTerminal) Wait() (*ExecResult, error) {
 	execRequest, err := t.ctx.GetExecRequest()
 	if err != nil {
 		return nil, trace.Wrap(err)

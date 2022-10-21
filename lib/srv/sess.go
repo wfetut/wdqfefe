@@ -628,7 +628,7 @@ func (s *session) Stop() {
 	}
 
 	// close io copy loops
-	s.io.Close()
+	//s.io.Close()
 
 	// Close session tracker and mark it as terminated
 	if err := s.tracker.Close(s.serverCtx); err != nil {
@@ -922,7 +922,9 @@ func (s *session) launch(ctx *ServerContext) error {
 
 	go func() {
 		s.term.WaitDone(context.TODO())
+		s.log.Info("stopping magic stuff")
 		close(s.doneCh)
+		//s.io.Close()
 	}()
 
 	return nil
@@ -999,6 +1001,14 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 			scx.Errorf("Received error waiting for the interactive session %v to finish: %v.", s.id, err)
 		}
 
+		if result != nil {
+			if err := s.registry.broadcastResult(s.id, *result); err != nil {
+				s.log.Warningf("Failed to broadcast session result: %v", err)
+			}
+		}
+
+		s.term.WaitDoneDone(context.TODO())
+
 		// wait for copying from the pty to be complete or a timeout before
 		// broadcasting the result (which will close the pty) if it has not been
 		// closed already.
@@ -1010,12 +1020,6 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 
 		if execRequest, err := scx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
 			emitExecAuditEvent(scx, execRequest.GetCommand(), err)
-		}
-
-		if result != nil {
-			if err := s.registry.broadcastResult(s.id, *result); err != nil {
-				s.log.Warningf("Failed to broadcast session result: %v", err)
-			}
 		}
 
 		s.emitSessionEndEvent()
