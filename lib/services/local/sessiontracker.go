@@ -112,7 +112,8 @@ func (s *sessionTracker) GetSessionTracker(ctx context.Context, sessionID string
 	return session, nil
 }
 
-func (s *sessionTracker) getActiveSessionTrackers(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
+// GetActiveSessionTrackers returns a list of active session trackers.
+func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
 	prefix := backend.Key(sessionPrefix)
 	result, err := s.bk.GetRange(ctx, prefix, backend.RangeEnd(prefix), backend.NoLimit)
 	if err != nil {
@@ -140,10 +141,8 @@ func (s *sessionTracker) getActiveSessionTrackers(ctx context.Context, filter *t
 
 		switch {
 		case after:
-			// Keep any items that aren't expired and which match the filter.
-			if filter == nil || (filter != nil && filter.Match(session)) {
-				sessions = append(sessions, session)
-			}
+			// Keep any items that aren't expired.
+			sessions = append(sessions, session)
 		case !after && item.Expires.IsZero():
 			// Clear item if expiry is not set on the backend.
 			noExpiry = append(noExpiry, item)
@@ -165,16 +164,6 @@ func (s *sessionTracker) getActiveSessionTrackers(ctx context.Context, filter *t
 	}
 
 	return sessions, nil
-}
-
-// GetActiveSessionTrackers returns a list of active session trackers.
-func (s *sessionTracker) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
-	return s.getActiveSessionTrackers(ctx, nil)
-}
-
-// GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
-func (s *sessionTracker) GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
-	return s.getActiveSessionTrackers(ctx, filter)
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
