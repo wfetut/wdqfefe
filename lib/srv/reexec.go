@@ -304,13 +304,13 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
-	defer func() {
-		for _, f := range cmd.ExtraFiles {
-			if err := f.Close(); err != nil {
-				log.WithError(err).Warn("Error closing extra file.")
-			}
-		}
-	}()
+	//defer func() {
+	//	for _, f := range cmd.ExtraFiles {
+	//		if err := f.Close(); err != nil {
+	//			log.WithError(err).Warn("Error closing extra file.")
+	//		}
+	//	}
+	//}()
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
@@ -552,6 +552,13 @@ func RunAndExit(commandType string) {
 	if err != nil {
 		s := fmt.Sprintf("Failed to launch: %v.\r\n", err)
 		io.Copy(w, bytes.NewBufferString(s))
+	}
+
+	t := time.Now().String()
+	f, err := os.OpenFile("/teleport/reexec.log", os.O_RDWR|os.O_APPEND, 0644)
+	if err == nil {
+		f.WriteString(fmt.Sprintf("%s||%d||%v\n", t, code, err))
+		f.Close()
 	}
 	os.Exit(code)
 }

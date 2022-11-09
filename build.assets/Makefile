@@ -85,7 +85,7 @@ export
 #
 .PHONY:build
 build: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
+	docker run --platform=linux/$(RUNTIME_ARCH) $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' release
 
 #
@@ -93,7 +93,7 @@ build: buildbox
 #
 .PHONY:build-binaries
 build-binaries: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
+	docker run --platform=linux/$(RUNTIME_ARCH) $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' full
 
 #
@@ -158,7 +158,7 @@ buildbox-fips:
 .PHONY:buildbox-centos7
 buildbox-centos7:
 	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CENTOS7) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CENTOS7) || true; fi;
-	DOCKER_BUILDKIT=1 docker build \
+	DOCKER_BUILDKIT=1 docker build --platform=linux/$(RUNTIME_ARCH) \
 		--build-arg UID=$(UID) \
 		--build-arg GID=$(GID) \
 		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
@@ -386,7 +386,7 @@ enter/teleterm: buildbox-teleterm
 #
 .PHONY:release
 release: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
+	docker run --platform=linux/$(RUNTIME_ARCH) $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NAME) \
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=yes
 
 # These are aliases used to make build commands uniform.

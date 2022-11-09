@@ -15,6 +15,7 @@
 package helpers
 
 import (
+	"fmt"
 	"os"
 	"os/user"
 	"testing"
@@ -51,7 +52,10 @@ func NewFixture(t *testing.T) *Fixture {
 	require.NoError(t, err)
 
 	// Find AllocatePortsNum free listening ports to use.
-	fixture.Me, _ = user.Current()
+	fixture.Me, err = user.Current()
+	if err != nil {
+		panic(fmt.Sprintf("failed to get user: %v", err))
+	}
 
 	// close & re-open stdin because 'go test' runs with os.stdin connected to /dev/null
 	stdin, err := os.Open("/dev/tty")

@@ -283,12 +283,7 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 // and then reads it back and compares against simulated reality.
 func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 	// TODO(jakule): Re-enable once the fix is ready.
-	t.Skip("This test is flaky, skip for now.")
-
-	ctx := context.Background()
-
-	tr := utils.NewTracer(utils.ThisFunction()).Start()
-	defer tr.Stop()
+	//t.Skip("This test is flaky, skip for now.")
 
 	tests := []struct {
 		comment          string
@@ -327,6 +322,11 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
+			tr := utils.NewTracer(utils.ThisFunction()).Start()
+			t.Cleanup(func() {
+				tr.Stop()
+			})
+
 			makeConfig := func() (*testing.T, []string, []*helpers.InstanceSecrets, *service.Config) {
 				auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
 					AuditSessionsURI: tt.auditSessionsURI,
@@ -349,7 +349,10 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				return t, nil, nil, tconf
 			}
 			teleport := suite.NewTeleportWithConfig(makeConfig())
-			defer teleport.StopAll()
+			t.Cleanup(func() {
+				err := teleport.StopAll()
+				require.NoError(t, err)
+			})
 
 			// Start a node.
 			nodeConf := suite.defaultServiceConfig()
@@ -363,6 +366,8 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// get access to a authClient for the cluster
 			site := teleport.GetSiteAPI(helpers.Site)
 			require.NotNil(t, site)
+
+			ctx := context.Background()
 
 			// wait 10 seconds for both nodes to show up, otherwise
 			// we'll have trouble connecting to the node below.
@@ -437,20 +442,19 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// make sure it's us who joined! :)
 			require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
 
-			// lets type "echo hi" followed by "enter" and then "exit" + "enter":
-
+			// let's type "echo hi" followed by "enter" and then "exit" + "enter":
 			myTerm.Type("echo hi\n\rexit\n\r")
 
 			// wait for session to end:
 			select {
 			case err := <-endC:
 				require.NoError(t, err)
-			case <-time.After(10 * time.Second):
+			case <-time.After(20 * time.Second):
 				t.Fatalf("%s: Timeout waiting for session to finish.", tt.comment)
 			}
 
 			// wait for the upload of the right session to complete
-			timeoutC := time.After(10 * time.Second)
+			timeoutC := time.After(20 * time.Second)
 		loop:
 			for {
 				select {

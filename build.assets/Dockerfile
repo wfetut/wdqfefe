@@ -71,7 +71,7 @@ RUN mkdir -p /opt && cd /opt && curl -L https://github.com/gravitational/libbpf/
 
 ## BUILDBOX ###################################################################
 
-FROM ubuntu:18.04 AS buildbox
+FROM ubuntu:22.04 AS buildbox
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
@@ -95,8 +95,8 @@ RUN apt-get update -y --fix-missing && \
         apt-utils \
         build-essential \
         ca-certificates \
-        clang-10 \
-        clang-format-10 \
+        clang \
+        clang-format \
         curl \
         default-jre \
         `if [ "$BUILDARCH" = "amd64" ] ; then echo gcc-multilib; fi`  \
@@ -108,7 +108,7 @@ RUN apt-get update -y --fix-missing && \
         libpam-dev \
         libsqlite3-0 \
         libssl-dev \
-        llvm-10 \
+        llvm \
         locales \
         mingw-w64 \
         mingw-w64-x86-64-dev \

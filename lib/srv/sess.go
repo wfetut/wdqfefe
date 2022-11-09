@@ -23,6 +23,7 @@ import (
 	"io"
 	"os/user"
 	"path/filepath"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -613,6 +614,7 @@ func (s *session) Stop() {
 	s.BroadcastMessage("Stopping session...")
 	s.log.Infof("Stopping session %v.", s.id)
 
+	debug.PrintStack()
 	// close io copy loops
 	s.io.Close()
 

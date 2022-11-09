@@ -23,12 +23,15 @@
 # and ensure that Glibc version is sufficient.
 
 DISTROS=(
-  "ubuntu:14.04"
-  "ubuntu:16.04"
-  "ubuntu:18.04"
-  "ubuntu:20.04"
-  "ubuntu:22.04"
-  "centos:7"
+#  "ubuntu:14.04"
+  "arm64v8/ubuntu:14.04"
+#  "ubuntu:16.04"
+  "arm64v8/ubuntu:16.04"
+#  "ubuntu:18.04"
+  "arm64v8/ubuntu:18.04"
+#  "ubuntu:20.04"
+#  "ubuntu:22.04"
+  "arm64v8/centos:7"
   "centos:8"
   "debian:8"
   "debian:9"
