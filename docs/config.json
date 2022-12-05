@@ -51,6 +51,10 @@
       "title": "Choose an Edition",
       "entries": [
         {
+          "title": "Introduction",
+          "slug": "/choose-an-edition/introduction/"
+        },
+        {
           "title": "Open Source Teleport",
           "slug": "/choose-an-edition/open-source/",
           "forScopes": ["oss"]
@@ -115,6 +119,14 @@
       "icon": "quickstart",
       "title": "Deploy to Production",
       "entries": [
+        {
+          "title": "Introduction",
+          "slug": "/deploy-a-cluster/introduction/"
+        },
+        {
+          "title": "High Availability Deployments",
+          "slug": "/deploy-a-cluster/high-availability/"
+        },
         {
           "title": "Deploy with Helm",
           "slug": "/deploy-a-cluster/helm-deployments/",
