@@ -47,68 +47,74 @@
       ]
     },
     {
-      "icon": "quickstart",
-      "title": "Deploy a Cluster",
+      "icon": "success",
+      "title": "Choose an Edition",
       "entries": [
         {
           "title": "Open Source Teleport",
-          "slug": "/deploy-a-cluster/open-source/",
+          "slug": "/choose-an-edition/open-source/",
           "forScopes": ["oss"]
         },
         {
           "title": "Teleport Cloud",
-          "slug": "/deploy-a-cluster/teleport-cloud/introduction/",
+          "slug": "/choose-an-edition/teleport-cloud/introduction/",
           "forScopes": ["cloud"],
           "entries": [
             {
               "title": "Getting Started",
-              "slug": "/deploy-a-cluster/teleport-cloud/getting-started/",
+              "slug": "/choose-an-edition/teleport-cloud/getting-started/",
               "forScopes": ["cloud"]
             },
             {
               "title": "Architecture",
-              "slug": "/deploy-a-cluster/teleport-cloud/architecture/",
+              "slug": "/choose-an-edition/teleport-cloud/architecture/",
               "forScopes": ["cloud"]
             },
             {
               "title": "Downloads",
-              "slug": "/deploy-a-cluster/teleport-cloud/downloads/",
+              "slug": "/choose-an-edition/teleport-cloud/downloads/",
               "forScopes": ["cloud"]
             },
             {
               "title": "FAQ",
-              "slug": "/deploy-a-cluster/teleport-cloud/faq/",
+              "slug": "/choose-an-edition/teleport-cloud/faq/",
               "forScopes": ["cloud"]
             }
           ]
         },
         {
           "title": "Teleport Enterprise",
-          "slug": "/deploy-a-cluster/teleport-enterprise/introduction/",
+          "slug": "/choose-an-edition/teleport-enterprise/introduction/",
           "forScopes": ["enterprise"],
           "entries": [
             {
               "title": "Getting Started",
-              "slug": "/deploy-a-cluster/teleport-enterprise/getting-started/",
+              "slug": "/choose-an-edition/teleport-enterprise/getting-started/",
               "forScopes": ["enterprise"]
             },
             {
               "title": "HSM",
-              "slug": "/deploy-a-cluster/teleport-enterprise/hsm/",
+              "slug": "/choose-an-edition/teleport-enterprise/hsm/",
               "forScopes": ["enterprise"]
             },
             {
               "title": "Google Cloud KMS",
-              "slug": "/deploy-a-cluster/teleport-enterprise/gcp-kms/",
+              "slug": "/choose-an-edition/teleport-enterprise/gcp-kms/",
               "forScopes": ["enterprise"]
             },
             {
               "title": "Enterprise License File",
-              "slug": "/deploy-a-cluster/teleport-enterprise/license/",
+              "slug": "/choose-an-edition/teleport-enterprise/license/",
               "forScopes": ["enterprise"]
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "icon": "quickstart",
+      "title": "Deploy to Production",
+      "entries": [
         {
           "title": "Deploy with Helm",
           "slug": "/deploy-a-cluster/helm-deployments/",
@@ -1351,7 +1357,7 @@
     },
     {
       "source": "/enterprise/quickstart-enterprise/",
-      "destination": "/deploy-a-cluster/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/getting-started/",
       "permanent": true
     },
     {
@@ -1376,7 +1382,7 @@
     },
     {
       "source": "/cloud/",
-      "destination": "/deploy-a-cluster/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/",
       "permanent": true
     },
     {
@@ -1411,7 +1417,7 @@
     },
     {
       "source": "/preview/cloud/",
-      "destination": "/deploy-a-cluster/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/",
       "permanent": true
     },
     {
@@ -1471,7 +1477,7 @@
     },
     {
       "source": "/setup/reference/license/",
-      "destination": "/deploy-a-cluster/teleport-enterprise/license/",
+      "destination": "/choose-an-edition/teleport-enterprise/license/",
       "permanent": true
     },
     {
@@ -1766,52 +1772,52 @@
     },
     {
       "source": "/getting-started/linux-server/",
-      "destination": "/deploy-a-cluster/open-source/",
+      "destination": "/choose-an-edition/open-source/",
       "permanent": true
     },
     {
       "source": "/cloud/architecture/",
-      "destination": "/deploy-a-cluster/teleport-cloud/architecture/",
+      "destination": "/choose-an-edition/teleport-cloud/architecture/",
       "permanent": true
     },
     {
       "source": "/cloud/downloads/",
-      "destination": "/deploy-a-cluster/teleport-cloud/downloads/",
+      "destination": "/choose-an-edition/teleport-cloud/downloads/",
       "permanent": true
     },
     {
       "source": "/cloud/faq/",
-      "destination": "/deploy-a-cluster/teleport-cloud/faq/",
+      "destination": "/choose-an-edition/teleport-cloud/faq/",
       "permanent": true
     },
     {
       "source": "/cloud/getting-started/",
-      "destination": "/deploy-a-cluster/teleport-cloud/getting-started/",
+      "destination": "/choose-an-edition/teleport-cloud/getting-started/",
       "permanent": true
     },
     {
       "source": "/cloud/introduction/",
-      "destination": "/deploy-a-cluster/teleport-cloud/introduction/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
       "source": "/enterprise/getting-started/",
-      "destination": "/deploy-a-cluster/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/getting-started/",
       "permanent": true
     },
     {
       "source": "/enterprise/hsm/",
-      "destination": "/deploy-a-cluster/teleport-enterprise/hsm/",
+      "destination": "/choose-an-edition/teleport-enterprise/hsm/",
       "permanent": true
     },
     {
       "source": "/enterprise/introduction/",
-      "destination": "/deploy-a-cluster/teleport-enterprise/introduction/",
+      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
       "permanent": true
     },
     {
       "source": "/enterprise/license/",
-      "destination": "/deploy-a-cluster/teleport-enterprise/license/",
+      "destination": "/choose-an-edition/teleport-enterprise/license/",
       "permanent": true
     },
     {
@@ -2022,6 +2028,61 @@
     {
       "source": "/getting-started/local-kubernetes/",
       "destination": "/try-out-teleport/local-kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/open-source/",
+      "destination": "/choose-an-edition/open-source/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-cloud/architecture/",
+      "destination": "/choose-an-edition/teleport-cloud/architecture/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-cloud/downloads/",
+      "destination": "/choose-an-edition/teleport-cloud/downloads/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-cloud/faq/",
+      "destination": "/choose-an-edition/teleport-cloud/faq/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-cloud/getting-started/",
+      "destination": "/choose-an-edition/teleport-cloud/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-cloud/introduction/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-enterprise/gcp-kms/",
+      "destination": "/choose-an-edition/teleport-enterprise/gcp-kms/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-enterprise/getting-started/",
+      "destination": "/choose-an-edition/teleport-enterprise/getting-started/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-enterprise/hsm/",
+      "destination": "/choose-an-edition/teleport-enterprise/hsm/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-enterprise/introduction/",
+      "destination": "/choose-an-edition/teleport-enterprise/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/teleport-enterprise/license/",
+      "destination": "/choose-an-edition/teleport-enterprise/license/",
       "permanent": true
     }
   ]
