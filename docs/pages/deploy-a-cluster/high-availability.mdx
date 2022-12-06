@@ -22,86 +22,63 @@ required components, in the following sections:
 - [HA Teleport Deployments on Kubernetes with Helm](helm-deployments.mdx)
 - [How to Deploy to your Cloud](deployments.mdx)
 
-## The architecture of an HA Teleport deployment
+## Overview
 
-You can think about a Teleport deployment as including two separate systems.
-These systems are loosely coupled to one another, and communicate via TCP
-endpoints:
+A high-availability Teleport cluster runs is a group of `teleport` processes,
+each of which runs the Auth Service and Proxy Service, plus the infrastructure
+required to support them. This includes:
 
-- **Authorization and authentication:** This system issues credentials to users
-  and services, authenticates credentials, and stores authorization information
-  and records of interactions with the cluster. The Teleport Auth Service runs
-  in this system.
-- **Taffic proxying:** This system connects user and service traffic with the
-  Teleport Auth Service and Teleport services that protect resources in your
-  infrastructure. The Teleport Proxy Service runs in this system.
+- A Layer Four load balancer to direct traffic from users and services to an
+  available `teleport` process.
+- A storage backend for Auth Service state that all `teleport` processes can
+  access. This requires permissions for `teleport` instnaces to manage
+  records within the storage backend.
+- A persistent object store for session recordings, which the Auth Service must
+  have access to. This requires permissions for `teleport` instnaces to manage
+  objects within the store.
+- A DNS service that {/*what?*/} can use for completing the Let's Encrypt DNS-01
+  challenge. This requires permissions for {/* what?*/} to manage DNS records.
+- DNS A records for the Proxy Service's web frontend.
+- An automated system for obtaining TLS credentials from Let's Encrypt, renewing
+  the TLS credentials, and provisioning `teleport` processes with them.
 
-{/* TODO: include the diagram*/}
+{/* TODO: include the diagram--do this after filling in the rest of the
+details*/}
 
 Once your Teleport deployment is up and running, you can add resources by
 launching the Teleport Application Service, Database Service, Kubernetes
 Service, and more. These services are outside the scope of this guide. 
 
-## Authentication and authorization 
-
-This system issues credentials to users and services, authenticates credentials,
-and stores authorization information and records of interactions with the
-cluster. The Teleport Auth Service runs in this system.
-
-{/*TODO: detailed diagram describing this part of the deployment*/}
-
-### Teleport Auth Service scaling group
-
-Run the Teleport Auth Service as a scaling group, for example, a Kubernetes
-`StatefulSet` {*/TODO: verify this*/} or AWS Auto Scaling group. 
-
-{/*TODO: since the Auth Service is stateful, how to manage consistency between
-instances?*/}
-
-{/*TODO: how to manage connections between the Auth Service and its storage
-layer?*/}
-
-{/*TODO: ports to expose*/}
-
-{/*TODO: How to configure the Auth Service?*/}
-
-### Auth Service load balancer
+## Layer Four load balancer
 
 {/*TODO: research/outline the requirements*/}
 
-### Auth Service backend
+## Auth Service backend
 
 {/*TODO: research/outline the requirements*/}
 
-### Session recording storage
+The Teleport Auth Service needs access to its backend. If you are using
+cloud-managed solutions, you should use your cloud provider's RBAC system (e.g.,
+AWS IAM) to grant a role to the Auth Service to read data from and write data to
+the backend and session store.
+
+## Session recording storage
 
 {/*TODO: research/outline the requirements*/}
 
-### Access to manage Auth Service data
+The Teleport Auth Service needs access to its session recording store. If you
+are using cloud-managed solutions, you should use your cloud provider's RBAC
+system (e.g., AWS IAM) to grant a role to the Auth Service to read data from and
+write data to the backend and session store.
 
-The Teleport Auth Service needs access to its backend and session recording
-store. If you are using cloud-managed solutions, you should use your cloud
-provider's RBAC system (e.g., AWS IAM) to grant a role to the Auth Service to
-read data from and write data to the backend and session store.
-
-{/*TODO: any more specific permissions?*/}
-
-## Connection proxying
-
-{/*TODO: detailed diagram describing this part of the deployment*/}
-
-### Teleport Proxy Service scaling group
+## Teleport Proxy Service scaling group
 
 Run the Teleport Auth Service as a scaling group, for example, a Kubernetes
 `StatefulSet` {*/TODO: verify this*/} or AWS Auto Scaling group. 
 
 {/*TODO: How to configure the Proxy Service?*/}
 
-### Proxy Service load balancer
-{/*TODO: Is this required given Proxy Peering?*/}
-{/*TODO: Spell out the requirements here*/}
-
-### DNS service
+## DNS service
 
 The Teleport Proxy Service must be reachable from both the Teleport Auth Service
 and Teleport services like the Database Service and Kubernetes Service. For most
@@ -113,22 +90,36 @@ provided by Let's Encrypt. This requires a registered domain name. Since the
 Proxy Service runs behind a load balancer, we recommend using the ACME DNS-01
 challenge to prove to Let's Encrypt that you own your domain name. 
 
-### Access to manage DNS records
+{/*TODO: is it the Proxy Service that completes the DNS-01 challenge, or another
+system, like cert-manager, Caddy, ACM, or whatever else?*/}
 
 The Teleport Proxy Service needs to manage DNS records in order to satisfy Let's
 Encrypt's DNS-01 challenge. If you are using cloud-managed solutions, you should
 use your cloud provider's RBAC system (e.g., AWS IAM) to grant a role to the
 Proxy Service to manage DNS records. 
 
-{/*TODO: is it the Proxy Service that completes the DNS-01 challenge, or another
-system, like cert-manager, Caddy, ACM, or whatever else?*/}
-
-### TLS credential provisioning 
+## TLS credential provisioning 
 
 HA Teleport deployments require an automated system to renew certificates from
 Let's Encrypt and provision Proxy Service instances with them. 
 
 {/*TODO: requirements for this system*/}
+
+## Teleport intances
+
+Run the Teleport Auth Service and Proxy Service as a scalable group of compute
+resources, for example, a Kubernetes `Deployment`  or AWS Auto Scaling group. 
+
+{/*TODO: since the Auth Service is stateful, how to manage consistency between
+instances?*/}
+
+{/*TODO: how to manage connections between the Auth Service and its storage
+layer?*/}
+
+{/*TODO: ports to expose*/}
+
+{/*TODO: How to configure each Teleport instance? Include an example that
+references the other infrastructure components we explain in this guide*/}
 
 ## Next steps
 
