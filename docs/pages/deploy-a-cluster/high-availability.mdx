@@ -51,7 +51,27 @@ Service, and more. These services are outside the scope of this guide.
 
 ## Layer Four load balancer
 
-{/*TODO: research/outline the requirements*/}
+The load balancer forwoards traffic from users and services to an available
+Teleport instance. The load balancer must not terminate TLS, and must simply
+forward the traffic it receives. As a result, only Layer Four load balancers are
+appropriate for a high-availability teleport deployment.
+
+Configure the load balancer to forward traffic from the following ports on the
+load balancer to the corresponding port on an available Teleport instance:
+
+| Port | Description |
+| - | - |
+| 3021 | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
+| 3022 | SSH port. This is Teleport's equivalent of port `#22` for SSH. |
+| 3023 | SSH port clients connect to. The Proxy Service will forward this connection to port `#3022` on the destination Node. |
+| 3024 | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
+| 3025 | TLS port used by the Auth Service to serve its API to other Nodes in a cluster. |
+| 3080 or 443 | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
+| 3026 | HTTPS Kubernetes proxy |
+| 3027 | Kubernetes Service |
+| 3028 | Desktop Service |
+| 3036 | MySQL port |
+| 5432 | Postgres port |
 
 ## Auth Service backend
 
@@ -71,12 +91,17 @@ are using cloud-managed solutions, you should use your cloud provider's RBAC
 system (e.g., AWS IAM) to grant a role to the Auth Service to read data from and
 write data to the backend and session store.
 
-## Teleport Proxy Service scaling group
+## TLS credential provisioning 
 
-Run the Teleport Auth Service as a scaling group, for example, a Kubernetes
-`StatefulSet` {*/TODO: verify this*/} or AWS Auto Scaling group. 
+HA Teleport deployments require an automated system to renew certificates from
+Let's Encrypt and provision Proxy Service instances with them. 
 
-{/*TODO: How to configure the Proxy Service?*/}
+In the configuration we are demonstrating in this guide, each Teleport instance
+expects TLS credentials for HTTPS to be available at the file paths
+`/etc/teleport-tls/tls.key` (private key) and `/etc/teleport-tls/tls.crt`
+(certificate).
+
+{/*TODO: other requirements for this system*/}
 
 ## DNS service
 
@@ -90,36 +115,105 @@ provided by Let's Encrypt. This requires a registered domain name. Since the
 Proxy Service runs behind a load balancer, we recommend using the ACME DNS-01
 challenge to prove to Let's Encrypt that you own your domain name. 
 
-{/*TODO: is it the Proxy Service that completes the DNS-01 challenge, or another
-system, like cert-manager, Caddy, ACM, or whatever else?*/}
+The TLS credential provisioner we mentioend earlier needs permissions to manage
+DNS records in order to satisfy Let's Encrypt's DNS-01 challenge. If you are
+using cloud-managed solutions, you should use your cloud provider's RBAC system
+(e.g., AWS IAM) to grant a role to the Proxy Service to manage DNS records. 
 
-The Teleport Proxy Service needs to manage DNS records in order to satisfy Let's
-Encrypt's DNS-01 challenge. If you are using cloud-managed solutions, you should
-use your cloud provider's RBAC system (e.g., AWS IAM) to grant a role to the
-Proxy Service to manage DNS records. 
-
-## TLS credential provisioning 
-
-HA Teleport deployments require an automated system to renew certificates from
-Let's Encrypt and provision Proxy Service instances with them. 
-
-{/*TODO: requirements for this system*/}
-
-## Teleport intances
+## Teleport instances
 
 Run the Teleport Auth Service and Proxy Service as a scalable group of compute
 resources, for example, a Kubernetes `Deployment`  or AWS Auto Scaling group. 
 
-{/*TODO: since the Auth Service is stateful, how to manage consistency between
-instances?*/}
+### Open ports
 
-{/*TODO: how to manage connections between the Auth Service and its storage
-layer?*/}
+Ensure that, on each Teleport instances, the following ports allow traffic from
+the load balancer. If you do not plan to run a service associated with a given
+port, you can plan to leave that port closed.
 
-{/*TODO: ports to expose*/}
+| Port | Description |
+| - | - |
+| 3021 | Port used by Teleport Proxy Service instances to dial agents in Proxy Peering mode. |
+| 3022 | SSH port. This is Teleport's equivalent of port `#22` for SSH. |
+| 3023 | SSH port clients connect to. The Proxy Service will forward this connection to port `#3022` on the destination Node. |
+| 3024 | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
+| 3025 | TLS port used by the Auth Service to serve its API to other Nodes in a cluster. |
+| 3080 or 443 | HTTPS connection to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
+| 3026 | HTTPS Kubernetes proxy |
+| 3027 | Kubernetes Service |
+| 3028 | Desktop Service |
+| 3036 | MySQL port |
+| 5432 | Postgres port |
 
-{/*TODO: How to configure each Teleport instance? Include an example that
-references the other infrastructure components we explain in this guide*/}
+*This is the same table of ports we used to configure the load balancer.*
+
+### Configuration
+
+Ensure that the each Teleport instance contains a configuration file similar to
+the following. We have included examples of using two persistent storage
+solutions for the Auth Service backend, audit logs, and storing session
+recordings:
+
+<Tabs>
+<TabItem label="AWS DynamoDB">
+
+{/*TODO: double-check the table_name and uri fields*/} 
+
+```yaml
+    version: v1
+    teleport:
+      storage:
+        type: dynamodb
+        region: "us-east-1" # Or another region
+        table_name: "my-table" 
+        audit_events_uri: ["dynamodb://my-audit-events-table", "stdout://"]
+        audit_sessions_uri: "s3://my-session-recording-bucket"
+        continuous_backups: true
+     auth_service:
+      enabled: true
+      cluster_name: "mycluster.example.com"
+      # Remove this if not using Teleport Enterprise
+      license_file: "/var/lib/license/license.pem"
+    proxy_service:
+      public_addr: "mycluster.example.com:443"
+      enabled: true
+      https_keypairs:
+      - key_file: /etc/teleport-tls/tls.key
+        cert_file: /etc/teleport-tls/tls.crt
+    ssh_service:
+      enabled: false
+```
+</TabItem>
+<TabItem label="AWS DynamoDB">
+
+```yaml
+    version: v1
+    teleport:
+      storage:
+        type: firestore
+        project_id: my-google-cloud-project
+        collection_name: my-cluster-state-table
+        credentials_path: /etc/teleport-secrets/gcp-credentials.json
+        audit_events_uri: ['firestore://my-audit-events-table?projectID=my-google-cloud-project&credentialsPath=/etc/teleport-secrets/gcp-credentials.json', 'stdout://']
+        audit_sessions_uri: "gs://session-recording-bucket?projectID=my-google-cloud-project&credentialsPath=/etc/teleport-secrets/gcp-credentials.json"
+     auth_service:
+      enabled: true
+      cluster_name: "mycluster.example.com"
+      # Remove this if not using Teleport Enterprise
+      license_file: "/var/lib/license/license.pem"
+    proxy_service:
+      public_addr: "mycluster.example.com:443"
+      enabled: true
+      https_keypairs:
+      - key_file: /etc/teleport-tls/tls.key
+        cert_file: /etc/teleport-tls/tls.crt
+    ssh_service:
+      enabled: false
+```
+</TabItem>
+</Tabs>
+
+{/*TODO: explain important aspects of the configuration above*/}
 
 ## Next steps
 
