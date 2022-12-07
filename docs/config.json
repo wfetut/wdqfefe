@@ -2101,6 +2101,11 @@
       "source": "/deploy-a-cluster/open-source/",
       "destination": "/try-out-teleport/linux-server/",
       "permanent": true
+    },
+    {
+      "source": "/getting-started/",
+      "destination": "/try-out-teleport/introduction/",
+      "permanent": true
     }
   ]
 }
