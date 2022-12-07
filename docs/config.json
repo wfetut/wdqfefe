@@ -31,18 +31,28 @@
       "title": "Try out Teleport",
       "entries": [
         {
+          "title": "Introduction",
+          "slug": "/try-out-teleport/introduction/"
+        },
+        {
+          "title": "Linux Server",
+          "slug": "/try-out-teleport/linux-server/"
+        },
+        {
+          "title": "Digital Ocean",
+          "slug": "/try-out-teleport/digitalocean/"
+        },
+        {
           "title": "Browser Labs",
           "slug": "/try-out-teleport/browser-labs/"
         },
         {
           "title": "Docker Compose",
-          "slug": "/try-out-teleport/docker-compose/",
-          "forScopes": ["oss"]
+          "slug": "/try-out-teleport/docker-compose/"
         },
         {
           "title": "Local Kubernetes Lab",
-          "slug": "/try-out-teleport/local-kubernetes/",
-          "forScopes": ["oss"]
+          "slug": "/try-out-teleport/local-kubernetes/"
         }
       ]
     },
@@ -53,11 +63,6 @@
         {
           "title": "Introduction",
           "slug": "/choose-an-edition/introduction/"
-        },
-        {
-          "title": "Open Source Teleport",
-          "slug": "/choose-an-edition/open-source/",
-          "forScopes": ["oss"]
         },
         {
           "title": "Teleport Cloud",
@@ -117,7 +122,7 @@
     },
     {
       "icon": "quickstart",
-      "title": "Deploy to Production",
+      "title": "Deploy a Cluster",
       "entries": [
         {
           "title": "Introduction",
@@ -182,11 +187,6 @@
             {
               "title": "IBM",
               "slug": "/deploy-a-cluster/deployments/ibm/",
-              "forScopes": ["oss", "enterprise"]
-            },
-            {
-              "title": "Digital Ocean",
-              "slug": "/deploy-a-cluster/deployments/digitalocean/",
               "forScopes": ["oss", "enterprise"]
             }
           ]
@@ -1529,7 +1529,7 @@
     },
     {
       "source": "/getting-started/digitalocean/",
-      "destination": "/deploy-a-cluster/deployments/digitalocean/",
+      "destination": "/try-out-teleport/digitalocean/",
       "permanent": true
     },
     {
@@ -1734,7 +1734,7 @@
     },
     {
       "source": "/setup/deployments/digitalocean/",
-      "destination": "/deploy-a-cluster/deployments/digitalocean/",
+      "destination": "/try-out-teleport/digitalocean/",
       "permanent": true
     },
     {
@@ -1784,7 +1784,7 @@
     },
     {
       "source": "/getting-started/linux-server/",
-      "destination": "/choose-an-edition/open-source/",
+      "destination": "/try-out-teleport/linux-server/",
       "permanent": true
     },
     {
@@ -2043,11 +2043,6 @@
       "permanent": true
     },
     {
-      "source": "/deploy-a-cluster/open-source/",
-      "destination": "/choose-an-edition/open-source/",
-      "permanent": true
-    },
-    {
       "source": "/deploy-a-cluster/teleport-cloud/architecture/",
       "destination": "/choose-an-edition/teleport-cloud/architecture/",
       "permanent": true
@@ -2095,6 +2090,16 @@
     {
       "source": "/deploy-a-cluster/teleport-enterprise/license/",
       "destination": "/choose-an-edition/teleport-enterprise/license/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/deployments/digitalocean/",
+      "destination": "/try-out-teleport/digitalocean/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/open-source/",
+      "destination": "/try-out-teleport/linux-server/",
       "permanent": true
     }
   ]
