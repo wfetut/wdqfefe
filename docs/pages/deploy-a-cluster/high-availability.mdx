@@ -49,6 +49,8 @@ Once your Teleport deployment is up and running, you can add resources by
 launching the Teleport Application Service, Database Service, Kubernetes
 Service, and more. These services are outside the scope of this guide. 
 
+{/*TODO: For each of these, include a list of examples in a Notice*/}
+
 ## Layer Four load balancer
 
 The load balancer forwoards traffic from users and services to an available
@@ -91,18 +93,6 @@ are using cloud-managed solutions, you should use your cloud provider's RBAC
 system (e.g., AWS IAM) to grant a role to the Auth Service to read data from and
 write data to the backend and session store.
 
-## TLS credential provisioning 
-
-HA Teleport deployments require an automated system to renew certificates from
-Let's Encrypt and provision Proxy Service instances with them. 
-
-In the configuration we are demonstrating in this guide, each Teleport instance
-expects TLS credentials for HTTPS to be available at the file paths
-`/etc/teleport-tls/tls.key` (private key) and `/etc/teleport-tls/tls.crt`
-(certificate).
-
-{/*TODO: other requirements for this system*/}
-
 ## DNS service
 
 The Teleport Proxy Service must be reachable from both the Teleport Auth Service
@@ -111,14 +101,35 @@ users, this means exposing at least one port within the Teleport Proxy Service
 to the public internet, the HTTPS port `443`. 
 
 For most users, we recommend running the HTTPS port using TLS credentials
-provided by Let's Encrypt. This requires a registered domain name. Since the
-Proxy Service runs behind a load balancer, we recommend using the ACME DNS-01
-challenge to prove to Let's Encrypt that you own your domain name. 
+provided by Let's Encrypt. This requires a registered domain name. 
 
-The TLS credential provisioner we mentioend earlier needs permissions to manage
+## TLS credential provisioning 
+
+HA Teleport deployments require an automated system to renew certificates from
+Let's Encrypt and provision Teleport instances with them. 
+
+When you are running a single instance of the Teleport Auth Service and Proxy
+Service, you can configure this instance to fetch it's own credentials from
+Let's Encrypt using the ALPN-01 ACME challenge, where Teleport demonstrates that
+it controls the ALPN server at a particular domain.
+
+For high-availability deployments, however, it is much more efficient to use a
+separate system to request TLS credentials from Let's Encrypt and provision
+Teleport instances with them. In this case, with multiple Teleport instances
+behind a load balancer, you will need to use the ACME DNS-01 challenge to
+demonstrate domain name ownership to Let's Encrypt. In this challenge, your TLS
+credential provisioning system creates a DNS TXT record with a value expected
+by Let's Encrypt.
+
+The TLS credential provisioner we mentioned earlier needs permissions to manage
 DNS records in order to satisfy Let's Encrypt's DNS-01 challenge. If you are
 using cloud-managed solutions, you should use your cloud provider's RBAC system
 (e.g., AWS IAM) to grant a role to the Proxy Service to manage DNS records. 
+
+In the configuration we are demonstrating in this guide, each Teleport instance
+expects TLS credentials for HTTPS to be available at the file paths
+`/etc/teleport-tls/tls.key` (private key) and `/etc/teleport-tls/tls.crt`
+(certificate).
 
 ## Teleport instances
 
