@@ -77,21 +77,60 @@ load balancer to the corresponding port on an available Teleport instance:
 
 ## Auth Service backend
 
-{/*TODO: research/outline the requirements*/}
+The Teleport Auth Service uses a backend to store audit events, Teleport cluster
+state, and session recordings. Single-instance Auth Service deployments use a
+local sqlite database for storage. For high-availability deployments, you must
+deploy the backend separately from your cluster of Teleport instances. 
 
-The Teleport Auth Service needs access to its backend. If you are using
-cloud-managed solutions, you should use your cloud provider's RBAC system (e.g.,
-AWS IAM) to grant a role to the Auth Service to read data from and write data to
-the backend and session store.
+### Cluster state and audit events
 
-## Session recording storage
+The Teleport Auth Service stores cluster state (such as dynamic configuration
+resources) and audit events as key/value pairs. 
 
-{/*TODO: research/outline the requirements*/}
+The Auth Service supports the following backends for cluster state and audit
+events:
 
-The Teleport Auth Service needs access to its session recording store. If you
-are using cloud-managed solutions, you should use your cloud provider's RBAC
-system (e.g., AWS IAM) to grant a role to the Auth Service to read data from and
-write data to the backend and session store.
+- AWS DynamoDB
+- Google Cloud Firestore
+- etcd
+
+For AWS DynamoDB and Google Cloud Firestore, your Teleport configuration (which
+we will describe in more detail in the [Configuration](#configuration) section)
+names a table or collection where Teleport stores cluster state and audit
+events. For etcd, Teleport uses namespaces within item keys to identify audit
+events and cluster state data.
+
+In AWS DynamoDB and Google Cloud Firestore, the Teleport Auth Service manages
+the creation of any required tables or collections itself, and does not require
+them to exist in advance.
+
+<Admonition title="Required permissions">
+
+In your cloud provider's RBAC solution, your Teleport instances need permissions
+to read from and write to your chosen key/value store, as well as to create
+tables and collections (if your key/value store supports them).
+
+</Admonition>
+
+#### Session recordings
+
+High-availability Teleport deployments use an object storage service for session
+recordings. The Teleport Auth Service supports two object storage services:
+
+- Amazon S3 
+- Google Cloud Storage
+
+In your Teleport configuration (described in the [Configuration](#configuration)
+section), you must name a GCS or S3 bucket to use for managing session
+recordings. The Teleport Auth Service creates this bucket, so to prevent
+unexpected behavior, you should not create it in advance. 
+
+<Admonition title="Required permissions">
+
+In your cloud provider's RBAC solution, your Teleport instances need
+permissions to create, read from, and write to buckets.
+
+</Admonition>
 
 ## DNS service
 
@@ -158,17 +197,34 @@ port, you can plan to leave that port closed.
 
 *This is the same table of ports we used to configure the load balancer.*
 
+### License file
+
+If you are deploying Teleport Enterprise, you need to download a license file
+and make it available to your Teleport instances.
+
+To obtain your license file, visit the [Teleport customer
+dashboard](https://dashboard.gravitational.com/web/login) and log in. Click
+"DOWNLOAD LICENSE KEY". You will see your current Teleport Enterprise account
+permissions and the option to download your license file:
+
+![License File modal](../../../img/enterprise/license.png)
+
+The license file must be available to each Teleport instance at
+`/var/lib/teleport/license.pem`. 
+
 ### Configuration
 
-Ensure that the each Teleport instance contains a configuration file similar to
-the following. We have included examples of using two persistent storage
-solutions for the Auth Service backend, audit logs, and storing session
-recordings:
+Create a configuration file and provide it to each of your Teleport instances at
+`/etc/teleport.yaml`. We will explain the required configuration fields for a
+high-availability Teleport deployment below. These are the minimum requirements,
+and when planning your high-availability deployment, you will want to follow a
+more specific [deployment guide](introduction.mdx) for your environment. 
+
+Here is an example high-availability configuration file configured for two
+backends, AWS DynamoDB and Google Cloud Firestore:
 
 <Tabs>
 <TabItem label="AWS DynamoDB">
-
-{/*TODO: double-check the table_name and uri fields*/} 
 
 ```yaml
     version: v1
@@ -176,10 +232,10 @@ recordings:
       storage:
         type: dynamodb
         region: "us-east-1" # Or another region
-        table_name: "my-table" 
+        table_name: "my-kv-table" 
         audit_events_uri: ["dynamodb://my-audit-events-table", "stdout://"]
-        audit_sessions_uri: "s3://my-session-recording-bucket"
         continuous_backups: true
+        audit_sessions_uri: "s3://my-session-recording-bucket"
      auth_service:
       enabled: true
       cluster_name: "mycluster.example.com"
@@ -195,7 +251,7 @@ recordings:
       enabled: false
 ```
 </TabItem>
-<TabItem label="AWS DynamoDB">
+<TabItem label="Google cloud Firestore">
 
 ```yaml
     version: v1
@@ -222,9 +278,60 @@ recordings:
       enabled: false
 ```
 </TabItem>
+<TabItem label="etcd">
+```yaml
+version: v1
+teleport:
+  storage:
+    type: etcd
+    peers: ["https://172.17.0.1:4001", "https://172.17.0.2:4001"]
+    tls_cert_file: /var/lib/teleport/etcd-cert.pem
+    tls_key_file: /var/lib/teleport/etcd-key.pem
+    tls_ca_file: /var/lib/teleport/etcd-ca.pem
+    username: username
+    password_file: /mnt/secrets/etcd-pass
+    prefix: /teleport/
+    insecure: false
+    etcd_max_client_msg_size_bytes: 15728640
+    audit_sessions_uri: "s3://my-session-recording-bucket"
+  auth_service:
+    enabled: true
+    cluster_name: "mycluster.example.com"
+    # Remove this if not using Teleport Enterprise
+    license_file: "/var/lib/license/license.pem"
+  proxy_service:
+    public_addr: "mycluster.example.com:443"
+    enabled: true
+    https_keypairs:
+    - key_file: /etc/teleport-tls/tls.key
+      cert_file: /etc/teleport-tls/tls.crt
+  ssh_service:
+    enabled: false
+```
+</TabItem>
 </Tabs>
 
-{/*TODO: explain important aspects of the configuration above*/}
+This configuration uses the `v1` version to disable [TLS
+multiplexing](../management/operations/tls-routing.mdx), which is required when
+running Teleport with a load balancer in high-availability mode. 
+
+The `storage` section configures the Auth Service backend. The
+`audit_sessions_uri` names the GCS or S3 bucket to use for session recordings,
+and the remaining fields in `storage` are specific to each backend. Consult our
+[Backends Reference](../reference/backends.mdx) for the values you should use.
+
+In the `auth_service` section, we have enabled the Teleport Auth Service and
+instructed it to find an Enterprise license file at
+`/var/lib/license/license.pem`.
+
+In the `proxy_service` section, we have enabled the Teleport Proxy Service and
+instructed it to find its TLS credentials in the `/etc/teleport-tls` directory.
+
+In our example configurations, we have disabled the Teleport SSH Service by
+setting `ssh_service` to `false`. This is suitable for Kubernetes deployments of
+Teleport, where the `teleport` pod should not have direct access to the
+underlying node. If deploying Teleport on a virtual machine, remove this line to
+enable the SSH Service and enable secure access to the host.
 
 ## Next steps
 
