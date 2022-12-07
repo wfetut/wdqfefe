@@ -42,14 +42,11 @@ required to support them. This includes:
 - An automated system for obtaining TLS credentials from Let's Encrypt, renewing
   the TLS credentials, and provisioning `teleport` processes with them.
 
-{/* TODO: include the diagram--do this after filling in the rest of the
-details*/}
+{/* TODO: include a diagram--do this after filling in the rest of the details*/}
 
 Once your Teleport deployment is up and running, you can add resources by
 launching the Teleport Application Service, Database Service, Kubernetes
 Service, and more. These services are outside the scope of this guide. 
-
-{/*TODO: For each of these, include a list of examples in a Notice*/}
 
 ## Layer Four load balancer
 
@@ -112,7 +109,7 @@ tables and collections (if your key/value store supports them).
 
 </Admonition>
 
-#### Session recordings
+### Session recordings
 
 High-availability Teleport deployments use an object storage service for session
 recordings. The Teleport Auth Service supports two object storage services:
