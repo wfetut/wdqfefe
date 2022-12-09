@@ -221,10 +221,9 @@ func TestWSSLock(t *testing.T) {
 	require.Error(t, err)
 	// Close and re-open the connection. We don't care about the error message here.
 	_ = conn.Close()
+	_ = httpResponse.Body.Close()
 
 	conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
-	require.Error(t, err)
-
 	if conn != nil {
 		defer conn.Close()
 	}
@@ -232,6 +231,7 @@ func TestWSSLock(t *testing.T) {
 	if httpResponse != nil {
 		defer httpResponse.Body.Close()
 	}
+	require.Error(t, err)
 }
 
 // TestWSSCertExpiration tests WSS application with certs expiring.
@@ -299,10 +299,9 @@ func TestWSSCertExpiration(t *testing.T) {
 	require.Error(t, err)
 	// Close and re-open the connection. We don't care about the error message here.
 	_ = conn.Close()
+	_ = httpResponse.Body.Close()
 
 	conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, pack.rootCluster.GetPortWeb()), "/"), header)
-	require.Error(t, err)
-
 	if conn != nil {
 		defer conn.Close()
 	}
@@ -310,6 +309,7 @@ func TestWSSCertExpiration(t *testing.T) {
 	if httpResponse != nil {
 		defer httpResponse.Body.Close()
 	}
+	require.Error(t, err)
 }
 
 // TestAppAccessClientCert tests mutual TLS authentication flow with application
