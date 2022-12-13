@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/windows/ldap"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -46,7 +47,7 @@ type certRequest struct {
 	keyDER      []byte
 }
 
-func getCertRequest(username, domain string, clusterName string, ldapConfig LDAPConfig, activeDirectorySID *string) (*certRequest, error) {
+func getCertRequest(username, domain string, clusterName string, ldapConfig ldap.LDAPConfig, activeDirectorySID *string) (*certRequest, error) {
 	// Important: rdpclient currently only supports 2048-bit RSA keys.
 	// If you switch the key type here, update handle_general_authentication in
 	// rdp/rdpclient/src/piv.rs accordingly.
@@ -104,7 +105,7 @@ func getCertRequest(username, domain string, clusterName string, ldapConfig LDAP
 	// CRLs in it. Each service can also handle RDP connections for a different
 	// domain, with the assumption that some other windows_desktop_service
 	// published a CRL there.
-	crlDN := crlDN(clusterName, ldapConfig)
+	crlDN := ldap.CrlDN(clusterName, ldapConfig)
 	return &certRequest{csrPEM: csrPEM, crlEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN), keyDER: keyDER}, nil
 }
 
@@ -136,7 +137,7 @@ type GenerateCredentialsRequest struct {
 	// encoded in the certificate per https://go.microsoft.com/fwlink/?linkid=2189925.
 	ActiveDirectorySID *string
 	// LDAPConfig is the ldap config
-	LDAPConfig LDAPConfig
+	LDAPConfig ldap.LDAPConfig
 	// AuthClient is the windows AuthInterface
 	AuthClient AuthInterface
 }

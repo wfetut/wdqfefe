@@ -21,12 +21,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-ldap/ldap/v3"
+	goldap "github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/auth/windows/ldap"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -80,11 +80,11 @@ func (s *WindowsService) startDesktopDiscovery() error {
 
 func (s *WindowsService) ldapSearchFilter() string {
 	var filters []string
-	filters = append(filters, fmt.Sprintf("(objectClass=%s)", windows.ComputerClass))
-	filters = append(filters, fmt.Sprintf("(!(objectClass=%s))", windows.GMSAClass))
+	filters = append(filters, fmt.Sprintf("(%s=%s)", ldap.AttrObjectClass, ldap.ClassComputer))
+	filters = append(filters, fmt.Sprintf("(!(%s=%s))", ldap.AttrObjectClass, ldap.ClassGMSA))
 	filters = append(filters, s.cfg.DiscoveryLDAPFilters...)
 
-	return windows.CombineLDAPFilters(filters)
+	return ldap.CombineLDAPFilters(filters)
 }
 
 // getDesktopsFromLDAP discovers Windows hosts via LDAP
@@ -151,25 +151,25 @@ func (s *WindowsService) deleteDesktop(ctx context.Context, r types.ResourceWith
 	return s.cfg.AuthClient.DeleteWindowsDesktop(ctx, d.GetHostID(), d.GetName())
 }
 
-func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[string]string) {
+func (s *WindowsService) applyLabelsFromLDAP(entry *goldap.Entry, labels map[string]string) {
 	// apply common LDAP labels by default
 	labels[types.OriginLabel] = types.OriginDynamic
-	labels[types.TeleportNamespace+"/dns_host_name"] = entry.GetAttributeValue(windows.AttrDNSHostName)
-	labels[types.TeleportNamespace+"/computer_name"] = entry.GetAttributeValue(windows.AttrName)
-	labels[types.TeleportNamespace+"/os"] = entry.GetAttributeValue(windows.AttrOS)
-	labels[types.TeleportNamespace+"/os_version"] = entry.GetAttributeValue(windows.AttrOSVersion)
+	labels[types.TeleportNamespace+"/dns_host_name"] = entry.GetAttributeValue(ldap.AttrDNSHostName)
+	labels[types.TeleportNamespace+"/computer_name"] = entry.GetAttributeValue(ldap.AttrName)
+	labels[types.TeleportNamespace+"/os"] = entry.GetAttributeValue(ldap.AttrOS)
+	labels[types.TeleportNamespace+"/os_version"] = entry.GetAttributeValue(ldap.AttrOSVersion)
 
 	// attempt to compute the desktop's OU from its DN
-	dn := entry.GetAttributeValue(windows.AttrDistinguishedName)
-	cn := entry.GetAttributeValue(windows.AttrCommonName)
+	dn := entry.GetAttributeValue(ldap.AttrDistinguishedName)
+	cn := entry.GetAttributeValue(ldap.AttrCommonName)
 	if len(dn) > 0 && len(cn) > 0 {
 		ou := strings.TrimPrefix(dn, "CN="+cn+",")
 		labels[types.TeleportNamespace+"/ou"] = ou
 	}
 
 	// label domain controllers
-	switch entry.GetAttributeValue(windows.AttrPrimaryGroupID) {
-	case windows.WritableDomainControllerGroupID, windows.ReadOnlyDomainControllerGroupID:
+	switch entry.GetAttributeValue(ldap.AttrPrimaryGroupID) {
+	case ldap.WritableDomainControllerGroupID, ldap.ReadOnlyDomainControllerGroupID:
 		labels[types.TeleportNamespace+"/is_domain_controller"] = "true"
 	}
 
@@ -200,8 +200,8 @@ func (s *WindowsService) lookupDesktop(ctx context.Context, hostname string) (ad
 
 // ldapEntryToWindowsDesktop generates the Windows Desktop resource
 // from an LDAP search result
-func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *ldap.Entry, getHostLabels func(string) map[string]string) (types.ResourceWithLabels, error) {
-	hostname := entry.GetAttributeValue(windows.AttrDNSHostName)
+func (s *WindowsService) ldapEntryToWindowsDesktop(ctx context.Context, entry *goldap.Entry, getHostLabels func(string) map[string]string) (types.ResourceWithLabels, error) {
+	hostname := entry.GetAttributeValue(ldap.AttrDNSHostName)
 	labels := getHostLabels(hostname)
 	labels[types.TeleportNamespace+"/windows_domain"] = s.cfg.Domain
 	s.applyLabelsFromLDAP(entry, labels)

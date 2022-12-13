@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/auth/windows/ldap"
 )
 
 const (
@@ -228,7 +229,7 @@ func (d *DBCertGetter) GetCertificateBytes(ctx context.Context) (*WindowsCAAndKe
 		Domain:      d.RealmName,
 		TTL:         certTTL,
 		ClusterName: clusterName.GetClusterName(),
-		LDAPConfig: windows.LDAPConfig{
+		LDAPConfig: ldap.LDAPConfig{
 			Addr:               d.KDCHostName,
 			Domain:             d.RealmName,
 			Username:           d.UserName,

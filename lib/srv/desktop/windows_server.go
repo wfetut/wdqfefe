@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-ldap/ldap/v3"
+	goldap "github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/auth/windows/ldap"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -83,14 +84,14 @@ const (
 // Windows hosts via LDAP
 // see: https://docs.microsoft.com/en-us/windows/win32/adschema/c-computer#windows-server-2012-attributes
 var ComputerAttributes = []string{
-	windows.AttrName,
-	windows.AttrCommonName,
-	windows.AttrDistinguishedName,
-	windows.AttrDNSHostName,
-	windows.AttrObjectGUID,
-	windows.AttrOS,
-	windows.AttrOSVersion,
-	windows.AttrPrimaryGroupID,
+	ldap.AttrName,
+	ldap.AttrCommonName,
+	ldap.AttrDistinguishedName,
+	ldap.AttrDNSHostName,
+	ldap.AttrObjectGUID,
+	ldap.AttrOS,
+	ldap.AttrOSVersion,
+	ldap.AttrPrimaryGroupID,
 }
 
 // WindowsService implements the RDP-based Windows desktop access service.
@@ -103,7 +104,7 @@ type WindowsService struct {
 	middleware *auth.Middleware
 
 	ca *windows.CertificateStoreClient
-	lc *windows.LDAPClient
+	lc *ldap.LDAPClient
 
 	mu              sync.Mutex // mu protects the fields that follow
 	ldapInitialized bool
@@ -162,7 +163,7 @@ type WindowsServiceConfig struct {
 	// HostLabelsFn gets labels that should be applied to a Windows host.
 	HostLabelsFn func(host string) map[string]string
 	// LDAPConfig contains parameters for connecting to an LDAP server.
-	windows.LDAPConfig
+	ldap.LDAPConfig
 	// DiscoveryBaseDN is the base DN for searching for Windows Desktops.
 	// Desktop discovery is disabled if this field is empty.
 	DiscoveryBaseDN string
@@ -198,13 +199,13 @@ func (cfg *WindowsServiceConfig) checkAndSetDiscoveryDefaults() error {
 	case cfg.DiscoveryBaseDN == types.Wildcard:
 		cfg.DiscoveryBaseDN = cfg.DomainDN()
 	case len(cfg.DiscoveryBaseDN) > 0:
-		if _, err := ldap.ParseDN(cfg.DiscoveryBaseDN); err != nil {
+		if _, err := goldap.ParseDN(cfg.DiscoveryBaseDN); err != nil {
 			return trace.BadParameter("WindowsServiceConfig contains an invalid base_dn: %v", err)
 		}
 	}
 
 	for _, filter := range cfg.DiscoveryLDAPFilters {
-		if _, err := ldap.CompileFilter(filter); err != nil {
+		if _, err := goldap.CompileFilter(filter); err != nil {
 			return trace.BadParameter("WindowsServiceConfig contains an invalid LDAP filter %q: %v", filter, err)
 		}
 	}
@@ -319,7 +320,7 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 				return d.DialContext(ctx, network, dnsAddr)
 			},
 		},
-		lc:          &windows.LDAPClient{Cfg: cfg.LDAPConfig},
+		lc:          &ldap.LDAPClient{Cfg: cfg.LDAPConfig},
 		clusterName: clusterName.GetClusterName(),
 		closeCtx:    ctx,
 		close:       close,
@@ -477,8 +478,8 @@ func (s *WindowsService) initializeLDAP() error {
 		return trace.Wrap(err)
 	}
 
-	conn, err := ldap.DialURL("ldaps://"+s.cfg.Addr,
-		ldap.DialWithTLSDialer(tc, &net.Dialer{Timeout: ldapDialTimeout}))
+	conn, err := goldap.DialURL("ldaps://"+s.cfg.Addr,
+		goldap.DialWithTLSDialer(tc, &net.Dialer{Timeout: ldapDialTimeout}))
 	if err != nil {
 		s.mu.Lock()
 		s.ldapInitialized = false
@@ -799,8 +800,12 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {
 			// Find the user's SID
 			s.cfg.Log.Debugf("querying LDAP for objectSid of Windows username: %v", username)
-			filters := []string{fmt.Sprintf("(%s=person)", windows.AttrObjectCategory), fmt.Sprintf("(%s=user)", windows.AttrObjectClass), fmt.Sprintf("(name=%s)", username)}
-			entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), windows.CombineLDAPFilters(filters), []string{windows.AttrObjectSid})
+			filters := []string{
+				fmt.Sprintf("(%s=%s)", ldap.AttrObjectCategory, ldap.CategoryPerson),
+				fmt.Sprintf("(%s=%s)", ldap.AttrObjectClass, ldap.ClassUser),
+				fmt.Sprintf("(%s=%s)", ldap.AttrName, username),
+			}
+			entries, err := s.lc.ReadWithFilter(s.cfg.LDAPConfig.DomainDN(), ldap.CombineLDAPFilters(filters), []string{ldap.AttrObjectSid})
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}
@@ -810,7 +815,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 				s.cfg.Log.Warnf("LDAP unexpectedly returned multiple entries for objectSid for username: %v, taking the first", username)
 			}
 			entry := entries[0]
-			activeDirectorySID, err := windows.ADSIDStringFromLDAPEntry(entry)
+			activeDirectorySID, err := ldap.ADSIDStringFromLDAPEntry(entry)
 			if err != nil {
 				return nil, nil, trace.Wrap(err)
 			}

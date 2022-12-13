@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package windows
+package ldap
 
 import (
 	"crypto/x509"
@@ -22,7 +22,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/go-ldap/ldap/v3"
+	goldap "github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 )
 
@@ -73,19 +73,24 @@ func (cfg LDAPConfig) DomainDN() string {
 }
 
 const (
-	// ComputerClass is the object class for computers in Active Directory
-	ComputerClass = "computer"
-	// ContainerClass is the object class for containers in Active Directory
-	ContainerClass = "container"
-	// GMSAClass is the object class for group managed service accounts in Active Directory.
-	GMSAClass = "msDS-GroupManagedServiceAccount"
-
 	// See: https://docs.microsoft.com/en-US/windows/security/identity-protection/access-control/security-identifiers
 
 	// WritableDomainControllerGroupID is the windows security identifier for dcs with write permissions
 	WritableDomainControllerGroupID = "516"
 	// ReadOnlyDomainControllerGroupID is the windows security identifier for read only dcs
 	ReadOnlyDomainControllerGroupID = "521"
+
+	// ClassComputer is the object class for computers in Active Directory
+	ClassComputer = "computer"
+	// ClassContainer is the object class for containers in Active Directory
+	ClassContainer = "container"
+	// ClassGMSA is the object class for group managed service accounts in Active Directory.
+	ClassGMSA = "msDS-GroupManagedServiceAccount"
+	// ClassUser is the object class for users in Active Directory
+	ClassUser = "user"
+
+	// CategoryPerson is object category for persons in Active Directory
+	CategoryPerson = "person"
 
 	// AttrName is the name of an LDAP object
 	AttrName = "name"
@@ -119,11 +124,11 @@ type LDAPClient struct {
 	Cfg LDAPConfig
 
 	mu     sync.Mutex
-	client ldap.Client
+	client goldap.Client
 }
 
 // SetClient sets the underlying ldap.Client
-func (c *LDAPClient) SetClient(client ldap.Client) {
+func (c *LDAPClient) SetClient(client goldap.Client) {
 	c.mu.Lock()
 	if c.client != nil {
 		c.client.Close()
@@ -143,11 +148,11 @@ func (c *LDAPClient) Close() {
 
 // ReadWithFilter searches the specified DN (and its children) using the specified LDAP filter.
 // See https://ldap.com/ldap-filters/ for more information on LDAP filter syntax.
-func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([]*ldap.Entry, error) {
-	req := ldap.NewSearchRequest(
+func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([]*goldap.Entry, error) {
+	req := goldap.NewSearchRequest(
 		dn,
-		ldap.ScopeWholeSubtree,
-		ldap.DerefAlways,
+		goldap.ScopeWholeSubtree,
+		goldap.DerefAlways,
 		0,     // no SizeLimit
 		0,     // no TimeLimit
 		false, // TypesOnly == false, we want attribute values
@@ -158,7 +163,7 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	res, err := c.client.Search(req)
-	if ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
+	if goldap.IsErrorWithCode(err, goldap.ErrorNetwork) {
 		return nil, trace.ConnectionProblem(err, "fetching LDAP object %q", dn)
 	} else if err != nil {
 		return nil, trace.Wrap(err, "fetching LDAP object %q: %v", dn, err)
@@ -174,7 +179,7 @@ func (c *LDAPClient) ReadWithFilter(dn string, filter string, attrs []string) ([
 // specific entry using ADSIEdit.msc.
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
-func (c *LDAPClient) Read(dn string, class string, attrs []string) ([]*ldap.Entry, error) {
+func (c *LDAPClient) Read(dn string, class string, attrs []string) ([]*goldap.Entry, error) {
 	return c.ReadWithFilter(dn, fmt.Sprintf("(%s=%s)", AttrObjectClass, class), attrs)
 }
 
@@ -187,7 +192,7 @@ func (c *LDAPClient) Read(dn string, class string, attrs []string) ([]*ldap.Entr
 // You can find the list of all AD classes at
 // https://docs.microsoft.com/en-us/windows/win32/adschema/classes-all
 func (c *LDAPClient) Create(dn string, class string, attrs map[string][]string) error {
-	req := ldap.NewAddRequest(dn, nil)
+	req := goldap.NewAddRequest(dn, nil)
 	for k, v := range attrs {
 		req.Attribute(k, v)
 	}
@@ -197,15 +202,15 @@ func (c *LDAPClient) Create(dn string, class string, attrs map[string][]string) 
 	defer c.mu.Unlock()
 
 	if err := c.client.Add(req); err != nil {
-		if ldapErr, ok := err.(*ldap.Error); ok {
+		if ldapErr, ok := err.(*goldap.Error); ok {
 			switch ldapErr.ResultCode {
-			case ldap.LDAPResultEntryAlreadyExists:
+			case goldap.LDAPResultEntryAlreadyExists:
 				return trace.AlreadyExists("LDAP object %q already exists: %v", dn, err)
-			case ldap.LDAPResultConstraintViolation:
+			case goldap.LDAPResultConstraintViolation:
 				return trace.BadParameter("object constraint violation on %q: %v", dn, err)
-			case ldap.LDAPResultInsufficientAccessRights:
+			case goldap.LDAPResultInsufficientAccessRights:
 				return trace.AccessDenied("insufficient permissions to create %q: %v", dn, err)
-			case ldap.ErrorNetwork:
+			case goldap.ErrorNetwork:
 				return trace.ConnectionProblem(err, "network error creating %q", dn)
 			}
 		}
@@ -217,11 +222,11 @@ func (c *LDAPClient) Create(dn string, class string, attrs map[string][]string) 
 // CreateContainer creates an LDAP container entry if
 // it doesn't already exist.
 func (c *LDAPClient) CreateContainer(dn string) error {
-	err := c.Create(dn, ContainerClass, nil)
+	err := c.Create(dn, ClassContainer, nil)
 	// Ignore the error if container already exists.
 	if trace.IsAlreadyExists(err) {
 		return nil
-	} else if ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
+	} else if goldap.IsErrorWithCode(err, goldap.ErrorNetwork) {
 		return trace.ConnectionProblem(err, "creating %v", dn)
 	}
 	return trace.Wrap(err)
@@ -236,7 +241,7 @@ func (c *LDAPClient) CreateContainer(dn string) error {
 // You can browse LDAP on the Windows host to find attributes of existing
 // entries using ADSIEdit.msc.
 func (c *LDAPClient) Update(dn string, replaceAttrs map[string][]string) error {
-	req := ldap.NewModifyRequest(dn, nil)
+	req := goldap.NewModifyRequest(dn, nil)
 	for k, v := range replaceAttrs {
 		req.Replace(k, v)
 	}
@@ -244,7 +249,7 @@ func (c *LDAPClient) Update(dn string, replaceAttrs map[string][]string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if err := c.client.Modify(req); ldap.IsErrorWithCode(err, ldap.ErrorNetwork) {
+	if err := c.client.Modify(req); goldap.IsErrorWithCode(err, goldap.ErrorNetwork) {
 		return trace.ConnectionProblem(err, "updating %q", dn)
 	} else if err != nil {
 		return trace.Wrap(err, "updating %q: %v", dn, err)
@@ -257,10 +262,10 @@ func CombineLDAPFilters(filters []string) string {
 	return "(&" + strings.Join(filters, "") + ")"
 }
 
-func crlContainerDN(config LDAPConfig) string {
+func CrlContainerDN(config LDAPConfig) string {
 	return "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration," + config.DomainDN()
 }
 
-func crlDN(clusterName string, config LDAPConfig) string {
-	return "CN=" + clusterName + "," + crlContainerDN(config)
+func CrlDN(clusterName string, config LDAPConfig) string {
+	return "CN=" + clusterName + "," + CrlContainerDN(config)
 }

@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/windows/ldap"
 )
 
 // NewCertificateStoreClient returns a new structure for modifying windows certificates in a windows CA
@@ -43,13 +44,13 @@ type CertificateStoreConfig struct {
 	// AccessPoint is the Auth API client (with caching).
 	AccessPoint auth.WindowsDesktopAccessPoint
 	// LDAPConfig is the ldap configuration
-	LDAPConfig
+	ldap.LDAPConfig
 	// Log is the logging sink for the service
 	Log logrus.FieldLogger
 	// ClusterName is the name of this cluster
 	ClusterName string
 	// LC is the LDAPClient
-	LC *LDAPClient
+	LC *ldap.LDAPClient
 }
 
 // Update publishes the certificate to the current cluster's certificate authority
@@ -169,8 +170,8 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte) e
 	// after the Teleport cluster name. For example, CRL for cluster "prod"
 	// will be placed at:
 	// ... > CDP > Teleport > prod
-	containerDN := crlContainerDN(c.cfg.LDAPConfig)
-	crlDN := crlDN(c.cfg.ClusterName, c.cfg.LDAPConfig)
+	containerDN := ldap.CrlContainerDN(c.cfg.LDAPConfig)
+	crlDN := ldap.CrlDN(c.cfg.ClusterName, c.cfg.LDAPConfig)
 
 	// Create the parent container.
 	if err := c.cfg.LC.CreateContainer(containerDN); err != nil {

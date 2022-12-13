@@ -35,7 +35,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/go-ldap/ldap/v3"
+	goldap "github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -1538,7 +1538,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	for _, filter := range fc.WindowsDesktop.Discovery.Filters {
-		if _, err := ldap.CompileFilter(filter); err != nil {
+		if _, err := goldap.CompileFilter(filter); err != nil {
 			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
 		}
 	}

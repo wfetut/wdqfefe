@@ -24,12 +24,12 @@
 // CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-package windows
+package ldap
 
 import (
 	"fmt"
 
-	"github.com/go-ldap/ldap/v3"
+	goldap "github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
 )
 
@@ -75,7 +75,7 @@ func decodeADSID(b []byte) adSID {
 	return sid
 }
 
-func ADSIDStringFromLDAPEntry(entry *ldap.Entry) (string, error) {
+func ADSIDStringFromLDAPEntry(entry *goldap.Entry) (string, error) {
 	bytes := entry.GetRawAttributeValue(AttrObjectSid)
 	if len(bytes) == 0 {
 		return "", trace.Errorf("failed to find %v", AttrObjectSid)

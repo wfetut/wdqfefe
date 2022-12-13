@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/windows/ldap"
 )
 
 // TestGenerateCredentials verifies that the smartcard certificates generated
@@ -57,7 +58,7 @@ func TestGenerateCredentials(t *testing.T) {
 		require.NoError(t, client.Close())
 	})
 
-	ldapConfig := LDAPConfig{
+	ldapConfig := ldap.LDAPConfig{
 		Domain: domain,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -152,10 +153,10 @@ func TestCRLDN(t *testing.T) {
 		},
 	} {
 		t.Run(test.clusterName, func(t *testing.T) {
-			cfg := LDAPConfig{
+			cfg := ldap.LDAPConfig{
 				Domain: "test.goteleport.com",
 			}
-			require.Equal(t, test.crlDN, crlDN(test.clusterName, cfg))
+			require.Equal(t, test.crlDN, ldap.CrlDN(test.clusterName, cfg))
 		})
 	}
 }

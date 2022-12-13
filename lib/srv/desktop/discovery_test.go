@@ -18,11 +18,11 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/go-ldap/ldap/v3"
+	goldap "github.com/go-ldap/ldap/v3"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/auth/windows/ldap"
 )
 
 // TestDiscoveryLDAPFilter verifies that WindowsService produces a valid
@@ -56,7 +56,7 @@ func TestDiscoveryLDAPFilter(t *testing.T) {
 			}
 
 			filter := s.ldapSearchFilter()
-			_, err := ldap.CompileFilter(filter)
+			_, err := goldap.CompileFilter(filter)
 			test.assert(t, err)
 		})
 	}
@@ -64,15 +64,15 @@ func TestDiscoveryLDAPFilter(t *testing.T) {
 
 func TestAppliesLDAPLabels(t *testing.T) {
 	l := make(map[string]string)
-	entry := ldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
-		windows.AttrDNSHostName:       {"foo.example.com"},
-		windows.AttrName:              {"foo"},
-		windows.AttrOS:                {"Windows Server"},
-		windows.AttrOSVersion:         {"6.1"},
-		windows.AttrDistinguishedName: {"CN=foo,OU=IT,DC=goteleport,DC=com"},
-		windows.AttrCommonName:        {"foo"},
-		"bar":                         {"baz"},
-		"quux":                        {""},
+	entry := goldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
+		ldap.AttrDNSHostName:       {"foo.example.com"},
+		ldap.AttrName:              {"foo"},
+		ldap.AttrOS:                {"Windows Server"},
+		ldap.AttrOSVersion:         {"6.1"},
+		ldap.AttrDistinguishedName: {"CN=foo,OU=IT,DC=goteleport,DC=com"},
+		ldap.AttrCommonName:        {"foo"},
+		"bar":                      {"baz"},
+		"quux":                     {""},
 	})
 
 	s := &WindowsService{
@@ -101,27 +101,27 @@ func TestLabelsDomainControllers(t *testing.T) {
 	s := &WindowsService{}
 	for _, test := range []struct {
 		desc   string
-		entry  *ldap.Entry
+		entry  *goldap.Entry
 		assert require.BoolAssertionFunc
 	}{
 		{
 			desc: "DC",
-			entry: ldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
-				windows.AttrPrimaryGroupID: {windows.WritableDomainControllerGroupID},
+			entry: goldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
+				ldap.AttrPrimaryGroupID: {ldap.WritableDomainControllerGroupID},
 			}),
 			assert: require.True,
 		},
 		{
 			desc: "RODC",
-			entry: ldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
-				windows.AttrPrimaryGroupID: {windows.ReadOnlyDomainControllerGroupID},
+			entry: goldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
+				ldap.AttrPrimaryGroupID: {ldap.ReadOnlyDomainControllerGroupID},
 			}),
 			assert: require.True,
 		},
 		{
 			desc: "computer",
-			entry: ldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
-				windows.AttrPrimaryGroupID: {"515"},
+			entry: goldap.NewEntry("CN=test,DC=example,DC=com", map[string][]string{
+				ldap.AttrPrimaryGroupID: {"515"},
 			}),
 			assert: require.False,
 		},

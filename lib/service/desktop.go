@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/auth/windows/ldap"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -215,7 +215,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			StaticHosts: cfg.WindowsDesktop.Hosts,
 			OnHeartbeat: process.onHeartbeat(teleport.ComponentWindowsDesktop),
 		},
-		LDAPConfig:                   windows.LDAPConfig(cfg.WindowsDesktop.LDAP),
+		LDAPConfig:                   ldap.LDAPConfig(cfg.WindowsDesktop.LDAP),
 		DiscoveryBaseDN:              cfg.WindowsDesktop.Discovery.BaseDN,
 		DiscoveryLDAPFilters:         cfg.WindowsDesktop.Discovery.Filters,
 		DiscoveryLDAPAttributeLabels: cfg.WindowsDesktop.Discovery.LabelAttributes,
