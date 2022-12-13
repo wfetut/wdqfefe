@@ -3436,7 +3436,7 @@ func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref typ
 		}
 	}
 
-	return a.authServer.SetAuthPreference(ctx, newAuthPref)
+	return a.setAuthPreference(ctx, storedAuthPref, newAuthPref)
 }
 
 // ResetAuthPreference resets cluster auth preference to defaults.
@@ -3453,7 +3453,18 @@ func (a *ServerWithRoles) ResetAuthPreference(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.SetAuthPreference(ctx, types.DefaultAuthPreference())
+	return a.setAuthPreference(ctx, storedAuthPref, types.DefaultAuthPreference())
+}
+
+// setAuthPreference sets cluster auth preference, validating if the update is allowed in cloud.
+func (a *ServerWithRoles) setAuthPreference(ctx context.Context, storedAuthPref, newAuthPref types.AuthPreference) error {
+	// Perform the modules-provided checks.
+	isAdmin := a.hasBuiltinRole(types.RoleAdmin)
+	if err := modules.ValidateAuthPreference(isAdmin, storedAuthPref, newAuthPref); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.SetAuthPreference(ctx, newAuthPref)
 }
 
 // DeleteAuthPreference not implemented: can only be called locally.
@@ -3513,7 +3524,7 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		return trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
-	return a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
+	return a.setClusterNetworkingConfig(ctx, storedNetConfig, newNetConfig)
 }
 
 // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
@@ -3532,7 +3543,18 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		}
 	}
 
-	return a.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	return a.setClusterNetworkingConfig(ctx, storedNetConfig, types.DefaultClusterNetworkingConfig())
+}
+
+// setClusterNetworkingConfig sets cluster networking configuration, validating if the update is allowed in cloud.
+func (a *ServerWithRoles) setClusterNetworkingConfig(ctx context.Context, storedNetConfig, newNetConfig types.ClusterNetworkingConfig) error {
+	// Perform the modules-provided checks.
+	isAdmin := a.hasBuiltinRole(types.RoleAdmin)
+	if err := modules.ValidateClusterNetworkingConfig(isAdmin, storedNetConfig, newNetConfig); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
 }
 
 // DeleteClusterNetworkingConfig not implemented: can only be called locally.
@@ -3563,7 +3585,7 @@ func (a *ServerWithRoles) SetSessionRecordingConfig(ctx context.Context, newRecC
 		}
 	}
 
-	return a.authServer.SetSessionRecordingConfig(ctx, newRecConfig)
+	return a.setSessionRecordingConfig(ctx, storedRecConfig, newRecConfig)
 }
 
 // ResetSessionRecordingConfig resets session recording configuration to defaults.
@@ -3582,7 +3604,18 @@ func (a *ServerWithRoles) ResetSessionRecordingConfig(ctx context.Context) error
 		}
 	}
 
-	return a.authServer.SetSessionRecordingConfig(ctx, types.DefaultSessionRecordingConfig())
+	return a.setSessionRecordingConfig(ctx, storedRecConfig, types.DefaultSessionRecordingConfig())
+}
+
+// setSessionRecordingConfig sets session recording configuration, validating if the update is allowed in cloud.
+func (a *ServerWithRoles) setSessionRecordingConfig(ctx context.Context, storedRecConfig, newRecConfig types.SessionRecordingConfig) error {
+	// Perform the modules-provided checks.
+	isAdmin := a.hasBuiltinRole(types.RoleAdmin)
+	if err := modules.ValidateSessionRecordingConfig(isAdmin, storedRecConfig, newRecConfig); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.SetSessionRecordingConfig(ctx, newRecConfig)
 }
 
 // DeleteSessionRecordingConfig not implemented: can only be called locally.

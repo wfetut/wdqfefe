@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1056,6 +1057,304 @@ func TestSessionRecordingConfigRBAC(t *testing.T) {
 			return s.ResetSessionRecordingConfig(ctx)
 		},
 	})
+}
+
+func TestValidateAuthPreferenceOnCloud(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create non-admin user.
+	_, _, err := CreateUserAndRole(srv.Auth(), "remote", []string{"role"})
+	require.NoError(t, err)
+
+	// This test cannot run in parallel as set module changes the global state.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
+
+	tests := []struct {
+		desc     string
+		identity TestIdentity
+		resource types.AuthPreference
+		err      string
+	}{
+		{
+			desc:     "user can set default auth preference",
+			identity: TestUser("remote"),
+			resource: types.DefaultAuthPreference(),
+		},
+		{
+			desc:     "user cannot disable 2fa",
+			identity: TestUser("remote"),
+			resource: func() types.AuthPreference {
+				r := types.DefaultAuthPreference()
+				r.SetSecondFactor(constants.SecondFactorOff)
+				return r
+			}(),
+			err: "cannot disable two-factor authentication on Cloud",
+		},
+		{
+			desc:     "user cannot set 2fa as optional",
+			identity: TestUser("remote"),
+			resource: func() types.AuthPreference {
+				r := types.DefaultAuthPreference()
+				r.SetSecondFactor(constants.SecondFactorOptional)
+				r.SetWebauthn(&types.Webauthn{RPID: "localhost"})
+				return r
+			}(),
+			err: "cannot disable two-factor authentication on Cloud",
+		},
+		{
+			desc:     "admin can set 2fa as optional",
+			identity: TestAdmin(),
+			resource: func() types.AuthPreference {
+				r := types.DefaultAuthPreference()
+				r.SetSecondFactor(constants.SecondFactorOptional)
+				r.SetWebauthn(&types.Webauthn{RPID: "localhost"})
+				return r
+			}(),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+
+			err = client.SetAuthPreference(ctx, test.resource)
+			if test.err != "" {
+				require.ErrorContains(t, err, test.err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateClusterNetworkingConfigCloud(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create non-admin user.
+	_, _, err := CreateUserAndRole(srv.Auth(), "remote", []string{"role"})
+	require.NoError(t, err)
+
+	// This test cannot run in parallel as set module changes the global state.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
+
+	tests := []struct {
+		desc     string
+		identity TestIdentity
+		resource types.ClusterNetworkingConfig
+		err      string
+	}{
+		{
+			desc:     "user can set default networking config",
+			identity: TestUser("remote"),
+			resource: types.DefaultClusterNetworkingConfig(),
+		},
+		{
+			desc:     "user cannot change keep alive interval",
+			identity: TestUser("remote"),
+			resource: func() types.ClusterNetworkingConfig {
+				r := types.DefaultClusterNetworkingConfig()
+				r.SetKeepAliveInterval(1 * time.Hour)
+				return r
+			}(),
+			err: "cannot change keep alive interval on Cloud",
+		},
+		{
+			desc:     "user cannot change keep alive count max",
+			identity: TestUser("remote"),
+			resource: func() types.ClusterNetworkingConfig {
+				r := types.DefaultClusterNetworkingConfig()
+				r.SetKeepAliveCountMax(10)
+				return r
+			}(),
+			err: "cannot change keep alive count max on Cloud",
+		},
+		{
+			desc:     "user cannot change proxy listener mode",
+			identity: TestUser("remote"),
+			resource: func() types.ClusterNetworkingConfig {
+				r := types.DefaultClusterNetworkingConfig()
+				r.SetProxyListenerMode(1)
+				return r
+			}(),
+			err: "cannot change proxy listener mode on Cloud",
+		},
+		{
+			desc:     "user cannot change tunnel strategy type",
+			identity: TestUser("remote"),
+			resource: func() types.ClusterNetworkingConfig {
+				r := types.DefaultClusterNetworkingConfig()
+				r.SetTunnelStrategy(
+					&types.TunnelStrategyV1{
+						Strategy: &types.TunnelStrategyV1_ProxyPeering{
+							ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
+						},
+					},
+				)
+				return r
+			}(),
+			err: "cannot change tunnel strategy type on Cloud",
+		},
+		{
+			desc:     "admin can change tunnel strategy type",
+			identity: TestAdmin(),
+			resource: func() types.ClusterNetworkingConfig {
+				r := types.DefaultClusterNetworkingConfig()
+				r.SetTunnelStrategy(
+					&types.TunnelStrategyV1{
+						Strategy: &types.TunnelStrategyV1_ProxyPeering{
+							ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
+						},
+					},
+				)
+				return r
+			}(),
+		},
+		{
+			desc:     "user cannot change agent connection count",
+			identity: TestUser("remote"),
+			resource: func() types.ClusterNetworkingConfig {
+				r := types.DefaultClusterNetworkingConfig()
+				r.SetTunnelStrategy(
+					&types.TunnelStrategyV1{
+						Strategy: &types.TunnelStrategyV1_ProxyPeering{
+							ProxyPeering: &types.ProxyPeeringTunnelStrategy{
+								AgentConnectionCount: 10,
+							},
+						},
+					},
+				)
+				return r
+			}(),
+			err: "cannot change agent connection count on Cloud",
+		},
+		{
+			desc:     "admin can change agent connection count",
+			identity: TestAdmin(),
+			resource: func() types.ClusterNetworkingConfig {
+				r := types.DefaultClusterNetworkingConfig()
+				r.SetTunnelStrategy(
+					&types.TunnelStrategyV1{
+						Strategy: &types.TunnelStrategyV1_ProxyPeering{
+							ProxyPeering: &types.ProxyPeeringTunnelStrategy{
+								AgentConnectionCount: 10,
+							},
+						},
+					},
+				)
+				return r
+			}(),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+
+			err = client.SetClusterNetworkingConfig(ctx, test.resource)
+			if test.err != "" {
+				require.ErrorContains(t, err, test.err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create non-admin user.
+	_, _, err := CreateUserAndRole(srv.Auth(), "remote", []string{"role"})
+	require.NoError(t, err)
+
+	// This test cannot run in parallel as set module changes the global state.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: true,
+		},
+	})
+
+	tests := []struct {
+		desc     string
+		identity TestIdentity
+		resource types.SessionRecordingConfig
+		err      string
+	}{
+		{
+			desc:     "user can set default session recording config",
+			identity: TestUser("remote"),
+			resource: types.DefaultSessionRecordingConfig(),
+		},
+		{
+			desc:     "user cannot set record a proxy",
+			identity: TestUser("remote"),
+			resource: func() types.SessionRecordingConfig {
+				r := types.DefaultSessionRecordingConfig()
+				r.SetMode(types.RecordAtProxy)
+				return r
+			}(),
+			err: "cannot set proxy recording mode on Cloud",
+		},
+		{
+			desc:     "user cannot set record a proxy sync",
+			identity: TestUser("remote"),
+			resource: func() types.SessionRecordingConfig {
+				r := types.DefaultSessionRecordingConfig()
+				r.SetMode(types.RecordAtProxySync)
+				return r
+			}(),
+			err: "cannot set proxy recording mode on Cloud",
+		},
+		{
+			desc:     "user cannot disable strict host key checking",
+			identity: TestUser("remote"),
+			resource: func() types.SessionRecordingConfig {
+				r := types.DefaultSessionRecordingConfig()
+				r.SetProxyChecksHostKeys(false)
+				return r
+			}(),
+			err: "cannot disable strict host key checking on Cloud",
+		},
+		{
+			desc:     "admin can disable strict host key checking",
+			identity: TestAdmin(),
+			resource: func() types.SessionRecordingConfig {
+				r := types.DefaultSessionRecordingConfig()
+				r.SetProxyChecksHostKeys(false)
+				return r
+			}(),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+
+			err = client.SetSessionRecordingConfig(ctx, test.resource)
+			if test.err != "" {
+				require.ErrorContains(t, err, test.err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 // TestGetAndList_Nodes users can retrieve nodes with various filters

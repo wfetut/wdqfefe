@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -181,11 +180,6 @@ func (s *ClusterConfigurationService) GetAuthPreference(ctx context.Context) (ty
 // SetAuthPreference sets the cluster authentication preferences
 // on the backend.
 func (s *ClusterConfigurationService) SetAuthPreference(ctx context.Context, preferences types.AuthPreference) error {
-	// Perform the modules-provided checks.
-	if err := modules.ValidateResource(preferences); err != nil {
-		return trace.Wrap(err)
-	}
-
 	value, err := services.MarshalAuthPreference(preferences)
 	if err != nil {
 		return trace.Wrap(err)
@@ -276,11 +270,6 @@ func (s *ClusterConfigurationService) GetClusterNetworkingConfig(ctx context.Con
 // SetClusterNetworkingConfig sets the cluster networking config
 // on the backend.
 func (s *ClusterConfigurationService) SetClusterNetworkingConfig(ctx context.Context, netConfig types.ClusterNetworkingConfig) error {
-	// Perform the modules-provided checks.
-	if err := modules.ValidateResource(netConfig); err != nil {
-		return trace.Wrap(err)
-	}
-
 	value, err := services.MarshalClusterNetworkingConfig(netConfig)
 	if err != nil {
 		return trace.Wrap(err)
@@ -325,11 +314,6 @@ func (s *ClusterConfigurationService) GetSessionRecordingConfig(ctx context.Cont
 
 // SetSessionRecordingConfig sets session recording config on the backend.
 func (s *ClusterConfigurationService) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
-	// Perform the modules-provided checks.
-	if err := modules.ValidateResource(recConfig); err != nil {
-		return trace.Wrap(err)
-	}
-
 	value, err := services.MarshalSessionRecordingConfig(recConfig)
 	if err != nil {
 		return trace.Wrap(err)

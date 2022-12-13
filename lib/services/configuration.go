@@ -45,28 +45,28 @@ type ClusterConfiguration interface {
 
 	// GetAuthPreference gets types.AuthPreference from the backend.
 	GetAuthPreference(context.Context) (types.AuthPreference, error)
-	// SetAuthPreference sets types.AuthPreference from the backend.
+	// SetAuthPreference sets types.AuthPreference on the backend.
 	SetAuthPreference(context.Context, types.AuthPreference) error
 	// DeleteAuthPreference deletes types.AuthPreference from the backend.
 	DeleteAuthPreference(ctx context.Context) error
 
 	// GetSessionRecordingConfig gets SessionRecordingConfig from the backend.
 	GetSessionRecordingConfig(context.Context, ...MarshalOption) (types.SessionRecordingConfig, error)
-	// SetSessionRecordingConfig sets SessionRecordingConfig from the backend.
+	// SetSessionRecordingConfig sets SessionRecordingConfig on the backend.
 	SetSessionRecordingConfig(context.Context, types.SessionRecordingConfig) error
 	// DeleteSessionRecordingConfig deletes SessionRecordingConfig from the backend.
 	DeleteSessionRecordingConfig(ctx context.Context) error
 
 	// GetClusterAuditConfig gets ClusterAuditConfig from the backend.
 	GetClusterAuditConfig(context.Context, ...MarshalOption) (types.ClusterAuditConfig, error)
-	// SetClusterAuditConfig sets ClusterAuditConfig from the backend.
+	// SetClusterAuditConfig sets ClusterAuditConfig on the backend.
 	SetClusterAuditConfig(context.Context, types.ClusterAuditConfig) error
 	// DeleteClusterAuditConfig deletes ClusterAuditConfig from the backend.
 	DeleteClusterAuditConfig(ctx context.Context) error
 
 	// GetClusterNetworkingConfig gets ClusterNetworkingConfig from the backend.
 	GetClusterNetworkingConfig(context.Context, ...MarshalOption) (types.ClusterNetworkingConfig, error)
-	// SetClusterNetworkingConfig sets ClusterNetworkingConfig from the backend.
+	// SetClusterNetworkingConfig sets ClusterNetworkingConfig on the backend.
 	SetClusterNetworkingConfig(context.Context, types.ClusterNetworkingConfig) error
 	// DeleteClusterNetworkingConfig deletes ClusterNetworkingConfig from the backend.
 	DeleteClusterNetworkingConfig(ctx context.Context) error

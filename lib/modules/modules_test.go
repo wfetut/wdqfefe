@@ -17,65 +17,14 @@ limitations under the License.
 package modules_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestOSSModules(t *testing.T) {
 	require.False(t, modules.GetModules().IsBoringBinary())
 	require.Equal(t, modules.BuildOSS, modules.GetModules().BuildType())
-}
-
-func TestValidateAuthPreferenceOnCloud(t *testing.T) {
-	ctx := context.Background()
-	testServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		Dir: t.TempDir(),
-	})
-	require.NoError(t, err)
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Cloud: true,
-		},
-	})
-
-	authPref := types.DefaultAuthPreference()
-	err = testServer.AuthServer.SetAuthPreference(ctx, authPref)
-	require.NoError(t, err)
-
-	authPref.SetSecondFactor(constants.SecondFactorOff)
-	err = testServer.AuthServer.SetAuthPreference(ctx, authPref)
-	require.EqualError(t, err, "cannot disable two-factor authentication on Cloud")
-}
-
-func TestValidateSessionRecordingConfigOnCloud(t *testing.T) {
-	ctx := context.Background()
-
-	testServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		Dir: t.TempDir(),
-	})
-	require.NoError(t, err)
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Cloud: true,
-		},
-	})
-
-	recConfig := types.DefaultSessionRecordingConfig()
-	err = testServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
-	require.NoError(t, err)
-
-	recConfig.SetMode(types.RecordAtProxy)
-	err = testServer.AuthServer.SetSessionRecordingConfig(ctx, recConfig)
-	require.EqualError(t, err, "cannot set proxy recording mode on Cloud")
 }

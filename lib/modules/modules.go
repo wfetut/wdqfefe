@@ -118,27 +118,89 @@ func GetModules() Modules {
 	return modules
 }
 
-// ValidateResource performs additional resource checks.
-func ValidateResource(res types.Resource) error {
+// ValidateAuthPreference performs additional checks on the auth preference.
+func ValidateAuthPreference(isAdmin bool, stored, new types.AuthPreference) error {
 	// All checks below are Cloud-specific.
 	if !GetModules().Features().Cloud {
 		return nil
 	}
 
-	switch r := res.(type) {
-	case types.AuthPreference:
-		switch r.GetSecondFactor() {
-		case constants.SecondFactorOff, constants.SecondFactorOptional:
-			return trace.BadParameter("cannot disable two-factor authentication on Cloud")
-		}
-	case types.SessionRecordingConfig:
-		switch r.GetMode() {
-		case types.RecordAtProxy, types.RecordAtProxySync:
-			return trace.BadParameter("cannot set proxy recording mode on Cloud")
-		}
-		if !r.GetProxyChecksHostKeys() {
-			return trace.BadParameter("cannot disable strict host key checking on Cloud")
-		}
+	// If it's a cloud admin, then all fields can be changed.
+	if isAdmin {
+		return nil
+	}
+
+	switch new.GetSecondFactor() {
+	case constants.SecondFactorOff, constants.SecondFactorOptional:
+		return trace.BadParameter("cannot disable two-factor authentication on Cloud")
+	}
+	return nil
+}
+
+// ValidateClusterNetworkingConfig performs additional checks on the cluster networking config.
+func ValidateClusterNetworkingConfig(isAdmin bool, stored, new types.ClusterNetworkingConfig) error {
+	// All checks below are Cloud-specific.
+	if !GetModules().Features().Cloud {
+		return nil
+	}
+
+	// If it's a cloud admin, then all fields can be changed.
+	if isAdmin {
+		return nil
+	}
+
+	// Otherwise, disallow certain fields to be changed.
+	if stored.GetKeepAliveInterval() != new.GetKeepAliveInterval() {
+		return trace.BadParameter("cannot change keep alive interval on Cloud")
+	}
+
+	if stored.GetKeepAliveCountMax() != new.GetKeepAliveCountMax() {
+		return trace.BadParameter("cannot change keep alive count max on Cloud")
+	}
+
+	if stored.GetProxyListenerMode() != new.GetProxyListenerMode() {
+		return trace.BadParameter("cannot change proxy listener mode on Cloud")
+	}
+
+	storedTSType, storedTSErr := stored.GetTunnelStrategyType()
+	newTSType, newTSErr := new.GetTunnelStrategyType()
+
+	// Error if one has the tunnel strategy set and the other hasn't.
+	if storedTSErr != newTSErr {
+		return trace.BadParameter("cannot set/unset tunnel strategy on Cloud")
+	}
+
+	// Error if they have different tunnel strategy types.
+	if storedTSType != newTSType {
+		return trace.BadParameter("cannot change tunnel strategy type on Cloud")
+	}
+
+	// Error if both have proxy_peering with different agent counts.
+	if storedTSType == types.ProxyPeering && stored.GetProxyPeeringTunnelStrategy().AgentConnectionCount != new.GetProxyPeeringTunnelStrategy().AgentConnectionCount {
+		return trace.BadParameter("cannot change agent connection count on Cloud")
+	}
+
+	return nil
+}
+
+// ValidateSessionRecordingConfig performs additional checks on the session recording config.
+func ValidateSessionRecordingConfig(isAdmin bool, stored, new types.SessionRecordingConfig) error {
+	// All checks below are Cloud-specific.
+	if !GetModules().Features().Cloud {
+		return nil
+	}
+
+	// If it's a cloud admin, then all fields can be changed.
+	if isAdmin {
+		return nil
+	}
+
+	switch new.GetMode() {
+	case types.RecordAtProxy, types.RecordAtProxySync:
+		return trace.BadParameter("cannot set proxy recording mode on Cloud")
+	}
+	if !new.GetProxyChecksHostKeys() {
+		return trace.BadParameter("cannot disable strict host key checking on Cloud")
 	}
 	return nil
 }
