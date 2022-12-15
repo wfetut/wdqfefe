@@ -1,0 +1,22 @@
+ARG OS_VERSION
+FROM ubuntu:$OS_VERSION
+
+RUN apt-get update && \
+    apt-get install -y openssh-server openssh-client && \
+    rm -rf /var/lib/apt/lists/*
+
+# Ubuntu is missing this directory, but only on some releases. Consistent is the key.
+RUN mkdir -p /run/sshd
+
+RUN echo 'LogLevel DEBUG3 \n\
+PermitRootLogin yes \n\
+TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub \n\
+HostKey /etc/ssh/example.com \n\
+HostCertificate /etc/ssh/example.com-cert.pub \n' > /etc/ssh/sshd_config
+
+COPY teleport_user_ca.pub /etc/ssh/teleport_user_ca.pub
+COPY example.com /etc/ssh/example.com
+COPY example.com-cert.pub /etc/ssh/example.com-cert.pub
+
+EXPOSE 22
+CMD ["/usr/sbin/sshd", "-D", "-e"]

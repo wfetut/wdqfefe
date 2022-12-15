@@ -1,0 +1,23 @@
+FROM centos:7
+
+RUN yum update -y && \
+    yum install -y \
+        openssh-clients \
+        openssh-server && \
+    yum clean all
+
+# CentOS is missing default keys
+RUN ssh-keygen -A
+
+RUN echo $'LogLevel DEBUG3 \n\
+PermitRootLogin yes \n\
+TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub \n\
+HostKey /etc/ssh/example.com \n\
+HostCertificate /etc/ssh/example.com-cert.pub \n' > /etc/ssh/sshd_config
+
+COPY teleport_user_ca.pub /etc/ssh/teleport_user_ca.pub
+COPY example.com /etc/ssh/example.com
+COPY example.com-cert.pub /etc/ssh/example.com-cert.pub
+
+EXPOSE 22
+CMD ["/usr/sbin/sshd", "-D", "-e"]
