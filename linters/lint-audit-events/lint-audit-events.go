@@ -12,7 +12,9 @@ import (
 //
 // https://golangci-lint.run/contributing/new-linters/#how-to-add-a-private-linter-to-g
 
-func checkMetadataInAuditEventImplementations(files []*ast.File, info *types.Info) error
+func checkMetadataInAuditEventImplementations(files []*ast.File, info *types.Info) error {
+	return nil
+}
 
 func lintAuditEventDeclarations(p *analysis.Pass) (interface{}, error) {
 	return nil, checkMetadataInAuditEventImplementations(p.Files, p.TypesInfo)
