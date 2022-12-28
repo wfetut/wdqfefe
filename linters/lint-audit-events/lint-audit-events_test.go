@@ -9,7 +9,9 @@ import (
 func TestCheckMetadataInAuditEventImplementations(t *testing.T) {
 
 	dir, cleanup, err := analysistest.WriteFiles(map[string]string{
-		"events/events.go": `package events
+		"my-project/events/events.go": `package events
+
+import "fmt"
 
 type Metadata struct {
   Name string
@@ -19,8 +21,13 @@ type AuditEvent interface{
   GetType() string
 }
 
+func Emit(e AuditEvent){
+  fmt.Println(e.GetType())
+}
+
 		    `,
-		"goodimpl/goodimpl.go": `package goodimpl
+		"my-project/goodimpl/goodimpl.go": `package goodimpl
+
 type GoodAuditEventImplementation struct{
   Type string
   Metadata Metadata
@@ -31,7 +38,7 @@ func (g GoodAuditEventImplementation) GetType() string{
 }
 		    `,
 
-		"badimpl/badimpl.go": `package badimpl
+		"my-project/badimpl/badimpl.go": `package badimpl
 
 // want "Event implementation does not include a Metadata field"
 type BadAuditEventImplementation struct{
@@ -41,7 +48,27 @@ type BadAuditEventImplementation struct{
 func (b BadAuditEventImplementation) GetType() string{
   return b.Type
 }
-`})
+`,
+		"my-project/main.go": `package main
+
+import (
+
+  "badimpl"
+  "goodimpl"
+  "events"
+
+events.Emit(goodimpl.GoodAuditEventImplementation{
+  Type: "good audit event",
+  Metadata: events.Metadata{
+    Name: "my metadata",
+  },
+})
+
+events.Emit(badimpl.BadAuditEventImplementation{
+  Type: "bad audit event",
+})
+`,
+	})
 
 	defer cleanup()
 
@@ -53,6 +80,6 @@ func (b BadAuditEventImplementation) GetType() string{
 		t,
 		dir,
 		auditEventDeclarationLinter,
-		"events", "goodimpl", "badimpl")
+	)
 
 }
