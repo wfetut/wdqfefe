@@ -1,29 +1,29 @@
 package main
 
 import (
-	"path/filepath"
-	"strings"
 	"testing"
 
-	"golang.org/x/tools/go/packages"
-	"golang.org/x/tools/go/packages/packagestest"
+	"golang.org/x/tools/go/analysis/analysistest"
 )
 
 func TestCheckMetadataInAuditEventImplementations(t *testing.T) {
 
-	e := packagestest.Export(t, packagestest.GOPATH, []packagestest.Module{{
-		Name: "example.com/fakemod",
-		Files: map[string]interface{}{
-			"events/events.go": `package events
+	dir, cleanup, err := analysistest.WriteFiles(map[string]string{
+		"events/events.go": `package events
+
+type Metadata struct {
+  Name string
+}
+
 type AuditEvent interface{
   GetType() string
 }
 
 		    `,
-			"goodimpl/goodimpl.go": `package goodimpl
+		"goodimpl/goodimpl.go": `package goodimpl
 type GoodAuditEventImplementation struct{
   Type string
-  Metadata string
+  Metadata Metadata
 }
 
 func (g GoodAuditEventImplementation) GetType() string{
@@ -31,7 +31,9 @@ func (g GoodAuditEventImplementation) GetType() string{
 }
 		    `,
 
-			"badimpl/badimpl.go": `package badimpl
+		"badimpl/badimpl.go": `package badimpl
+
+// want "Event implementation does not include a Metadata field"
 type BadAuditEventImplementation struct{
   Type string
 }
@@ -39,23 +41,18 @@ type BadAuditEventImplementation struct{
 func (b BadAuditEventImplementation) GetType() string{
   return b.Type
 }
-`,
-		}},
-	})
-	defer e.Cleanup()
+`})
 
-	p, err := packages.Load(
-		e.Config,
-		filepath.Dir(e.File("example.com/fakemod", "events/events.go")),
-		filepath.Dir(e.File("example.com/fakemod", "goodimpl/goodimpl.go")),
-		filepath.Dir(e.File("example.com/fakemod", "badimpl/badimpl.go")),
-	)
+	defer cleanup()
+
 	if err != nil {
-		t.Fatalf("failed to load the test packages: %v", err)
+		t.Fatalf("could not write test files: %v", err)
 	}
 
-	if err := checkMetadataInAuditEventImplementations(p[0].Syntax, p[0].TypesInfo); err == nil || !strings.Contains(err.Error(), "Metadata") {
-		t.Fatalf("expected the error message to mention \"Metadata\", but got: %v", err)
-	}
+	analysistest.Run(
+		t,
+		dir,
+		auditEventDeclarationLinter,
+		"events", "goodimpl", "badimpl")
 
 }
