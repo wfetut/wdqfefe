@@ -85,7 +85,7 @@ func main(){
 		t,
 		dir,
 		auditEventDeclarationLinter,
-		"my-project",
+		"./...",
 	)
 
 }
