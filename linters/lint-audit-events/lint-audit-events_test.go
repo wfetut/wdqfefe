@@ -28,9 +28,11 @@ func Emit(e AuditEvent){
 		    `,
 		"my-project/goodimpl/goodimpl.go": `package goodimpl
 
+import "my-project/events"
+
 type GoodAuditEventImplementation struct{
   Type string
-  Metadata Metadata
+  Metadata events.Metadata
 }
 
 func (g GoodAuditEventImplementation) GetType() string{
@@ -52,21 +54,24 @@ func (b BadAuditEventImplementation) GetType() string{
 		"my-project/main.go": `package main
 
 import (
+  "my-project/badimpl"
+  "my-project/goodimpl"
+  "my-project/events"
+)
 
-  "badimpl"
-  "goodimpl"
-  "events"
+func main(){
 
-events.Emit(goodimpl.GoodAuditEventImplementation{
-  Type: "good audit event",
-  Metadata: events.Metadata{
-    Name: "my metadata",
-  },
-})
+    events.Emit(goodimpl.GoodAuditEventImplementation{
+      Type: "good audit event",
+      Metadata: events.Metadata{
+	Name: "my metadata",
+      },
+    })
 
-events.Emit(badimpl.BadAuditEventImplementation{
-  Type: "bad audit event",
-})
+    events.Emit(badimpl.BadAuditEventImplementation{
+      Type: "bad audit event",
+    })
+}
 `,
 	})
 
@@ -80,6 +85,7 @@ events.Emit(badimpl.BadAuditEventImplementation{
 		t,
 		dir,
 		auditEventDeclarationLinter,
+		"my-project",
 	)
 
 }
