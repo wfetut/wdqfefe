@@ -194,13 +194,17 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 				continue
 			}
 
-			t, ok := d.Type().(*types.Struct)
+			if d.Type() == nil || d.Type().Underlying() == nil {
+				continue
+			}
+
+			t, ok := d.Type().Underlying().(*types.Struct)
 
 			if !ok {
 				continue
 			}
 
-			if !types.Implements(t, c.interfaceType) {
+			if !types.Implements(d.Type(), c.interfaceType) {
 				continue
 			}
 
