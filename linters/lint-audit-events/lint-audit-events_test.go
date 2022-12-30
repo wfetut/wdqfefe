@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
@@ -79,6 +80,26 @@ func main(){
 
 	if err != nil {
 		t.Fatalf("could not write test files: %v", err)
+	}
+
+	fn, err := makeAuditEventDeclarationLinter(
+		RequiredFieldInfo{
+			workingDir:               dir,
+			packageName:              "events",
+			interfaceTypeName:        "AuditEvent",
+			requiredFieldName:        "Metadata",
+			requiredFieldPackageName: "events",
+			requiredFieldTypeName:    "Metadata",
+		})
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var auditEventDeclarationLinter = &analysis.Analyzer{
+		Name: "lint-audit-event-declarations",
+		Doc:  "ensure that Teleport audit events follow the structure required",
+		Run:  fn,
 	}
 
 	analysistest.Run(
