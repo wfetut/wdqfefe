@@ -178,12 +178,10 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 			continue
 		}
 
-		if d.Name() == c.requiredFieldTypeName {
-			if c.requiredFieldType == nil {
-				c.requiredFieldType = d.Type()
-			} else {
-				return nil, fmt.Errorf("expected only one occurrence of required field type %v, but got multiple", c.requiredFieldType)
-			}
+		// The Go compiler only allows us to declare a type once per
+		// package, so use the first instance of the expected type.
+		if d.Name() == c.requiredFieldTypeName && c.requiredFieldType == nil {
+			c.requiredFieldType = d.Type()
 		}
 	}
 
