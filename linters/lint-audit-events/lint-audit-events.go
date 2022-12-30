@@ -82,9 +82,16 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 	pkg, err := packages.Load(
 		&packages.Config{
 			Dir: c.workingDir,
+			// TODO: Trim down the mode after debugging the test
+			Mode: packages.NeedName | packages.NeedFiles |
+				packages.NeedSyntax | packages.NeedTypes |
+				packages.NeedCompiledGoFiles | packages.NeedDeps |
+				packages.NeedEmbedFiles | packages.NeedEmbedPatterns |
+				packages.NeedExportFile | packages.NeedExportsFile |
+				packages.NeedFiles | packages.NeedImports |
+				packages.NeedTypesSizes | packages.NeedTypesInfo,
 		},
-		c.packageName,
-	)
+		c.packageName)
 
 	if err != nil {
 		return nil, fmt.Errorf("could not load the package with pattern %v: %v", c.packageName, err)
@@ -95,7 +102,7 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 	}
 
 	if pkg[0].TypesInfo == nil || pkg[0].TypesInfo.Defs == nil {
-		return nil, fmt.Errorf("found no type information or definitions in package %v", pkg[0].Name)
+		return nil, fmt.Errorf("found no type information or definitions in package %v", pkg[0].ID)
 	}
 
 	for _, d := range pkg[0].TypesInfo.Defs {
@@ -119,6 +126,13 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 	pkg2, err := packages.Load(
 		&packages.Config{
 			Dir: c.workingDir,
+			Mode: packages.NeedName | packages.NeedFiles |
+				packages.NeedSyntax | packages.NeedTypes |
+				packages.NeedCompiledGoFiles | packages.NeedDeps |
+				packages.NeedEmbedFiles | packages.NeedEmbedPatterns |
+				packages.NeedExportFile | packages.NeedExportsFile |
+				packages.NeedFiles | packages.NeedImports |
+				packages.NeedTypesSizes | packages.NeedTypesInfo,
 		},
 		c.requiredFieldPackageName,
 	)
