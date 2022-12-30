@@ -82,14 +82,21 @@ func main(){
 		t.Fatalf("could not write test files: %v", err)
 	}
 
+	cache := t.TempDir()
+
 	fn, err := makeAuditEventDeclarationLinter(
 		RequiredFieldInfo{
 			workingDir:               dir,
-			packageName:              "events",
+			packageName:              "my-project/events",
 			interfaceTypeName:        "AuditEvent",
 			requiredFieldName:        "Metadata",
-			requiredFieldPackageName: "events",
+			requiredFieldPackageName: "my-project/events",
 			requiredFieldTypeName:    "Metadata",
+			envPairs: []string{
+				"GOPATH=" + dir,
+				"GO111MODULE=off",
+				"GOCACHE=" + cache,
+			},
 		})
 
 	if err != nil {

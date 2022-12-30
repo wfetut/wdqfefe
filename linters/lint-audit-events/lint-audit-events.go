@@ -40,13 +40,19 @@ type RequiredFieldInfo struct {
 	// type of the field required in structs that implement the interface in
 	// interfaceType.
 	requiredFieldType types.Type
+
+	// slice of "key=value" environment variable assignments to use when
+	// loading packages. Examples include:
+	// - "GOPATH=/my/path/go"
+	// - "GO111MODULE=off"
+	envPairs []string
 }
 
-// loadPackage loads the package named n in the working directory wd.
-func loadPackage(wd string, name string) (*packages.Package, error) {
+// loadPackage loads the package named n using the RequiredFieldInfo r.
+func loadPackage(name string, r RequiredFieldInfo) (*packages.Package, error) {
 	pkg, err := packages.Load(
 		&packages.Config{
-			Dir: wd,
+			Dir: r.workingDir,
 			// TODO: Trim down the mode after debugging the test
 			Mode: packages.NeedName | packages.NeedFiles |
 				packages.NeedSyntax | packages.NeedTypes |
@@ -55,6 +61,7 @@ func loadPackage(wd string, name string) (*packages.Package, error) {
 				packages.NeedExportFile | packages.NeedExportsFile |
 				packages.NeedFiles | packages.NeedImports |
 				packages.NeedTypesSizes | packages.NeedTypesInfo,
+			Env: r.envPairs,
 		},
 		name)
 
@@ -123,7 +130,7 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 	// analysis.Pass provided to the analysis.Analyzer function. This is so
 	// we don't need to predict the order that the analysis.Analzer walks
 	// the package dependency tree.
-	pkg, err := loadPackage(c.workingDir, c.packageName)
+	pkg, err := loadPackage(c.packageName, c)
 
 	if err != nil {
 		return nil, err
@@ -147,7 +154,7 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 	}
 
 	// Look up the required field type
-	pkg2, err := loadPackage(c.workingDir, c.requiredFieldPackageName)
+	pkg2, err := loadPackage(c.requiredFieldPackageName, c)
 
 	if err != nil {
 		return nil, err
@@ -231,10 +238,10 @@ func (a analyzerPlugin) GetAnalyzers() []*analysis.Analyzer {
 	fn, err := makeAuditEventDeclarationLinter(
 		RequiredFieldInfo{
 			workingDir:               pwd,
-			packageName:              "events",
+			packageName:              "github.com/gravitational/teleport/events",
 			interfaceTypeName:        "AuditEvent",
 			requiredFieldName:        "Metadata",
-			requiredFieldPackageName: "events",
+			requiredFieldPackageName: "github.com/gravitational/teleport/events",
 			requiredFieldTypeName:    "Metadata",
 		})
 
