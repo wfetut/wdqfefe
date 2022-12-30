@@ -191,6 +191,7 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 	fn := func(p *analysis.Pass) (interface{}, error) {
 
 		for a, d := range p.TypesInfo.Defs {
+
 			if d == nil {
 				continue
 			}
@@ -221,7 +222,13 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 			for i := 0; i < n; i++ {
 				f := t.Field(i)
 				if f.Name() != c.requiredFieldName ||
-					!types.Identical(f.Type(), c.requiredFieldType) {
+					// Use the underlying types to check whether the
+					// types are identical, otherwise the named type
+					// of a field will not be identical to the
+					// named type of a type declaration.
+					!types.Identical(
+						f.Type().Underlying(),
+						c.requiredFieldType.Underlying()) {
 					continue
 				}
 				m = true
