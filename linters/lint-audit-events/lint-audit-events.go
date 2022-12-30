@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"go/ast"
 	"go/types"
 	"os"
 	"strings"
@@ -195,6 +196,12 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 			}
 
 			if d.Type() == nil || d.Type().Underlying() == nil {
+				continue
+			}
+
+			// We're only evaluating type declarations, not, for
+			// example, the types of function param declarations.
+			if a.Obj == nil || a.Obj.Kind != ast.Typ {
 				continue
 			}
 
