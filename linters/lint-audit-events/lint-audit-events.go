@@ -94,6 +94,10 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 		return nil, fmt.Errorf("there must be one package for the target interface, but found %v", len(pkg))
 	}
 
+	if pkg[0].TypesInfo == nil || pkg[0].TypesInfo.Defs == nil {
+		return nil, fmt.Errorf("found no type information or definitions in package %v", pkg[0].Name)
+	}
+
 	for _, d := range pkg[0].TypesInfo.Defs {
 
 		// Skip any non-interfaces
