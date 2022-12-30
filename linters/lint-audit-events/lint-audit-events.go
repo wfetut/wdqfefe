@@ -51,6 +51,13 @@ type RequiredFieldInfo struct {
 
 // loadPackage loads the package named n using the RequiredFieldInfo r.
 func loadPackage(name string, r RequiredFieldInfo) (*packages.Package, error) {
+	var env []string
+	if r.envPairs != nil {
+		env = r.envPairs
+	} else {
+		env = os.Environ()
+	}
+
 	pkg, err := packages.Load(
 		&packages.Config{
 			Dir: r.workingDir,
@@ -62,7 +69,7 @@ func loadPackage(name string, r RequiredFieldInfo) (*packages.Package, error) {
 				packages.NeedExportFile | packages.NeedExportsFile |
 				packages.NeedFiles | packages.NeedImports |
 				packages.NeedTypesSizes | packages.NeedTypesInfo,
-			Env: r.envPairs,
+			Env: env,
 		},
 		name)
 
@@ -268,10 +275,10 @@ func (a analyzerPlugin) GetAnalyzers() []*analysis.Analyzer {
 	fn, err := makeAuditEventDeclarationLinter(
 		RequiredFieldInfo{
 			workingDir:               pwd,
-			packageName:              "github.com/gravitational/teleport/events",
+			packageName:              "github.com/gravitational/teleport/api/types/events",
 			interfaceTypeName:        "AuditEvent",
 			requiredFieldName:        "Metadata",
-			requiredFieldPackageName: "github.com/gravitational/teleport/events",
+			requiredFieldPackageName: "github.com/gravitational/teleport/api/types/events",
 			requiredFieldTypeName:    "Metadata",
 		})
 
