@@ -43,8 +43,8 @@ func (g GoodAuditEventImplementation) GetType() string{
 
 		"my-project/badimpl/badimpl.go": `package badimpl
 
-// want "struct type my-project/badimpl.BadAuditEventImplementation implements AuditEvent but does not include the field Metadata of type my-project/events.Metadata"
-type BadAuditEventImplementation struct{
+type BadAuditEventImplementation struct{ // want "struct type my-project/badimpl.BadAuditEventImplementation implements AuditEvent but does not include the field Metadata of type my-project/events.Metadata"
+
   Type string
 }
 
