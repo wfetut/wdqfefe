@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 
 	"golang.org/x/tools/go/analysis"
@@ -110,17 +109,11 @@ func main(){
 		Run:  fn,
 	}
 
-	res := analysistest.Run(
+	analysistest.Run(
 		t,
 		dir,
 		auditEventDeclarationLinter,
 		"./...",
 	)
-
-	for _, r := range res {
-		for _, d := range r.Diagnostics {
-			fmt.Println(d)
-		}
-	}
 
 }
