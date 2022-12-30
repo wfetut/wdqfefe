@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/types"
 	"os"
+	"strings"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
@@ -41,6 +42,49 @@ type RequiredFieldInfo struct {
 	requiredFieldType types.Type
 }
 
+// loadPackage loads the package named n in the working directory wd.
+func loadPackage(wd string, name string) (*packages.Package, error) {
+	pkg, err := packages.Load(
+		&packages.Config{
+			Dir: wd,
+			// TODO: Trim down the mode after debugging the test
+			Mode: packages.NeedName | packages.NeedFiles |
+				packages.NeedSyntax | packages.NeedTypes |
+				packages.NeedCompiledGoFiles | packages.NeedDeps |
+				packages.NeedEmbedFiles | packages.NeedEmbedPatterns |
+				packages.NeedExportFile | packages.NeedExportsFile |
+				packages.NeedFiles | packages.NeedImports |
+				packages.NeedTypesSizes | packages.NeedTypesInfo,
+		},
+		name)
+
+	if err != nil {
+		return nil, fmt.Errorf("could not load the package with pattern %v: %v", name, err)
+	}
+
+	if len(pkg) != 1 {
+		return nil, fmt.Errorf("expected one package named %v, but found %v",
+			name,
+			len(pkg))
+	}
+
+	if len(pkg[0].Errors) > 0 {
+		errstr := make([]string, len(pkg[0].Errors))
+		for i, e := range pkg[0].Errors {
+			errstr[i] = e.Error()
+		}
+		return nil, fmt.Errorf("encountered errors parsing package %v: %v",
+			pkg[0].ID,
+			strings.Join(errstr, ", "),
+		)
+	}
+
+	if pkg[0].TypesInfo == nil || pkg[0].TypesInfo.Defs == nil {
+		return nil, fmt.Errorf("found no type information or definitions in package %v", pkg[0].ID)
+	}
+	return pkg[0], nil
+}
+
 // makeAuditEventDeclarationLinter looks up type information in the target
 // package, then uses that type information to generate an analysis.Analzer. The
 // analysis.Analyzer ensures that all structs that implement a particular
@@ -64,7 +108,7 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 	}
 
 	if c.requiredFieldPackageName == "" {
-		return nil, errors.New("the rquired field's package name must not be blank")
+		return nil, errors.New("the required field's package name must not be blank")
 	}
 
 	if c.requiredFieldTypeName == "" {
@@ -79,33 +123,13 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 	// analysis.Pass provided to the analysis.Analyzer function. This is so
 	// we don't need to predict the order that the analysis.Analzer walks
 	// the package dependency tree.
-	pkg, err := packages.Load(
-		&packages.Config{
-			Dir: c.workingDir,
-			// TODO: Trim down the mode after debugging the test
-			Mode: packages.NeedName | packages.NeedFiles |
-				packages.NeedSyntax | packages.NeedTypes |
-				packages.NeedCompiledGoFiles | packages.NeedDeps |
-				packages.NeedEmbedFiles | packages.NeedEmbedPatterns |
-				packages.NeedExportFile | packages.NeedExportsFile |
-				packages.NeedFiles | packages.NeedImports |
-				packages.NeedTypesSizes | packages.NeedTypesInfo,
-		},
-		c.packageName)
+	pkg, err := loadPackage(c.workingDir, c.packageName)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not load the package with pattern %v: %v", c.packageName, err)
+		return nil, err
 	}
 
-	if len(pkg) != 1 {
-		return nil, fmt.Errorf("there must be one package for the target interface, but found %v", len(pkg))
-	}
-
-	if pkg[0].TypesInfo == nil || pkg[0].TypesInfo.Defs == nil {
-		return nil, fmt.Errorf("found no type information or definitions in package %v", pkg[0].ID)
-	}
-
-	for _, d := range pkg[0].TypesInfo.Defs {
+	for _, d := range pkg.TypesInfo.Defs {
 
 		// Skip any non-interfaces
 		i, ok := d.Type().Underlying().(*types.Interface)
@@ -123,29 +147,13 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 	}
 
 	// Look up the required field type
-	pkg2, err := packages.Load(
-		&packages.Config{
-			Dir: c.workingDir,
-			Mode: packages.NeedName | packages.NeedFiles |
-				packages.NeedSyntax | packages.NeedTypes |
-				packages.NeedCompiledGoFiles | packages.NeedDeps |
-				packages.NeedEmbedFiles | packages.NeedEmbedPatterns |
-				packages.NeedExportFile | packages.NeedExportsFile |
-				packages.NeedFiles | packages.NeedImports |
-				packages.NeedTypesSizes | packages.NeedTypesInfo,
-		},
-		c.requiredFieldPackageName,
-	)
+	pkg2, err := loadPackage(c.workingDir, c.requiredFieldPackageName)
 
 	if err != nil {
-		return nil, fmt.Errorf("could not load the package with pattern %v: %v", c.packageName, err)
+		return nil, err
 	}
 
-	if len(pkg2) != 1 {
-		return nil, fmt.Errorf("there must be one package for the target field name, but found %v", len(pkg))
-	}
-
-	for _, d := range pkg2[0].TypesInfo.Defs {
+	for _, d := range pkg2.TypesInfo.Defs {
 
 		if d.Name() == c.requiredFieldTypeName {
 			if c.requiredFieldType == nil {
