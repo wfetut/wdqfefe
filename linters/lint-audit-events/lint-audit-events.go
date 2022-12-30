@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"go/types"
+	"os"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
@@ -26,7 +27,7 @@ type RequiredFieldInfo struct {
 
 	// type of the interface to compare implementations against. Used to
 	// check that a given struct is an implementation of the type.
-	interfaceType types.Type
+	interfaceType *types.Interface
 
 	requiredFieldName string
 
@@ -44,7 +45,7 @@ type RequiredFieldInfo struct {
 // package, then uses that type information to generate an analysis.Analzer. The
 // analysis.Analyzer ensures that all structs that implement a particular
 // interface include a field with a specific type.
-func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (analysis.Analyzer, error) {
+func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) (interface{}, error), error) {
 
 	if c.workingDir == "" {
 		return nil, errors.New("the directory path for looking up packages must not be empty")
@@ -63,7 +64,7 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (analysis.Analyzer, er
 	}
 
 	if c.requiredFieldPackageName == "" {
-		return nil, errors.new("the rquired field's package name must not be blank")
+		return nil, errors.New("the rquired field's package name must not be blank")
 	}
 
 	if c.requiredFieldTypeName == "" {
@@ -74,9 +75,12 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (analysis.Analyzer, er
 	c.interfaceType = nil
 	c.requiredFieldType = nil
 
-	// Look up the interface
+	// Look up the interface. We look up packages here instead of using the
+	// analysis.Pass provided to the analysis.Analyzer function. This is so
+	// we don't need to predict the order that the analysis.Analzer walks
+	// the package dependency tree.
 	pkg, err := packages.Load(
-		packages.Config{
+		&packages.Config{
 			Dir: c.workingDir,
 		},
 		c.packageName,
@@ -93,13 +97,14 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (analysis.Analyzer, er
 	for _, d := range pkg[0].TypesInfo.Defs {
 
 		// Skip any non-interfaces
-		if _, ok := d.Type().Underlying().(types.Interface); !ok {
+		i, ok := d.Type().Underlying().(*types.Interface)
+		if !ok {
 			continue
 		}
 
 		if d.Name() == c.interfaceTypeName {
 			if c.interfaceType == nil {
-				c.interfaceType = d.Type
+				c.interfaceType = i
 			} else {
 				return nil, fmt.Errorf("expected only one occurrence of interface %v, but got multiple", c.interfaceTypeName)
 			}
@@ -108,7 +113,7 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (analysis.Analyzer, er
 
 	// Look up the required field type
 	pkg2, err := packages.Load(
-		packages.Config{
+		&packages.Config{
 			Dir: c.workingDir,
 		},
 		c.requiredFieldPackageName,
@@ -126,7 +131,7 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (analysis.Analyzer, er
 
 		if d.Name() == c.requiredFieldTypeName {
 			if c.requiredFieldType == nil {
-				c.requiredFieldType = d.Type
+				c.requiredFieldType = d.Type()
 			} else {
 				return nil, fmt.Errorf("expected only one occurrence of required field type %v, but got multiple", c.requiredFieldType)
 			}
@@ -141,52 +146,82 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (analysis.Analyzer, er
 	// The next step is to generate an analysis.Analyzer that looks up all
 	// structs in a set of packages, checks if they implement the target
 	// interface, and if so, ensures that they contain the required field.
+	fn := func(p *analysis.Pass) (interface{}, error) {
 
-	// TODO: move lintAuditEventDeclarations into an anonymous function that's
-	// returned from this function.
-}
+		for a, d := range p.TypesInfo.Defs {
+			t, ok := d.Type().(*types.Struct)
 
-func lintAuditEventDeclarations(p *analysis.Pass) (interface{}, error) {
+			if !ok {
+				continue
+			}
 
-	for _, v := range p.TypesInfo.Defs {
-		if v != nil {
-			fmt.Printf("here's a type def with name %v\n", v.Name())
-		} else {
-			continue
+			if !types.Implements(t, c.interfaceType) {
+				continue
+			}
+
+			n := t.NumFields()
+
+			var m bool // Is there a Metadata field with the required type?
+			for i := 0; i < n; i++ {
+				f := t.Field(i)
+				if f.Name() != c.requiredFieldName ||
+					!types.Identical(f.Type(), c.requiredFieldType) {
+					continue
+				}
+				m = true
+			}
+			if !m {
+				// The struct implements the target interface but
+				// does not have the required field.
+				p.Report(analysis.Diagnostic{
+					Pos: a.Pos(),
+					Message: fmt.Sprintf(
+						"struct type %v implements %v but does not include the field %v of type %v.%v",
+						d.Type().String(),
+						c.interfaceTypeName,
+						c.requiredFieldName,
+						c.requiredFieldPackageName,
+						c.requiredFieldTypeName,
+					),
+				})
+			}
+
 		}
-
-		if v.Name() == "BadAuditEventImplementation" {
-
-			fmt.Printf("here is BadAuditEventImplementation's type: %+v\n", v.Type())
-			fmt.Printf("here is BadAuditEventImplementation's underlying type: %+v\n", v.Type().Underlying())
-		}
-
+		return nil, nil
 	}
 
-	for _, v := range p.TypesInfo.Instances {
-		if v.Type != nil {
-			fmt.Printf("here's a type instance with string %v\n", v.Type.String())
-		}
-	}
-
-	for _, v := range p.TypesInfo.Uses {
-		if v != nil {
-			fmt.Printf("here's a type use: %v\n", v.Name())
-		}
-	}
-
-	return nil, nil
-}
-
-var auditEventDeclarationLinter = &analysis.Analyzer{
-	Name: "lint-audit-event-declarations",
-	Doc:  "ensure that Teleport audit events follow the structure required",
-	Run:  lintAuditEventDeclarations,
+	return fn, nil
 }
 
 type analyzerPlugin struct{}
 
 func (a analyzerPlugin) GetAnalyzers() []*analysis.Analyzer {
+
+	pwd, err := os.Getwd()
+	if err != nil {
+		panic(fmt.Errorf("unable to get current working directory: %v", err))
+	}
+
+	fn, err := makeAuditEventDeclarationLinter(
+		RequiredFieldInfo{
+			workingDir:               pwd,
+			packageName:              "events",
+			interfaceTypeName:        "AuditEvent",
+			requiredFieldName:        "Metadata",
+			requiredFieldPackageName: "events",
+			requiredFieldTypeName:    "Metadata",
+		})
+
+	if err != nil {
+		panic(err)
+	}
+
+	var auditEventDeclarationLinter = &analysis.Analyzer{
+		Name: "lint-audit-event-declarations",
+		Doc:  "ensure that Teleport audit events follow the structure required",
+		Run:  fn,
+	}
+
 	return []*analysis.Analyzer{
 		auditEventDeclarationLinter,
 	}
