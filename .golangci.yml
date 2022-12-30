@@ -38,6 +38,10 @@ linters:
     - unused
 
 linters-settings:
+  custom:
+    lint-audit-events:
+      path: linters/lint-audit-events.so
+      description: Ensure audit events include fields that enable us to generate a docs table.
   depguard:
     list-type: denylist
     include-go-root: true # check against stdlib

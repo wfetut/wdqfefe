@@ -743,9 +743,13 @@ lint-rust:
 endif
 endif
 
+.PHONY: build-golangci-plugins
+build-golangci-plugins: 
+	go build -buildmode=plugin -o linters linters/lint-audit-events/lint-audit-events.go
+
 .PHONY: lint-go
 lint-go: GO_LINT_FLAGS ?=
-lint-go:
+lint-go: build-golangci-plugins
 	golangci-lint run -c .golangci.yml --build-tags='$(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)' $(GO_LINT_FLAGS)
 
 .PHONY: fix-imports
