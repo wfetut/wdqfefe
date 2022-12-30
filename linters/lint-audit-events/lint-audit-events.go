@@ -138,6 +138,10 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 
 	for _, d := range pkg.TypesInfo.Defs {
 
+		if d == nil || d.Type() == nil || d.Type().Underlying() == nil {
+			continue
+		}
+
 		// Skip any non-interfaces
 		i, ok := d.Type().Underlying().(*types.Interface)
 		if !ok {
@@ -162,6 +166,10 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 
 	for _, d := range pkg2.TypesInfo.Defs {
 
+		if d == nil || d.Type() == nil {
+			continue
+		}
+
 		if d.Name() == c.requiredFieldTypeName {
 			if c.requiredFieldType == nil {
 				c.requiredFieldType = d.Type()
@@ -182,6 +190,10 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 	fn := func(p *analysis.Pass) (interface{}, error) {
 
 		for a, d := range p.TypesInfo.Defs {
+			if d == nil {
+				continue
+			}
+
 			t, ok := d.Type().(*types.Struct)
 
 			if !ok {
