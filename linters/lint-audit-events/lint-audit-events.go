@@ -43,13 +43,20 @@ type RequiredFieldInfo struct {
 	requiredFieldType *types.Struct
 
 	// names of the fields within requiredFieldType that must be populated
-	fieldTypeMustPopulateFields []string
+	fieldTypeMustPopulateFields map[string]struct{}
 
 	// slice of "key=value" environment variable assignments to use when
 	// loading packages. Examples include:
 	// - "GOPATH=/my/path/go"
 	// - "GO111MODULE=off"
 	envPairs []string
+}
+
+// checkValuesOfRequiredFields traverses the children of n and ensures that any
+// values of the required field type populate certain required fields, specified
+// in i.fieldTypeMustPopulateFields.
+func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagnostic {
+	return analysis.Diagnostic{}
 }
 
 // loadPackage loads the package named n using the RequiredFieldInfo r.
