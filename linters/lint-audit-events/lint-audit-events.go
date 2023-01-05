@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -56,7 +57,12 @@ type RequiredFieldInfo struct {
 // values of the required field type populate certain required fields, specified
 // in i.fieldTypeMustPopulateFields.
 func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagnostic {
-	return analysis.Diagnostic{}
+	d := analysis.Diagnostic{}
+	astutil.Apply(n, func(c *astutil.Cursor) bool {
+		d = analysis.Diagnostic{}
+		return true
+	}, nil)
+	return d
 }
 
 // loadPackage loads the package named n using the RequiredFieldInfo r.
