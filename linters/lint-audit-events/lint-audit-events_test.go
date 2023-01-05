@@ -1,6 +1,9 @@
 package main
 
 import (
+	"go/parser"
+	"go/token"
+	"reflect"
 	"testing"
 
 	"golang.org/x/tools/go/analysis"
@@ -128,5 +131,53 @@ func main(){
 		auditEventDeclarationLinter,
 		"./...",
 	)
+
+}
+
+func TestCheckValuesOfRequiredFields(t *testing.T) {
+	fset := token.FileSet{}
+
+	i := RequiredFieldInfo{
+		workingDir:               "",
+		packageName:              "my-project/events",
+		interfaceTypeName:        "AuditEvent",
+		requiredFieldName:        "Metadata",
+		requiredFieldPackageName: "my-project/events",
+		requiredFieldTypeName:    "Metadata",
+		envPairs:                 []string{},
+		fieldTypeMustPopulateFields: map[string]struct{}{
+			"Type": struct{}{},
+		},
+	}
+	f, err := parser.ParseFile(&fset, "badmetadata.go", `package badmetadata
+
+import (
+  "my-project/events"
+  "my-project/goodimpl"
+)
+
+func EmitAuditEvent(){
+  
+    events.Emit(goodimpl.GoodAuditEventImplementation{
+        Metadata: events.Metadata{
+           Name: "My Metadata",
+	},
+    })
+}
+`, parser.ParseComments)
+
+	if err != nil {
+		t.Fatalf("unexpected error parsing the fixture: %v", err)
+	}
+
+	d := checkValuesOfRequiredFields(i, f)
+	exp := analysis.Diagnostic{
+		Message: "Need to fill this in later",
+	}
+
+	// TODO: fill this in
+	if !reflect.DeepEqual(d, exp) {
+		t.Fatalf("expected to receive diagnostic: %+v\nbut got: %+v", exp, d)
+	}
 
 }
