@@ -40,7 +40,10 @@ type RequiredFieldInfo struct {
 
 	// type of the field required in structs that implement the interface in
 	// interfaceType.
-	requiredFieldType types.Type
+	requiredFieldType *types.Struct
+
+	// names of the fields within requiredFieldType that must be populated
+	fieldTypeMustPopulateFields []string
 
 	// slice of "key=value" environment variable assignments to use when
 	// loading packages. Examples include:
@@ -181,7 +184,11 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 		// The Go compiler only allows us to declare a type once per
 		// package, so use the first instance of the expected type.
 		if d.Name() == c.requiredFieldTypeName && c.requiredFieldType == nil {
-			c.requiredFieldType = d.Type()
+			s, ok := d.Type().Underlying().(*types.Struct)
+			if !ok {
+				return nil, fmt.Errorf("required field type %v is not a struct", c.requiredFieldTypeName)
+			}
+			c.requiredFieldType = s
 		}
 	}
 
@@ -195,6 +202,8 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 	// interface, and if so, ensures that they contain the required field.
 	fn := func(p *analysis.Pass) (interface{}, error) {
 
+		// Check each type definition in the package for correct
+		// implementations of the target interface
 		for a, d := range p.TypesInfo.Defs {
 
 			if d == nil {

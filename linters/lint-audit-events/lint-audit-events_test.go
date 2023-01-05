@@ -15,7 +15,7 @@ func TestCheckMetadataInAuditEventImplementations(t *testing.T) {
 import "fmt"
 
 type Metadata struct {
-  Name string
+  Type string
 }
 
 type AuditEvent interface{
@@ -32,12 +32,11 @@ func Emit(e AuditEvent){
 import "my-project/events"
 
 type GoodAuditEventImplementation struct{
-  Type string
   Metadata events.Metadata
 }
 
 func (g GoodAuditEventImplementation) GetType() string{
-  return g.Type
+  return g.Metadata.Type
 }
 		    `,
 
@@ -52,6 +51,21 @@ func (b BadAuditEventImplementation) GetType() string{
   return b.Type
 }
 `,
+		"my-project/badmetadata/badmetadata.go": `package badmetadata
+
+import (
+  "my-project/events"
+  "my-project/goodimpl"
+)
+
+func EmitAuditEvent(){
+  
+    events.Emit(goodimpl.GoodAuditEventImplementation{
+        Metadata: events.Metadata{}, // want "Metadata struct does not specify a Type field"
+    })
+}
+`,
+
 		"my-project/main.go": `package main
 
 import (
@@ -63,9 +77,8 @@ import (
 func main(){
 
     events.Emit(goodimpl.GoodAuditEventImplementation{
-      Type: "good audit event",
       Metadata: events.Metadata{
-	Name: "my metadata",
+	Type: "my metadata",
       },
     })
 
