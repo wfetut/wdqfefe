@@ -135,21 +135,59 @@ func main(){
 }
 
 func TestCheckValuesOfRequiredFields(t *testing.T) {
-	fset := token.FileSet{}
 
-	i := RequiredFieldInfo{
-		workingDir:               "",
-		packageName:              "my-project/events",
-		interfaceTypeName:        "AuditEvent",
-		requiredFieldName:        "Metadata",
-		requiredFieldPackageName: "my-project/events",
-		requiredFieldTypeName:    "Metadata",
-		envPairs:                 []string{},
-		fieldTypeMustPopulateFields: map[string]struct{}{
-			"Type": struct{}{},
+	cases := []struct {
+		description        string
+		file               string
+		expectedDiagnostic analysis.Diagnostic
+	}{
+		{
+			description: "Correct use of Metadata",
+			file: `package goodmetadata
+
+import (
+  "my-project/events"
+  "my-project/goodimpl"
+)
+
+func EmitAuditEvent(){
+  
+    events.Emit(goodimpl.AuditEventImplementation{
+        Metadata: events.Metadata{
+           Name: "My Metadata",
+	   Type: auditEventEmitted,
+	},
+    })
+}
+`,
+			expectedDiagnostic: analysis.Diagnostic{},
 		},
-	}
-	f, err := parser.ParseFile(&fset, "badmetadata.go", `package badmetadata
+		{
+			description: "Metadata with missing desired field",
+			file: `package badmetadata
+
+import (
+  "my-project/events"
+  "my-project/goodimpl"
+)
+
+func EmitAuditEvent(){
+  
+    events.Emit(goodimpl.AuditEventImplementation{
+        Metadata: events.Metadata{
+           Name: "My Metadata",
+	},
+    })
+}
+`,
+			// TODO: fill this in
+			expectedDiagnostic: analysis.Diagnostic{
+				Message: "Need to fill this in later",
+			},
+		},
+		{
+			description: "Metadata with empty desired field",
+			file: `package badmetadata
 
 import (
   "my-project/events"
@@ -161,23 +199,45 @@ func EmitAuditEvent(){
     events.Emit(goodimpl.GoodAuditEventImplementation{
         Metadata: events.Metadata{
            Name: "My Metadata",
+	   Type: "",
 	},
     })
 }
-`, parser.ParseComments)
-
-	if err != nil {
-		t.Fatalf("unexpected error parsing the fixture: %v", err)
+`,
+			// TODO: fill this in
+			expectedDiagnostic: analysis.Diagnostic{
+				Message: "Need to fill this in later",
+			},
+		},
 	}
 
-	d := checkValuesOfRequiredFields(i, f)
-	exp := analysis.Diagnostic{
-		Message: "Need to fill this in later",
-	}
+	for _, c := range cases {
+		t.Run(c.description, func(t *testing.T) {
 
-	// TODO: fill this in
-	if !reflect.DeepEqual(d, exp) {
-		t.Fatalf("expected to receive diagnostic: %+v\nbut got: %+v", exp, d)
-	}
+			fset := token.FileSet{}
 
+			i := RequiredFieldInfo{
+				workingDir:               "",
+				packageName:              "my-project/events",
+				interfaceTypeName:        "AuditEvent",
+				requiredFieldName:        "Metadata",
+				requiredFieldPackageName: "my-project/events",
+				requiredFieldTypeName:    "Metadata",
+				envPairs:                 []string{},
+				fieldTypeMustPopulateFields: map[string]struct{}{
+					"Type": struct{}{},
+				},
+			}
+			f, err := parser.ParseFile(&fset, "badmetadata.go", c.file, parser.ParseComments)
+
+			if err != nil {
+				t.Fatalf("unexpected error parsing the fixture: %v", err)
+			}
+
+			d := checkValuesOfRequiredFields(i, f)
+			if !reflect.DeepEqual(d, c.expectedDiagnostic) {
+				t.Fatalf("expected to receive diagnostic: %+v\nbut got: %+v", c.expectedDiagnostic, d)
+			}
+		})
+	}
 }
