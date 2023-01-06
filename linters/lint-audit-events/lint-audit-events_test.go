@@ -241,16 +241,14 @@ func EmitAuditEvent(){
 			fset := token.FileSet{}
 
 			i := RequiredFieldInfo{
-				workingDir:               "",
-				packageName:              "my-project/events",
-				interfaceTypeName:        "AuditEvent",
-				requiredFieldName:        "Metadata",
-				requiredFieldPackageName: "my-project/events",
-				requiredFieldTypeName:    "Metadata",
-				envPairs:                 []string{},
-				fieldTypeMustPopulateFields: map[string]struct{}{
-					"Type": struct{}{},
-				},
+				workingDir:                  "",
+				packageName:                 "my-project/events",
+				interfaceTypeName:           "AuditEvent",
+				requiredFieldName:           "Metadata",
+				requiredFieldPackageName:    "my-project/events",
+				requiredFieldTypeName:       "Metadata",
+				envPairs:                    []string{},
+				fieldTypeMustPopulateFields: []string{"Type"},
 			}
 			f, err := parser.ParseFile(&fset, "badmetadata.go", c.file, parser.ParseComments)
 
