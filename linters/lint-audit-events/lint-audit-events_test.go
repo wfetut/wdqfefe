@@ -140,6 +140,7 @@ func TestCheckValuesOfRequiredFields(t *testing.T) {
 		description        string
 		file               string
 		expectedDiagnostic analysis.Diagnostic
+		expectedFacts      []valueIdentifierFact
 	}{
 		{
 			description: "Correct use of Metadata",
@@ -161,6 +162,9 @@ func EmitAuditEvent(){
 }
 `,
 			expectedDiagnostic: analysis.Diagnostic{},
+			expectedFacts: []valueIdentifierFact{
+				valueIdentifierFact("auditEventEmitted"),
+			},
 		},
 		{
 			description: "Metadata with missing desired field",
@@ -256,9 +260,18 @@ func EmitAuditEvent(){
 				t.Fatalf("unexpected error parsing the fixture: %v", err)
 			}
 
-			d := checkValuesOfRequiredFields(i, f)
+			d, s := checkValuesOfRequiredFields(i, f)
 			if !reflect.DeepEqual(d, c.expectedDiagnostic) {
 				t.Fatalf("expected to receive diagnostic: %+v\nbut got: %+v", c.expectedDiagnostic, d)
+			}
+			if c.expectedFacts != nil {
+				var actualFacts []valueIdentifierFact
+				for _, fact := range s {
+					actualFacts = append(actualFacts, *fact)
+				}
+				if !reflect.DeepEqual(c.expectedFacts, actualFacts) {
+					t.Fatalf("expected facts: %v\ngot: %v", c.expectedFacts, actualFacts)
+				}
 			}
 		})
 	}

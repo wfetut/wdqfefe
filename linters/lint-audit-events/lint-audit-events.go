@@ -53,6 +53,16 @@ type RequiredFieldInfo struct {
 	envPairs []string
 }
 
+// An identifier used to provide the value of a struct field
+type valueIdentifierFact string
+
+func (f *valueIdentifierFact) String() string {
+	return string(*f)
+}
+
+// Required to implement analysis.Fact
+func (*valueIdentifierFact) AFact() {}
+
 // checkValuesOfRequiredFields traverses the children of n and ensures that any
 // values of the required field type populate certain required fields, specified
 // in i.fieldTypeMustPopulateFields.
@@ -60,7 +70,13 @@ type RequiredFieldInfo struct {
 // checkValuesOfRequiredFields acts on an AST with no type information, so
 // callers will need to ensure that n includes a declaration of a struct and the
 // struct has the required type.
-func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagnostic {
+//
+// The return values are:
+// - an analysis.Diagnostic indicating the first error encountered while
+//   checking field values
+// - a slice of valueIdentifierFact representing the identifiers used as values
+//   for the required fields.
+func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) (analysis.Diagnostic, []*valueIdentifierFact) {
 
 	// We'll use this to determine whether all declarations of the target struct
 	// include all required fields. Keys are the selector expressions that
@@ -122,6 +138,8 @@ func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagn
 		return true
 	}, nil)
 
+	var facts []*valueIdentifierFact
+
 	// Range through each struct in targetFields. For each struct, range
 	// through the fields we expect to be populated and ensure that those
 	// fields are present and populated within the struct.
@@ -140,11 +158,13 @@ func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagn
 						i.requiredFieldPackageName,
 						i.requiredFieldTypeName,
 					),
-				}
+				}, nil
 
 			}
 
-			if _, ok := kv.Value.(*ast.BasicLit); ok {
+			id, ok := kv.Value.(*ast.Ident)
+
+			if !ok {
 				return analysis.Diagnostic{
 					Pos: c.Pos(),
 					Message: fmt.Sprintf(
@@ -153,14 +173,18 @@ func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagn
 						i.requiredFieldPackageName,
 						i.requiredFieldTypeName,
 					),
-				}
+				}, nil
 
 			}
-		}
 
+			fact := valueIdentifierFact(id.Name)
+
+			facts = append(facts, &fact)
+
+		}
 	}
 
-	return analysis.Diagnostic{}
+	return analysis.Diagnostic{}, facts
 }
 
 // loadPackage loads the package named n using the PrintfRequiredFieldInfo r.
@@ -401,10 +425,15 @@ func (a analyzerPlugin) GetAnalyzers() []*analysis.Analyzer {
 		panic(err)
 	}
 
+	var f valueIdentifierFact
+
 	var auditEventDeclarationLinter = &analysis.Analyzer{
 		Name: "lint-audit-event-declarations",
 		Doc:  "ensure that Teleport audit events follow the structure required",
 		Run:  fn,
+		FactTypes: []analysis.Fact{
+			&f,
+		},
 	}
 
 	return []*analysis.Analyzer{
