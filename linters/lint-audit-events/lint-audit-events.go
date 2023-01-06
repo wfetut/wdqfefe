@@ -56,24 +56,37 @@ type RequiredFieldInfo struct {
 // checkValuesOfRequiredFields traverses the children of n and ensures that any
 // values of the required field type populate certain required fields, specified
 // in i.fieldTypeMustPopulateFields.
+//
+// checkValuesOfRequiredFields acts on an AST with no type information, so
+// callers will need to ensure that n is a declaration of a struct with the
+// correct type.
 func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagnostic {
 	var d analysis.Diagnostic
 	astutil.Apply(n, func(c *astutil.Cursor) bool {
+		fmt.Println("")
+		fmt.Println("cursor: ", c)
+
 		// We're checking a field, so it must have a parent
 		if c.Parent() == nil {
 			return true
 		}
+
+		fmt.Println("has a parent")
 		l, ok := c.Parent().(*ast.CompositeLit)
 
 		// The parent must be a struct, which is a composite literal
 		if !ok {
 			return true
 		}
+
+		fmt.Println("is a composite literal")
 		s, ok := l.Type.(*ast.SelectorExpr)
 		// The parent's type must be a selector expression, e.g., events.Metadata
 		if !ok {
 			return true
 		}
+
+		fmt.Println("has a selector parent")
 
 		x, ok := s.X.(*ast.Ident)
 		// The expression must be an object
@@ -81,17 +94,15 @@ func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagn
 			return true
 		}
 
-		// The struct wasn't imported from the package where we declare
-		// the target field type, so skip it.
-		if x.Name != i.requiredFieldPackageName {
-			return true
-		}
+		fmt.Println("has a parent with an identifier expression in the selector")
 
 		// This composite literal doesn't have the name of the required
 		// field, so skip it.
 		if s.Sel.Name != i.requiredFieldTypeName {
 			return true
 		}
+
+		fmt.Println("has the required field type name")
 
 		kv, ok := c.Node().(*ast.KeyValueExpr)
 		// The node is not a key/value expression like:
@@ -101,10 +112,14 @@ func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagn
 			return true
 		}
 
+		fmt.Println("is a key-value expression")
+
 		key, ok := kv.Key.(*ast.Ident)
 		if !ok {
 			return true
 		}
+
+		fmt.Println("has an identifier for the key")
 
 		// TODO: We need to figure out how to handle a case where the
 		// required field is missing, since it won't show up when we
@@ -113,11 +128,13 @@ func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagn
 			return true
 		}
 
+		fmt.Println("has the required field name")
+
 		if _, ok := kv.Value.(*ast.BasicLit); ok {
 			d = analysis.Diagnostic{
 				Pos: c.Parent().Pos(),
 				Message: fmt.Sprintf(
-					"the field %v in composite literal %v.%vmust have a value that is a variable or constant",
+					"the field %v in composite literal %v.%v must have a value that is a variable or constant",
 					key.Name,
 					x.Name,
 					s.Sel.Name,
@@ -133,7 +150,7 @@ func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagn
 	return d
 }
 
-// loadPackage loads the package named n using the RequiredFieldInfo r.
+// loadPackage loads the package named n using the PrintfRequiredFieldInfo r.
 func loadPackage(name string, r RequiredFieldInfo) (*packages.Package, error) {
 	var env []string
 	if r.envPairs != nil {
