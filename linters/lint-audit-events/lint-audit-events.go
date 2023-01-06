@@ -44,7 +44,7 @@ type RequiredFieldInfo struct {
 	requiredFieldType *types.Struct
 
 	// names of the fields within requiredFieldType that must be populated
-	fieldTypeMustPopulateFields map[string]struct{}
+	fieldTypeMustPopulateFields []string
 
 	// slice of "key=value" environment variable assignments to use when
 	// loading packages. Examples include:
@@ -58,10 +58,17 @@ type RequiredFieldInfo struct {
 // in i.fieldTypeMustPopulateFields.
 //
 // checkValuesOfRequiredFields acts on an AST with no type information, so
-// callers will need to ensure that n is a declaration of a struct with the
-// correct type.
+// callers will need to ensure that n includes a declaration of a struct and the
+// struct has the required type.
 func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagnostic {
-	var d analysis.Diagnostic
+
+	// We'll use this to determine whether all declarations of the target struct
+	// include all required fields. Keys are the selector expressions that
+	// declare a struct with the required type. Each value is a map where
+	// keys are strings representing field names and values are the original
+	// KeyValueExprs in the struct correspondign to those names.
+	targetFields := make(map[*ast.SelectorExpr]map[string]*ast.KeyValueExpr)
+
 	astutil.Apply(n, func(c *astutil.Cursor) bool {
 		fmt.Println("")
 		fmt.Println("cursor: ", c)
@@ -86,16 +93,6 @@ func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagn
 			return true
 		}
 
-		fmt.Println("has a selector parent")
-
-		x, ok := s.X.(*ast.Ident)
-		// The expression must be an object
-		if !ok {
-			return true
-		}
-
-		fmt.Println("has a parent with an identifier expression in the selector")
-
 		// This composite literal doesn't have the name of the required
 		// field, so skip it.
 		if s.Sel.Name != i.requiredFieldTypeName {
@@ -112,42 +109,64 @@ func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagn
 			return true
 		}
 
-		fmt.Println("is a key-value expression")
+		// Now that we know that the cursor's Node is a key/value
+		// expression, add the parent to the map so we can ensure later
+		// that the parent has all required fields.
+		if _, ok := targetFields[s]; !ok {
+			targetFields[s] = make(map[string]*ast.KeyValueExpr)
+		}
 
-		key, ok := kv.Key.(*ast.Ident)
+		id, ok := kv.Key.(*ast.Ident)
+
+		// The key isn't an identifier for some reason, so skip it
 		if !ok {
 			return true
 		}
 
-		fmt.Println("has an identifier for the key")
-
-		// TODO: We need to figure out how to handle a case where the
-		// required field is missing, since it won't show up when we
-		// range through the fields
-		if _, ok := i.fieldTypeMustPopulateFields[key.Name]; !ok {
-			return true
-		}
-
-		fmt.Println("has the required field name")
-
-		if _, ok := kv.Value.(*ast.BasicLit); ok {
-			d = analysis.Diagnostic{
-				Pos: c.Parent().Pos(),
-				Message: fmt.Sprintf(
-					"the field %v in composite literal %v.%v must have a value that is a variable or constant",
-					key.Name,
-					x.Name,
-					s.Sel.Name,
-				),
-			}
-
-			// we've found an error, so stop traversing
-			return false
-		}
+		targetFields[s][id.Name] = kv
 
 		return true
 	}, nil)
-	return d
+
+	// Range through each struct in targetFields. For each struct, range
+	// through the fields we expect to be populated and ensure that those
+	// fields are present and populated within the struct.
+	for c, m := range targetFields {
+		for _, e := range i.fieldTypeMustPopulateFields {
+
+			kv, ok := m[e]
+
+			if !ok {
+
+				return analysis.Diagnostic{
+					Pos: c.Pos(),
+					Message: fmt.Sprintf(
+						"required field %v is missing in a declaration of %v.%v",
+						e,
+						i.requiredFieldPackageName,
+						i.requiredFieldTypeName,
+					),
+				}
+
+			}
+
+			if _, ok := kv.Value.(*ast.BasicLit); ok {
+				return analysis.Diagnostic{
+					Pos: c.Pos(),
+					Message: fmt.Sprintf(
+						"the field %v in composite literal %v.%v must have a value that is a variable or constant",
+						e,
+						i.requiredFieldPackageName,
+						i.requiredFieldTypeName,
+					),
+				}
+
+			}
+		}
+
+	}
+
+	return analysis.Diagnostic{}
 }
 
 // loadPackage loads the package named n using the PrintfRequiredFieldInfo r.
