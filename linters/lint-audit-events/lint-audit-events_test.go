@@ -180,9 +180,9 @@ func EmitAuditEvent(){
     })
 }
 `,
-			// TODO: fill this in
 			expectedDiagnostic: analysis.Diagnostic{
-				Message: "Need to fill this in later",
+				Pos:     174,
+				Message: "required field Type is missing in a declaration of my-project/events.Metadata",
 			},
 		},
 		{
@@ -206,11 +206,11 @@ func EmitAuditEvent(){
 `,
 			expectedDiagnostic: analysis.Diagnostic{
 				Pos:     178,
-				Message: "the field Type in composite literal events.Metadata must have a value that is a variable or constant",
+				Message: "the field Type in composite literal my-project/events.Metadata must have a value that is a variable or constant",
 			},
 		},
 		{
-			description: "Metadata with nonempty, string literal desired field",
+			description: "Metadata with nonempty string literal desired field",
 			file: `package badmetadata
 
 import (
@@ -230,7 +230,7 @@ func EmitAuditEvent(){
 `,
 			expectedDiagnostic: analysis.Diagnostic{
 				Pos:     178,
-				Message: "the field Type in composite literal events.Metadata must have a value that is a variable or constant",
+				Message: "the field Type in composite literal my-project/events.Metadata must have a value that is a variable or constant",
 			},
 		},
 	}

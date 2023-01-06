@@ -70,15 +70,12 @@ func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagn
 	targetFields := make(map[*ast.SelectorExpr]map[string]*ast.KeyValueExpr)
 
 	astutil.Apply(n, func(c *astutil.Cursor) bool {
-		fmt.Println("")
-		fmt.Println("cursor: ", c)
 
 		// We're checking a field, so it must have a parent
 		if c.Parent() == nil {
 			return true
 		}
 
-		fmt.Println("has a parent")
 		l, ok := c.Parent().(*ast.CompositeLit)
 
 		// The parent must be a struct, which is a composite literal
@@ -86,7 +83,6 @@ func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagn
 			return true
 		}
 
-		fmt.Println("is a composite literal")
 		s, ok := l.Type.(*ast.SelectorExpr)
 		// The parent's type must be a selector expression, e.g., events.Metadata
 		if !ok {
@@ -98,8 +94,6 @@ func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagn
 		if s.Sel.Name != i.requiredFieldTypeName {
 			return true
 		}
-
-		fmt.Println("has the required field type name")
 
 		kv, ok := c.Node().(*ast.KeyValueExpr)
 		// The node is not a key/value expression like:
