@@ -17,6 +17,9 @@ func TestCheckMetadataInAuditEventImplementations(t *testing.T) {
 
 import "fmt"
 
+// NewConnectionEvent is emitted when there is a new connection
+var NewConnectionEvent string = "connection.new"
+
 type Metadata struct {
   Type string
 }
@@ -81,7 +84,7 @@ func main(){
 
     events.Emit(goodimpl.GoodAuditEventImplementation{
       Metadata: events.Metadata{
-	Type: "my metadata",
+	Type: events.NewConnectionEvent,
       },
     })
 
@@ -119,10 +122,13 @@ func main(){
 		t.Fatal(err)
 	}
 
+	var f valueIdentifierFact
+
 	var auditEventDeclarationLinter = &analysis.Analyzer{
-		Name: "lint-audit-event-declarations",
-		Doc:  "ensure that Teleport audit events follow the structure required",
-		Run:  fn,
+		Name:      "lint-audit-event-declarations",
+		Doc:       "ensure that Teleport audit events follow the structure required",
+		Run:       fn,
+		FactTypes: []analysis.Fact{&f},
 	}
 
 	analysistest.Run(
