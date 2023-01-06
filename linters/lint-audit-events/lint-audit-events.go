@@ -57,9 +57,77 @@ type RequiredFieldInfo struct {
 // values of the required field type populate certain required fields, specified
 // in i.fieldTypeMustPopulateFields.
 func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) analysis.Diagnostic {
-	d := analysis.Diagnostic{}
+	var d analysis.Diagnostic
 	astutil.Apply(n, func(c *astutil.Cursor) bool {
-		d = analysis.Diagnostic{}
+		// We're checking a field, so it must have a parent
+		if c.Parent() == nil {
+			return true
+		}
+		l, ok := c.Parent().(*ast.CompositeLit)
+
+		// The parent must be a struct, which is a composite literal
+		if !ok {
+			return true
+		}
+		s, ok := l.Type.(*ast.SelectorExpr)
+		// The parent's type must be a selector expression, e.g., events.Metadata
+		if !ok {
+			return true
+		}
+
+		x, ok := s.X.(*ast.Ident)
+		// The expression must be an object
+		if !ok {
+			return true
+		}
+
+		// The struct wasn't imported from the package where we declare
+		// the target field type, so skip it.
+		if x.Name != i.requiredFieldPackageName {
+			return true
+		}
+
+		// This composite literal doesn't have the name of the required
+		// field, so skip it.
+		if s.Sel.Name != i.requiredFieldTypeName {
+			return true
+		}
+
+		kv, ok := c.Node().(*ast.KeyValueExpr)
+		// The node is not a key/value expression like:
+		//
+		// { Type: myValue, }
+		if !ok {
+			return true
+		}
+
+		key, ok := kv.Key.(*ast.Ident)
+		if !ok {
+			return true
+		}
+
+		// TODO: We need to figure out how to handle a case where the
+		// required field is missing, since it won't show up when we
+		// range through the fields
+		if _, ok := i.fieldTypeMustPopulateFields[key.Name]; !ok {
+			return true
+		}
+
+		if _, ok := kv.Value.(*ast.BasicLit); ok {
+			d = analysis.Diagnostic{
+				Pos: c.Parent().Pos(),
+				Message: fmt.Sprintf(
+					"the field %v in composite literal %v.%vmust have a value that is a variable or constant",
+					key.Name,
+					x.Name,
+					s.Sel.Name,
+				),
+			}
+
+			// we've found an error, so stop traversing
+			return false
+		}
+
 		return true
 	}, nil)
 	return d
