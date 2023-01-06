@@ -175,14 +175,11 @@ func loadPackage(name string, r RequiredFieldInfo) (*packages.Package, error) {
 	pkg, err := packages.Load(
 		&packages.Config{
 			Dir: r.workingDir,
-			// TODO: Trim down the mode after debugging the test
 			Mode: packages.NeedName | packages.NeedFiles |
-				packages.NeedSyntax | packages.NeedTypes |
-				packages.NeedCompiledGoFiles | packages.NeedDeps |
-				packages.NeedEmbedFiles | packages.NeedEmbedPatterns |
-				packages.NeedExportFile | packages.NeedExportsFile |
-				packages.NeedFiles | packages.NeedImports |
-				packages.NeedTypesSizes | packages.NeedTypesInfo,
+				packages.NeedCompiledGoFiles | packages.NeedImports |
+				packages.NeedTypes | packages.NeedTypesSizes |
+				packages.NeedSyntax | packages.NeedTypesInfo |
+				packages.NeedDeps,
 			Env: env,
 		},
 		name)
