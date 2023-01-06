@@ -186,7 +186,7 @@ func EmitAuditEvent(){
 			},
 		},
 		{
-			description: "Metadata with empty desired field",
+			description: "Metadata with empty string literal desired field",
 			file: `package badmetadata
 
 import (
@@ -204,9 +204,33 @@ func EmitAuditEvent(){
     })
 }
 `,
-			// TODO: fill this in
 			expectedDiagnostic: analysis.Diagnostic{
-				Message: "Need to fill this in later",
+				Pos:     178,
+				Message: "the field Type in composite literal events.Metadata must have a value that is a variable or constant",
+			},
+		},
+		{
+			description: "Metadata with nonempty, string literal desired field",
+			file: `package badmetadata
+
+import (
+  "my-project/events"
+  "my-project/goodimpl"
+)
+
+func EmitAuditEvent(){
+  
+    events.Emit(goodimpl.GoodAuditEventImplementation{
+        Metadata: events.Metadata{
+           Name: "My Metadata",
+	   Type: "auditEventType",
+	},
+    })
+}
+`,
+			expectedDiagnostic: analysis.Diagnostic{
+				Pos:     178,
+				Message: "the field Type in composite literal events.Metadata must have a value that is a variable or constant",
 			},
 		},
 	}
