@@ -35,7 +35,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -1533,10 +1532,10 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 
 	// after auth but before we create the first session, find out if the proxy
 	// is in recording mode or not
-	recordingProxy, err := proxy.isRecordingProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	//recordingProxy, err := proxy.isRecordingProxy(ctx)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
 
 	proxySession, err := proxy.Client.NewSession(ctx)
 	if err != nil {
@@ -1567,20 +1566,20 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	// mode. we always try and forward an agent here because each new session
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
 	// "already have handler for" we ignore it.
-	if recordingProxy {
-		if proxy.teleportClient.localAgent == nil {
-			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
-		}
-		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.Agent)
-		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
-			return nil, trace.Wrap(err)
-		}
-
-		err = agent.RequestAgentForwarding(proxySession.Session)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
+	//if recordingProxy {
+	//	if proxy.teleportClient.localAgent == nil {
+	//		return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
+	//	}
+	//	err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.Agent)
+	//	if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
+	//		return nil, trace.Wrap(err)
+	//	}
+	//
+	//	err = agent.RequestAgentForwarding(proxySession.Session)
+	//	if err != nil {
+	//		return nil, trace.Wrap(err)
+	//	}
+	//}
 
 	err = requestSubsystem(ctx, proxySession, "proxy:"+nodeAddress.ProxyFormat())
 	if err != nil {
@@ -1663,24 +1662,24 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 
 	// after auth but before we create the first session, find out if the proxy
 	// is in recording mode or not
-	recordingProxy, err := proxy.isRecordingProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	//recordingProxy, err := proxy.isRecordingProxy(ctx)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
 
 	// the client only tries to forward an agent when the proxy is in recording
 	// mode. we always try and forward an agent here because each new session
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
 	// "already have handler for" we ignore it.
-	if recordingProxy {
-		if proxy.teleportClient.localAgent == nil {
-			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
-		}
-		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.Agent)
-		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
-			return nil, trace.Wrap(err)
-		}
-	}
+	//if recordingProxy {
+	//	if proxy.teleportClient.localAgent == nil {
+	//		return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
+	//	}
+	//	err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.Agent)
+	//	if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
+	//		return nil, trace.Wrap(err)
+	//	}
+	//}
 
 	proxyConn, err := proxy.Client.Dial("tcp", nodeAddress.Addr)
 	if err != nil {
