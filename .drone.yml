@@ -18201,14 +18201,12 @@ type: exec
 name: test-build-windows-v13
 trigger:
   event:
-    include:
-    - push
+    - custom
   repo:
     include:
-    - gravitational/*
+      - gravitational/*
   branch:
-    include:
-    - tcsc/drone-*
+    - tcsc/drone-builder-check
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
 platform:
@@ -18229,13 +18227,11 @@ type: exec
 name: test-build-windows-v12
 trigger:
   event:
-    include:
-    - push
+    - custom
   repo:
     include:
-    - gravitational/*
+      - gravitational/*
   branch:
-    include:
     - tcsc/drone-builder-check
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
@@ -18283,15 +18279,11 @@ type: exec
 name: test-build-windows-v10
 trigger:
   event:
-    include:
-    - push
-    exclude:
-    - pull_request
+    - custom
   repo:
     include:
-    - gravitational/*
+      - gravitational/*
   branch:
-    include:
     - tcsc/drone-builder-check
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
@@ -18308,6 +18300,6 @@ steps:
   - 'echo Hello from Windows v10'
 ---
 kind: signature
-hmac: 30acb532b3ae1ba58008d1104eebf732e82532575c20c7126843473e524710dc
+hmac: 2cd49951119739649358b972c3fdae9b14285cc4e9cb7dfe80e42dbf64e982f6
 
 ...
