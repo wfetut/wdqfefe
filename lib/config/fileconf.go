@@ -1863,11 +1863,11 @@ type Proxy struct {
 	// client connections.
 	MongoPublicAddr apiutils.Strings `yaml:"mongo_public_addr,omitempty"`
 
-	UiConfig UiConfig `yaml:"ui"`
+	UiConfig UiConfig `yaml:"ui,omitempty"`
 }
 
 type UiConfig struct {
-	ScrollbackLength int `yaml:"scrollback_length"`
+	ScrollbackLength string `yaml:"scrollback_length,omitempty"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates

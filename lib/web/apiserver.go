@@ -229,6 +229,12 @@ type Config struct {
 
 	// TracerProvider generates tracers to create spans with
 	TracerProvider oteltrace.TracerProvider
+
+	UiConfig UiConfig
+}
+
+type UiConfig struct {
+	ScrollbackLength string
 }
 
 type APIHandler struct {

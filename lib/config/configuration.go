@@ -2053,6 +2053,10 @@ func Configure(clf *CommandLineFlags, cfg *service.Config, legacyAppFlags bool) 
 		cfg.SSH.PermitUserEnvironment = true
 	}
 
+	if fileConf.Proxy.UiConfig.ScrollbackLength != "" {
+		cfg.Proxy.UiConfig.ScrollbackLength = fileConf.Proxy.UiConfig.ScrollbackLength
+	}
+
 	// set the default proxy listener addresses for config v1, if not already set
 	applyDefaultProxyListenerAddresses(cfg)
 

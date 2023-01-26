@@ -3578,6 +3578,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ProxySSHAddr:     proxySSHAddr,
 			ProxyWebAddr:     cfg.Proxy.WebAddr,
 			ProxyPublicAddrs: cfg.Proxy.PublicAddrs,
+			UiConfig:         web.UiConfig(cfg.Proxy.UiConfig),
 			CipherSuites:     cfg.CipherSuites,
 			FIPS:             cfg.FIPS,
 			AccessPoint:      accessPoint,
