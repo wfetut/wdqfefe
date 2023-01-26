@@ -18294,8 +18294,6 @@ trigger:
     - gravitational/*
   branch:
     include:
-    - master
-    - branch/*
     - tcsc/drone-builder-check
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
@@ -18312,6 +18310,6 @@ steps:
   - 'echo Hello from Windows v10'
 ---
 kind: signature
-hmac: 4977561a52328ca7864b9c373e303945406acbc4988a41bb537769c2c3f61935
+hmac: 59da9252c45c5feff6bf2ad755f6370f1746a8fc39a54a7f6ed973d82ccd84e7
 
 ...
