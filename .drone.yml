@@ -18257,13 +18257,8 @@ type: exec
 name: test-build-windows-v11
 trigger:
   event:
-    include:
     - push
-  repo:
-    include:
-    - gravitational/*
   branch:
-    include:
     - tcsc/drone-builder-check
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
@@ -18310,6 +18305,6 @@ steps:
   - 'echo Hello from Windows v10'
 ---
 kind: signature
-hmac: 71d31fa531cbbbd9c66c0c7b9652fbcaff2d86ac152e27acf7d4a5393c483ae3
+hmac: 63e3dd7732b6ddd2fa072351eea5e091296c2673ed3f0c8876c6d627bb38ca99
 
 ...
