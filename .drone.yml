@@ -18203,15 +18203,11 @@ trigger:
   event:
     include:
     - push
-    exclude:
-    - pull_request
   repo:
     include:
     - gravitational/*
   branch:
     include:
-    - master
-    - branch/*
     - tcsc/drone-builder-check
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
@@ -18235,15 +18231,11 @@ trigger:
   event:
     include:
     - push
-    exclude:
-    - pull_request
   repo:
     include:
     - gravitational/*
   branch:
     include:
-    - master
-    - branch/*
     - tcsc/drone-builder-check
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
@@ -18267,15 +18259,11 @@ trigger:
   event:
     include:
     - push
-    exclude:
-    - pull_request
   repo:
     include:
     - gravitational/*
   branch:
     include:
-    - master
-    - branch/*
     - tcsc/drone-builder-check
 workspace:
   path: C:/Drone/Workspace/push-build-native-windows-amd64
@@ -18324,6 +18312,6 @@ steps:
   - 'echo Hello from Windows v10'
 ---
 kind: signature
-hmac: 9a2edbdf2c26928bf68223c36dc8e6cde262bf024cb53fab8910831c89402875
+hmac: 4977561a52328ca7864b9c373e303945406acbc4988a41bb537769c2c3f61935
 
 ...
