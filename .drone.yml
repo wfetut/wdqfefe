@@ -18257,7 +18257,7 @@ type: exec
 name: test-build-windows-v11
 trigger:
   event:
-    - push
+    - custom
   repo:
     include:
       - gravitational/*
@@ -18308,6 +18308,6 @@ steps:
   - 'echo Hello from Windows v10'
 ---
 kind: signature
-hmac: 58919ec90928b1b27a479e737f4afac6730660abb1ebe89aa4e4a504af9b9e3b
+hmac: 30acb532b3ae1ba58008d1104eebf732e82532575c20c7126843473e524710dc
 
 ...
