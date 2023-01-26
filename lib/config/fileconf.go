@@ -1862,6 +1862,12 @@ type Proxy struct {
 	// MongoPublicAddr is the hostport the proxy advertises for Mongo
 	// client connections.
 	MongoPublicAddr apiutils.Strings `yaml:"mongo_public_addr,omitempty"`
+
+	UiConfig UiConfig `yaml:"ui"`
+}
+
+type UiConfig struct {
+	ScrollbackLength int `yaml:"scrollback_length"`
 }
 
 // ACME configures ACME protocol - automatic X.509 certificates
