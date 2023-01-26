@@ -18194,8 +18194,136 @@ volumes:
     medium: memory
 - name: awsconfig
   temp: {}
+
+---
+kind: pipeline
+type: exec
+name: test-build-windows-v13
+trigger:
+  event:
+    include:
+    - push
+    exclude:
+    - pull_request
+  repo:
+    include:
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
+    - tcsc/drone-builder-check
+workspace:
+  path: C:/Drone/Workspace/push-build-native-windows-amd64
+platform:
+  os: windows
+  arch: amd64
+node:
+  buildbox_version: teleport13
+clone:
+  disable: true
+steps:
+- name: Report in
+  commands:
+  - 'echo Hello from Windows v13'
+
+---
+kind: pipeline
+type: exec
+name: test-build-windows-v12
+trigger:
+  event:
+    include:
+    - push
+    exclude:
+    - pull_request
+  repo:
+    include:
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
+    - tcsc/drone-builder-check
+workspace:
+  path: C:/Drone/Workspace/push-build-native-windows-amd64
+platform:
+  os: windows
+  arch: amd64
+node:
+  buildbox_version: teleport12
+clone:
+  disable: true
+steps:
+- name: Report in
+  commands:
+  - 'echo Hello from Windows v12'
+
+---
+kind: pipeline
+type: exec
+name: test-build-windows-v11
+trigger:
+  event:
+    include:
+    - push
+    exclude:
+    - pull_request
+  repo:
+    include:
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
+    - tcsc/drone-builder-check
+workspace:
+  path: C:/Drone/Workspace/push-build-native-windows-amd64
+platform:
+  os: windows
+  arch: amd64
+node:
+  buildbox_version: teleport11
+clone:
+  disable: true
+steps:
+- name: Report in
+  commands:
+  - 'echo Hello from Windows v11'
+
+---
+kind: pipeline
+type: exec
+name: test-build-windows-v10
+trigger:
+  event:
+    include:
+    - push
+    exclude:
+    - pull_request
+  repo:
+    include:
+    - gravitational/*
+  branch:
+    include:
+    - master
+    - branch/*
+    - tcsc/drone-builder-check
+workspace:
+  path: C:/Drone/Workspace/push-build-native-windows-amd64
+platform:
+  os: windows
+  arch: amd64
+node:
+  buildbox_version: teleport10
+clone:
+  disable: true
+steps:
+- name: Report in
+  commands:
+  - 'echo Hello from Windows v10'
 ---
 kind: signature
-hmac: 6b5da87020674e14fd257475a809160f81cda8d554a347516950c9c9d04d22fe
+hmac: 9a2edbdf2c26928bf68223c36dc8e6cde262bf024cb53fab8910831c89402875
 
 ...
