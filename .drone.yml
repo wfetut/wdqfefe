@@ -18201,9 +18201,8 @@ type: exec
 name: test-build-windows-v13
 trigger:
   event:
-    - custom
+    - push
   repo:
-    include:
       - gravitational/*
   branch:
     - tcsc/drone-builder-check
@@ -18221,85 +18220,85 @@ steps:
   commands:
   - 'echo Hello from Windows v13'
 
----
-kind: pipeline
-type: exec
-name: test-build-windows-v12
-trigger:
-  event:
-    - custom
-  repo:
-    include:
-      - gravitational/*
-  branch:
-    - tcsc/drone-builder-check
-workspace:
-  path: C:/Drone/Workspace/push-build-native-windows-amd64
-platform:
-  os: windows
-  arch: amd64
-node:
-  buildbox_version: teleport12
-clone:
-  disable: true
-steps:
-- name: Report in
-  commands:
-  - 'echo Hello from Windows v12'
+# ---
+# kind: pipeline
+# type: exec
+# name: test-build-windows-v12
+# trigger:
+#   event:
+#     - custom
+#   repo:
+#     include:
+#       - gravitational/*
+#   branch:
+#     - tcsc/drone-builder-check
+# workspace:
+#   path: C:/Drone/Workspace/push-build-native-windows-amd64
+# platform:
+#   os: windows
+#   arch: amd64
+# node:
+#   buildbox_version: teleport12
+# clone:
+#   disable: true
+# steps:
+# - name: Report in
+#   commands:
+#   - 'echo Hello from Windows v12'
 
----
-kind: pipeline
-type: exec
-name: test-build-windows-v11
-trigger:
-  event:
-    - custom
-  repo:
-    include:
-      - gravitational/*
-  branch:
-    - tcsc/drone-builder-check
-workspace:
-  path: C:/Drone/Workspace/push-build-native-windows-amd64
-platform:
-  os: windows
-  arch: amd64
-node:
-  buildbox_version: teleport11
-clone:
-  disable: true
-steps:
-- name: Report in
-  commands:
-  - 'echo Hello from Windows v11'
+# ---
+# kind: pipeline
+# type: exec
+# name: test-build-windows-v11
+# trigger:
+#   event:
+#     - custom
+#   repo:
+#     include:
+#       - gravitational/*
+#   branch:
+#     - tcsc/drone-builder-check
+# workspace:
+#   path: C:/Drone/Workspace/push-build-native-windows-amd64
+# platform:
+#   os: windows
+#   arch: amd64
+# node:
+#   buildbox_version: teleport11
+# clone:
+#   disable: true
+# steps:
+# - name: Report in
+#   commands:
+#   - 'echo Hello from Windows v11'
 
----
-kind: pipeline
-type: exec
-name: test-build-windows-v10
-trigger:
-  event:
-    - custom
-  repo:
-    include:
-      - gravitational/*
-  branch:
-    - tcsc/drone-builder-check
-workspace:
-  path: C:/Drone/Workspace/push-build-native-windows-amd64
-platform:
-  os: windows
-  arch: amd64
-node:
-  buildbox_version: teleport10
-clone:
-  disable: true
-steps:
-- name: Report in
-  commands:
-  - 'echo Hello from Windows v10'
+# ---
+# kind: pipeline
+# type: exec
+# name: test-build-windows-v10
+# trigger:
+#   event:
+#     - custom
+#   repo:
+#     include:
+#       - gravitational/*
+#   branch:
+#     - tcsc/drone-builder-check
+# workspace:
+#   path: C:/Drone/Workspace/push-build-native-windows-amd64
+# platform:
+#   os: windows
+#   arch: amd64
+# node:
+#   buildbox_version: teleport10
+# clone:
+#   disable: true
+# steps:
+#   - name: Report in
+#     commands:
+#       - 'echo Hello from Windows v10'
 ---
 kind: signature
-hmac: 2cd49951119739649358b972c3fdae9b14285cc4e9cb7dfe80e42dbf64e982f6
+hmac: 3d759604b31cd1e59617c22b7ea51a05585160a9e49182f49d0f2748e1b8e874
 
 ...
