@@ -18203,7 +18203,7 @@ trigger:
   event:
     - push
   repo:
-      - gravitational/*
+    - gravitational/*
   branch:
     - tcsc/drone-builder-check
 workspace:
@@ -18228,7 +18228,7 @@ trigger:
   event:
     - push
   repo:
-      - gravitational/*
+    - gravitational/*
   branch:
     - tcsc/drone-builder-check
 workspace:
@@ -18244,6 +18244,55 @@ steps:
 - name: Report in
   commands:
   - 'echo "Hello from Windows v12 on $(hostname)"'
+
+---
+kind: pipeline
+type: exec
+name: test-build-windows-v11
+trigger:
+  event:
+    - push
+  repo:
+    - gravitational/*
+  branch:
+    - tcsc/drone-builder-check
+workspace:
+  path: C:/Drone/Workspace/push-build-native-windows-amd64
+platform:
+  os: windows
+  arch: amd64
+node:
+  buildbox_version: teleport11
+clone:
+  disable: true
+steps:
+- name: Report in
+  commands:
+  - 'echo "Hello from Windows v11 on $(hostname)"'
+---
+kind: pipeline
+type: exec
+name: test-build-windows-v10
+trigger:
+  event:
+    - push
+  repo:
+    - gravitational/*
+  branch:
+    - tcsc/drone-builder-check
+workspace:
+  path: C:/Drone/Workspace/push-build-native-windows-amd64
+platform:
+  os: windows
+  arch: amd64
+node:
+  buildbox_version: teleport10
+clone:
+  disable: true
+steps:
+- name: Report in
+  commands:
+  - 'echo "Hello from Windows v10 on $(hostname)"'
 ---
 kind: signature
 hmac: e0ec80fdb3fe293e8ad9d0d7905a5e5050064720d63d5a7f1f9fb1ec95de1971
