@@ -18220,85 +18220,32 @@ steps:
   commands:
   - 'echo "Hello from Windows v13 on $(hostname)"'
 
-# ---
-# kind: pipeline
-# type: exec
-# name: test-build-windows-v12
-# trigger:
-#   event:
-#     - custom
-#   repo:
-#     include:
-#       - gravitational/*
-#   branch:
-#     - tcsc/drone-builder-check
-# workspace:
-#   path: C:/Drone/Workspace/push-build-native-windows-amd64
-# platform:
-#   os: windows
-#   arch: amd64
-# node:
-#   buildbox_version: teleport12
-# clone:
-#   disable: true
-# steps:
-# - name: Report in
-#   commands:
-#   - 'echo Hello from Windows v12'
-
-# ---
-# kind: pipeline
-# type: exec
-# name: test-build-windows-v11
-# trigger:
-#   event:
-#     - custom
-#   repo:
-#     include:
-#       - gravitational/*
-#   branch:
-#     - tcsc/drone-builder-check
-# workspace:
-#   path: C:/Drone/Workspace/push-build-native-windows-amd64
-# platform:
-#   os: windows
-#   arch: amd64
-# node:
-#   buildbox_version: teleport11
-# clone:
-#   disable: true
-# steps:
-# - name: Report in
-#   commands:
-#   - 'echo Hello from Windows v11'
-
-# ---
-# kind: pipeline
-# type: exec
-# name: test-build-windows-v10
-# trigger:
-#   event:
-#     - custom
-#   repo:
-#     include:
-#       - gravitational/*
-#   branch:
-#     - tcsc/drone-builder-check
-# workspace:
-#   path: C:/Drone/Workspace/push-build-native-windows-amd64
-# platform:
-#   os: windows
-#   arch: amd64
-# node:
-#   buildbox_version: teleport10
-# clone:
-#   disable: true
-# steps:
-#   - name: Report in
-#     commands:
-#       - 'echo Hello from Windows v10'
+---
+kind: pipeline
+type: exec
+name: test-build-windows-v12
+trigger:
+  event:
+    - push
+  repo:
+      - gravitational/*
+  branch:
+    - tcsc/drone-builder-check
+workspace:
+  path: C:/Drone/Workspace/push-build-native-windows-amd64
+platform:
+  os: windows
+  arch: amd64
+node:
+  buildbox_version: teleport12
+clone:
+  disable: true
+steps:
+- name: Report in
+  commands:
+  - 'echo "Hello from Windows v12 on $(hostname)"'
 ---
 kind: signature
-hmac: 53f4891f5a1acee1f334ef92ee13a92041d730d422f5c8cdad5b7194cd33bcf2
+hmac: e0ec80fdb3fe293e8ad9d0d7905a5e5050064720d63d5a7f1f9fb1ec95de1971
 
 ...
