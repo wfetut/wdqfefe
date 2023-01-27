@@ -18218,7 +18218,7 @@ clone:
 steps:
 - name: Report in
   commands:
-  - 'echo Hello from Windows v13'
+  - 'echo "Hello from Windows v13 on $(hostname)"'
 
 # ---
 # kind: pipeline
@@ -18299,6 +18299,6 @@ steps:
 #       - 'echo Hello from Windows v10'
 ---
 kind: signature
-hmac: 3d759604b31cd1e59617c22b7ea51a05585160a9e49182f49d0f2748e1b8e874
+hmac: 53f4891f5a1acee1f334ef92ee13a92041d730d422f5c8cdad5b7194cd33bcf2
 
 ...
