@@ -18290,11 +18290,11 @@ node:
 clone:
   disable: true
 steps:
-- name: Report in
+- name: Report in from builder
   commands:
   - 'echo "Hello from Windows v10 on $(hostname)!!"'
 ---
 kind: signature
-hmac: bd6fe0ad9beb617be2184dfd7ae9dcf3a764540656085c57154e319d06e295e7
+hmac: e7ba04c76cc7146cfdd7736fda0816829836397255985926e2154f7a69132c04
 
 ...
