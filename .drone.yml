@@ -18292,9 +18292,9 @@ clone:
 steps:
 - name: Report in
   commands:
-  - 'echo "Hello from Windows v10 on $(hostname)!"'
+  - 'echo "Hello from Windows v10 on $(hostname)!!"'
 ---
 kind: signature
-hmac: 2eb70a287cfaf8a8a78557e646813d71172f085ffb77580af2dd31fbebd7dbba
+hmac: 582271c2dc0f735805de2ed4946414785be5f2f48ca19f4bb2eea38af8798df0
 
 ...
