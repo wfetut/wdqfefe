@@ -1558,6 +1558,12 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		kubernetes = true
 	}
 
+	// Bot users are regular Teleport users, but have a special internal label.
+	bot := false
+	if _, ok := req.user.GetMetadata().Labels[types.BotLabel]; ok {
+		bot = true
+	}
+
 	// Unfortunately the only clue we have about Windows certs is the usage
 	// restriction: `RouteToWindowsDesktop` isn't actually passed along to the
 	// certRequest.
@@ -1578,6 +1584,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 	if err := a.AnonymizeAndSubmit(&services.UsageCertificateIssuedEvent{
 		UserName:        user,
 		Ttl:             durationpb.New(req.ttl),
+		IsBot:           bot,
 		UsageDatabase:   database,
 		UsageApp:        app,
 		UsageKubernetes: kubernetes,
