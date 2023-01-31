@@ -41,7 +41,7 @@ type RequiredFieldInfo struct {
 
 	// type of the field required in structs that implement the interface in
 	// interfaceType.
-	requiredFieldType *types.Struct
+	requiredFieldType types.Type
 
 	// names of the fields within requiredFieldType that must be populated
 	fieldTypeMustPopulateFields []string
@@ -76,7 +76,7 @@ func (*valueIdentifierFact) AFact() {}
 //   checking field values
 // - a slice of valueIdentifierFact representing the identifiers used as values
 //   for the required fields.
-func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) (analysis.Diagnostic, []*valueIdentifierFact) {
+func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node) (analysis.Diagnostic, []*valueIdentifierFact) {
 
 	// We'll use this to determine whether all declarations of the target struct
 	// include all required fields. Keys are the selector expressions that
@@ -91,6 +91,31 @@ func checkValuesOfRequiredFields(i RequiredFieldInfo, n ast.Node) (analysis.Diag
 		if c.Parent() == nil {
 			return true
 		}
+
+		expr, ok := c.Parent().(ast.Expr)
+
+		// We're only looking at expressions
+		if !ok {
+			return true
+		}
+
+		typ := ti.TypeOf(expr)
+
+		if typ == nil {
+			return true
+		}
+
+		// This is a dirty hack, but we can't use types.Identical or the
+		// "==" operator with the required field type and the given
+		// expression (typ). This is because these operate on pointers,
+		// and i.requiredFieldType and typ exist at different locations
+		// in memory, since we assigned i.requiredFieldType before
+		// generating the Analyzer function.
+		if typ.String() != i.requiredFieldType.String() {
+			return true
+		}
+
+		fmt.Printf("this type is okay! %v\n", typ)
 
 		l, ok := c.Parent().(*ast.CompositeLit)
 
@@ -316,11 +341,7 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 		// The Go compiler only allows us to declare a type once per
 		// package, so use the first instance of the expected type.
 		if d.Name() == c.requiredFieldTypeName && c.requiredFieldType == nil {
-			s, ok := d.Type().Underlying().(*types.Struct)
-			if !ok {
-				return nil, fmt.Errorf("required field type %v is not a struct", c.requiredFieldTypeName)
-			}
-			c.requiredFieldType = s
+			c.requiredFieldType = d.Type()
 		}
 	}
 
@@ -396,6 +417,18 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 			}
 
 		}
+
+		for _, f := range p.Files {
+			d, a := checkValuesOfRequiredFields(p.TypesInfo, c, f)
+			if d.Message != "" {
+				p.Report(d)
+			}
+
+			for _, fact := range a {
+				p.ExportPackageFact(fact)
+			}
+		}
+
 		return nil, nil
 	}
 
