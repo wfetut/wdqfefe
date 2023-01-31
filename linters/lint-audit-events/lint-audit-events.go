@@ -115,8 +115,6 @@ func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node
 			return true
 		}
 
-		fmt.Printf("this type is okay! %v\n", typ)
-
 		l, ok := c.Parent().(*ast.CompositeLit)
 
 		// The parent must be a struct, which is a composite literal
@@ -452,6 +450,9 @@ func (a analyzerPlugin) GetAnalyzers() []*analysis.Analyzer {
 			requiredFieldName:        "Metadata",
 			requiredFieldPackageName: "github.com/gravitational/teleport/api/types/events",
 			requiredFieldTypeName:    "Metadata",
+			fieldTypeMustPopulateFields: []string{
+				"Type",
+			},
 		})
 
 	if err != nil {

@@ -123,7 +123,7 @@ import (
 func EmitAuditEvent(){
   
     events.Emit(goodimpl.GoodAuditEventImplementation{
-        Metadata: events.Metadata{ // want "Metadata struct does not specify a Type field"
+        Metadata: events.Metadata{ // want "required field Type is missing in a declaration of my-project/events.Metadata"
            Name: "My Metadata",
 	},
     })
@@ -144,7 +144,7 @@ import (
 func EmitAuditEvent(){
   
     events.Emit(goodimpl.GoodAuditEventImplementation{
-        Metadata: events.Metadata{ // want "Metadata struct assigns a Type field to a string literal"
+        Metadata: events.Metadata{ // want "the field Type in composite literal my-project/events.Metadata must have a value that is a variable or constant"
            Name: "My Metadata",
 	   Type: "",
 	},
@@ -166,7 +166,7 @@ import (
 func EmitAuditEvent(){
   
     events.Emit(goodimpl.GoodAuditEventImplementation{
-        Metadata: events.Metadata{ // want "Metadata struct assigns a Type field to a strict literal"
+        Metadata: events.Metadata{ // want "the field Type in composite literal my-project/events.Metadata must have a value that is a variable or constant"
            Name: "My Metadata",
 	   Type: "auditEventType",
 	},
@@ -212,6 +212,9 @@ func EmitAuditEvent(){
 						"GOPATH=" + dir,
 						"GO111MODULE=off",
 						"GOCACHE=" + cache,
+					},
+					fieldTypeMustPopulateFields: []string{
+						"Type",
 					},
 				})
 
