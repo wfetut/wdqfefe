@@ -3686,6 +3686,27 @@ func (a *ServerWithRoles) DeleteClusterNetworkingConfig(ctx context.Context) err
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+func (a *ServerWithRoles) GetUiConfig(ctx context.Context, opts ...services.MarshalOption) (types.UiConfig, error) {
+	if err := a.action(apidefaults.Namespace, types.KindUiConfig, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetUiConfig(ctx, opts...)
+}
+
+// SetSessionRecordingConfig sets session recording configuration.
+func (a *ServerWithRoles) SetUiConfig(ctx context.Context, newUiConfig types.UiConfig) error {
+	storedUiConfig, err := a.authServer.GetUiConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.action(apidefaults.Namespace, types.KindUiConfig, verbsToReplaceResourceWithOrigin(storedUiConfig)...); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.SetUiConfig(ctx, newUiConfig)
+}
+
 // GetSessionRecordingConfig gets session recording configuration.
 func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context, opts ...services.MarshalOption) (types.SessionRecordingConfig, error) {
 	if err := a.action(apidefaults.Namespace, types.KindSessionRecordingConfig, types.VerbRead); err != nil {

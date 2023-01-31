@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -323,6 +324,44 @@ func (s *ClusterConfigurationService) GetSessionRecordingConfig(ctx context.Cont
 	return services.UnmarshalSessionRecordingConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
 }
 
+func (s *ClusterConfigurationService) GetUiConfig(ctx context.Context, opts ...services.MarshalOption) (types.UiConfig, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, uiConfigPrefix))
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("ui config not found")
+		}
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalUiConfig(item.Value, append(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
+}
+
+func (s *ClusterConfigurationService) SetUiConfig(ctx context.Context, uiConfig types.UiConfig) error {
+	// Perform the modules-provided checks.
+	if err := modules.ValidateResource(uiConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Println("------------")
+	fmt.Printf("here: %+v\n", uiConfig)
+	fmt.Println("------------")
+
+	value, err := services.MarshalUiConfig(uiConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(clusterConfigPrefix, uiConfigPrefix),
+		Value: value,
+		ID:    uiConfig.GetResourceID(),
+	}
+
+	_, err = s.Put(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // SetSessionRecordingConfig sets session recording config on the backend.
 func (s *ClusterConfigurationService) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
 	// Perform the modules-provided checks.
@@ -429,6 +468,7 @@ const (
 	auditPrefix            = "audit"
 	networkingPrefix       = "networking"
 	sessionRecordingPrefix = "session_recording"
+	uiConfigPrefix         = "ui_config"
 	scriptsPrefix          = "scripts"
 	installerPrefix        = "installer"
 )

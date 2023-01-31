@@ -3187,6 +3187,36 @@ func (g *GRPCServer) GetSessionRecordingConfig(ctx context.Context, _ *emptypb.E
 	return recConfigV2, nil
 }
 
+// GetSessionRecordingConfig gets session recording configuration.
+func (g *GRPCServer) GetUiConfig(ctx context.Context, _ *emptypb.Empty) (*types.UiConfigV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	uiConfig, err := auth.ServerWithRoles.GetUiConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	uiConfigV1, ok := uiConfig.(*types.UiConfigV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", uiConfig)
+	}
+	return uiConfigV1, nil
+}
+
+// SetSessionRecordingConfig sets session recording configuration.
+func (g *GRPCServer) SetUiConfig(ctx context.Context, uiConfig *types.UiConfigV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	uiConfig.SetOrigin(types.OriginDynamic)
+	if err = auth.ServerWithRoles.SetUiConfig(ctx, uiConfig); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // SetSessionRecordingConfig sets session recording configuration.
 func (g *GRPCServer) SetSessionRecordingConfig(ctx context.Context, recConfig *types.SessionRecordingConfigV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)

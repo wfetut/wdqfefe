@@ -1279,12 +1279,16 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		canJoinSessions = !services.IsRecordAtProxy(recCfg.GetMode())
 	}
 
+	fmt.Println("-----------------")
+	fmt.Printf("%+v\n", h.cfg.UiConfig)
+	fmt.Println("-----------------")
 	webCfg := webclient.WebConfig{
 		Auth:                 authSettings,
 		CanJoinSessions:      canJoinSessions,
 		IsCloud:              h.ClusterFeatures.GetCloud(),
 		TunnelPublicAddress:  tunnelPublicAddr,
 		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
+		UiConfig:             webclient.UiConfig(h.cfg.UiConfig),
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()

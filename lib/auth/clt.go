@@ -1300,6 +1300,11 @@ func (c *Client) GetSessionRecordingConfig(ctx context.Context, opts ...services
 	return c.APIClient.GetSessionRecordingConfig(ctx)
 }
 
+// GetSessionRecordingConfig gets session recording configuration.
+func (c *Client) GetUiConfig(ctx context.Context, opts ...services.MarshalOption) (types.UiConfig, error) {
+	return c.APIClient.GetUiConfig(ctx)
+}
+
 // GenerateCertAuthorityCRL generates an empty CRL for a CA.
 func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	resp, err := c.APIClient.GenerateCertAuthorityCRL(ctx, &proto.CertAuthorityRequest{Type: caType})

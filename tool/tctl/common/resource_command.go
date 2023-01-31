@@ -103,6 +103,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindGithubConnector:         rc.createGithubConnector,
 		types.KindCertAuthority:           rc.createCertAuthority,
 		types.KindClusterAuthPreference:   rc.createAuthPreference,
+		types.KindUiConfig:                rc.createUiConfig,
 		types.KindClusterNetworkingConfig: rc.createClusterNetworkingConfig,
 		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
 		types.KindLock:                    rc.createLock,
@@ -503,6 +504,29 @@ func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, cli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("session recording configuration has been updated\n")
+	return nil
+}
+
+// createUiConfig implements `tctl create ui.yaml` command.
+func (rc *ResourceCommand) createUiConfig(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	newUiConfig, err := services.UnmarshalUiConfig(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	storedUiConfig, err := client.GetUiConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := checkCreateResourceWithOrigin(storedUiConfig, "ui configuration", rc.force, rc.confirm); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := client.SetUiConfig(ctx, newUiConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("ui configuration has been updated\n")
 	return nil
 }
 
