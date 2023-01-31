@@ -10,9 +10,9 @@ import (
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
-func TestCheckMetadataInAuditEventImplementations(t *testing.T) {
+func TestAuditEventDeclarationLinter(t *testing.T) {
 
-	dir, cleanup, err := analysistest.WriteFiles(map[string]string{
+	defaultFiles := map[string]string{
 		"my-project/events/events.go": `package events
 
 import "fmt"
@@ -45,8 +45,21 @@ func (g GoodAuditEventImplementation) GetType() string{
   return g.Metadata.Type
 }
 		    `,
+	}
 
-		"my-project/badimpl/badimpl.go": `package badimpl
+	cases := []struct {
+		description string
+		// files must include the "want" comments expected by analysistest.
+		// Tests will add a standard set of expected files (defaultFiles
+		// above), so only include here that you want to be unique to a
+		// test case.
+		files map[string]string
+	}{
+		{
+			description: "AuditEvent implementation with no Metadata field",
+			files: map[string]string{
+
+				"my-project/badimpl/badimpl.go": `package badimpl
 
 type BadAuditEventImplementation struct{ // want "struct type my-project/badimpl.BadAuditEventImplementation implements AuditEvent but does not include the field Metadata of type my-project/events.Metadata"
 
@@ -57,22 +70,8 @@ func (b BadAuditEventImplementation) GetType() string{
   return b.Type
 }
 `,
-		"my-project/badmetadata/badmetadata.go": `package badmetadata
 
-import (
-  "my-project/events"
-  "my-project/goodimpl"
-)
-
-func EmitAuditEvent(){
-  
-    events.Emit(goodimpl.GoodAuditEventImplementation{
-        Metadata: events.Metadata{}, // want "Metadata struct does not specify a Type field"
-    })
-}
-`,
-
-		"my-project/main.go": `package main
+				"my-project/main.go": `package main
 
 import (
   "my-project/badimpl"
@@ -93,50 +92,90 @@ func main(){
     })
 }
 `,
-	})
-
-	defer cleanup()
-
-	if err != nil {
-		t.Fatalf("could not write test files: %v", err)
-	}
-
-	cache := t.TempDir()
-
-	fn, err := makeAuditEventDeclarationLinter(
-		RequiredFieldInfo{
-			workingDir:               dir,
-			packageName:              "my-project/events",
-			interfaceTypeName:        "AuditEvent",
-			requiredFieldName:        "Metadata",
-			requiredFieldPackageName: "my-project/events",
-			requiredFieldTypeName:    "Metadata",
-			envPairs: []string{
-				"GOPATH=" + dir,
-				"GO111MODULE=off",
-				"GOCACHE=" + cache,
 			},
+		},
+		{
+			description: "Metadata struct without a Type field",
+			files: map[string]string{
+				"my-project/badmetadata/badmetadata.go": `package badmetadata
+
+import (
+  "my-project/events"
+  "my-project/goodimpl"
+)
+
+func EmitAuditEvent(){
+    events.Emit(goodimpl.GoodAuditEventImplementation{
+        Metadata: events.Metadata{}, // want "Metadata struct does not specify a Type field"
+    })
+}
+`,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+
+			// Assemble files for the test case by combining the default
+			// files with the ones used for the test case into a new
+			// map.
+			m := make(map[string]string)
+			for k, v := range tc.files {
+				m[k] = v
+			}
+			for k, v := range defaultFiles {
+				m[k] = v
+			}
+			dir, cleanup, err := analysistest.WriteFiles(m)
+
+			defer cleanup()
+
+			if err != nil {
+				t.Fatalf("could not write test files: %v", err)
+			}
+			// For the GOCACHE variable
+			cache := t.TempDir()
+
+			fn, err := makeAuditEventDeclarationLinter(
+				RequiredFieldInfo{
+					workingDir:               dir,
+					packageName:              "my-project/events",
+					interfaceTypeName:        "AuditEvent",
+					requiredFieldName:        "Metadata",
+					requiredFieldPackageName: "my-project/events",
+					requiredFieldTypeName:    "Metadata",
+					envPairs: []string{
+						"GOPATH=" + dir,
+						"GO111MODULE=off",
+						"GOCACHE=" + cache,
+					},
+				})
+
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var f valueIdentifierFact
+
+			var auditEventDeclarationLinter = &analysis.Analyzer{
+				Name:      tc.description + ": lint-audit-event-declarations",
+				Doc:       "ensure that Teleport audit events follow the structure required",
+				Run:       fn,
+				FactTypes: []analysis.Fact{&f},
+			}
+
+			analysistest.Run(
+				t,
+				dir,
+				auditEventDeclarationLinter,
+				"./...",
+			)
 		})
-
-	if err != nil {
-		t.Fatal(err)
 	}
 
-	var f valueIdentifierFact
-
-	var auditEventDeclarationLinter = &analysis.Analyzer{
-		Name:      "lint-audit-event-declarations",
-		Doc:       "ensure that Teleport audit events follow the structure required",
-		Run:       fn,
-		FactTypes: []analysis.Fact{&f},
-	}
-
-	analysistest.Run(
-		t,
-		dir,
-		auditEventDeclarationLinter,
-		"./...",
-	)
+	// TODO: Combine test cases from TestCheckValuesOfRequiredFields into
+	// the test cases here.
 
 }
 
