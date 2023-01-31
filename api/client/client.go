@@ -2108,6 +2108,14 @@ func (c *Client) GetSessionRecordingConfig(ctx context.Context) (types.SessionRe
 	return resp, nil
 }
 
+func (c *Client) GetUiConfig(ctx context.Context) (types.UiConfig, error) {
+	resp, err := c.grpc.GetUiConfig(ctx, &emptypb.Empty{}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
 // SetSessionRecordingConfig sets session recording configuration.
 func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.SessionRecordingConfig) error {
 	recConfigV2, ok := recConfig.(*types.SessionRecordingConfigV2)
@@ -2115,6 +2123,15 @@ func (c *Client) SetSessionRecordingConfig(ctx context.Context, recConfig types.
 		return trace.BadParameter("invalid type %T", recConfig)
 	}
 	_, err := c.grpc.SetSessionRecordingConfig(ctx, recConfigV2, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+func (c *Client) SetUiConfig(ctx context.Context, uiConfig types.UiConfig) error {
+	uiConfigV1, ok := uiConfig.(*types.UiConfigV1)
+	if !ok {
+		return trace.BadParameter("invalid type %T", uiConfig)
+	}
+	_, err := c.grpc.SetUiConfig(ctx, uiConfigV1, c.callOpts...)
 	return trail.FromGRPC(err)
 }
 

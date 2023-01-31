@@ -1463,6 +1463,30 @@ enum RoutingStrategy {
   MOST_RECENT = 1;
 }
 
+message UiConfigV1 {
+  // Kind is a resource kind
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource sub kind, used in some resources
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is a resource version
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is resource metadata
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec is a SessionRecordingConfig specification
+  UiConfigSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+message UiConfigSpecV1 {
+  // Mode controls where (or if) the session is recorded.
+  string ScrollbackLength = 1 [(gogoproto.jsontag) = "scrollbackLength"];
+}
+
 // SessionRecordingConfigV2 contains session recording configuration.
 message SessionRecordingConfigV2 {
   // Kind is a resource kind

@@ -118,6 +118,8 @@ message Event {
     types.InstallerV1 Installer = 34 [(gogoproto.jsontag) = "installer,omitempty"];
     // DatabaseService is a DatabaseService resource
     types.DatabaseServiceV1 DatabaseService = 35 [(gogoproto.jsontag) = "database_service,omitempty"];
+    // SessionRecordingConfig is a resource for session recording configuration.
+    types.UiConfigV1 UiConfig = 36 [(gogoproto.jsontag) = "ui_config,omitempty"];
   }
 }
 
@@ -2414,8 +2416,12 @@ service AuthService {
 
   // GetSessionRecordingConfig gets session recording configuration.
   rpc GetSessionRecordingConfig(google.protobuf.Empty) returns (types.SessionRecordingConfigV2);
+  // getuiconfig
+  rpc GetUiConfig(google.protobuf.Empty) returns (types.UiConfigV1);
   // SetSessionRecordingConfig sets session recording configuration.
   rpc SetSessionRecordingConfig(types.SessionRecordingConfigV2) returns (google.protobuf.Empty);
+  // setuiconfig
+  rpc SetUiConfig(types.UiConfigV1) returns (google.protobuf.Empty);
   // ResetSessionRecordingConfig resets session recording configuration to defaults.
   rpc ResetSessionRecordingConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
 

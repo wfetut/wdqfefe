@@ -143,6 +143,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_SessionRecordingConfig{
 			SessionRecordingConfig: r,
 		}
+	case *types.UiConfigV1:
+		out.Resource = &proto.Event_UiConfig{
+			UiConfig: r,
+		}
 	case *types.AuthPreferenceV2:
 		out.Resource = &proto.Event_AuthPreference{
 			AuthPreference: r,
@@ -273,6 +277,9 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetSessionRecordingConfig(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetUiConfig(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetAuthPreference(); r != nil {

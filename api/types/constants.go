@@ -178,6 +178,9 @@ const (
 	// KindSessionRecordingConfig is the resource for session recording configuration.
 	KindSessionRecordingConfig = "session_recording_config"
 
+	KindUiConfig = "ui_config"
+
+	MetaNameUiConfig = "ui-config"
 	// MetaNameSessionRecordingConfig is the exact name of the singleton resource for
 	// session recording configuration.
 	MetaNameSessionRecordingConfig = "session-recording-config"
