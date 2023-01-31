@@ -1,9 +1,6 @@
 package main
 
 import (
-	"go/parser"
-	"go/token"
-	"reflect"
 	"testing"
 
 	"golang.org/x/tools/go/analysis"
@@ -44,6 +41,14 @@ type GoodAuditEventImplementation struct{
 func (g GoodAuditEventImplementation) GetType() string{
   return g.Metadata.Type
 }
+
+func emitGoodAuditEventImplementation(){
+    events.Emit(goodimpl.GoodAuditEventImplementation{
+      Metadata: events.Metadata{
+	Type: events.NewConnectionEvent,
+      },
+    })
+}
 		    `,
 	}
 
@@ -80,13 +85,6 @@ import (
 )
 
 func main(){
-
-    events.Emit(goodimpl.GoodAuditEventImplementation{
-      Metadata: events.Metadata{
-	Type: events.NewConnectionEvent,
-      },
-    })
-
     events.Emit(badimpl.BadAuditEventImplementation{
       Type: "bad audit event",
     })
@@ -95,7 +93,7 @@ func main(){
 			},
 		},
 		{
-			description: "Metadata struct without a Type field",
+			description: "Empty Metadata struct",
 			files: map[string]string{
 				"my-project/badmetadata/badmetadata.go": `package badmetadata
 
@@ -107,6 +105,71 @@ import (
 func EmitAuditEvent(){
     events.Emit(goodimpl.GoodAuditEventImplementation{
         Metadata: events.Metadata{}, // want "Metadata struct does not specify a Type field"
+    })
+}
+`,
+			},
+		},
+		{
+			description: "Metadata with missing desired field",
+			files: map[string]string{
+				"my-project/badmetadata/badmetadata.go": `package badmetadata
+
+import (
+  "my-project/events"
+  "my-project/goodimpl"
+)
+
+func EmitAuditEvent(){
+  
+    events.Emit(goodimpl.AuditEventImplementation{
+        Metadata: events.Metadata{ // want "Metadata struct does not specify a Type field"
+           Name: "My Metadata",
+	},
+    })
+}
+`,
+			},
+		},
+		{
+			description: "Metadata with empty string literal desired field",
+			files: map[string]string{
+				"my-project/badmetadata/badmetadata.go": `package badmetadata
+
+import (
+  "my-project/events"
+  "my-project/goodimpl"
+)
+
+func EmitAuditEvent(){
+  
+    events.Emit(goodimpl.GoodAuditEventImplementation{
+        Metadata: events.Metadata{ // want "Metadata struct assigns a Type field to a string literal"
+           Name: "My Metadata",
+	   Type: "",
+	},
+    })
+}
+`,
+			},
+		},
+		{
+			description: "Metadata with nonempty string literal desired field",
+			files: map[string]string{
+				"my-project/badmetadata/badmetadata.go": `package badmetadata
+
+import (
+  "my-project/events"
+  "my-project/goodimpl"
+)
+
+func EmitAuditEvent(){
+  
+    events.Emit(goodimpl.GoodAuditEventImplementation{
+        Metadata: events.Metadata{ // want "Metadata struct assigns a Type field to a strict literal"
+           Name: "My Metadata",
+	   Type: "auditEventType",
+	},
     })
 }
 `,
@@ -174,150 +237,4 @@ func EmitAuditEvent(){
 		})
 	}
 
-	// TODO: Combine test cases from TestCheckValuesOfRequiredFields into
-	// the test cases here.
-
-}
-
-func TestCheckValuesOfRequiredFields(t *testing.T) {
-
-	cases := []struct {
-		description        string
-		file               string
-		expectedDiagnostic analysis.Diagnostic
-		expectedFacts      []valueIdentifierFact
-	}{
-		{
-			description: "Correct use of Metadata",
-			file: `package goodmetadata
-
-import (
-  "my-project/events"
-  "my-project/goodimpl"
-)
-
-func EmitAuditEvent(){
-  
-    events.Emit(goodimpl.AuditEventImplementation{
-        Metadata: events.Metadata{
-           Name: "My Metadata",
-	   Type: auditEventEmitted,
-	},
-    })
-}
-`,
-			expectedDiagnostic: analysis.Diagnostic{},
-			expectedFacts: []valueIdentifierFact{
-				valueIdentifierFact("auditEventEmitted"),
-			},
-		},
-		{
-			description: "Metadata with missing desired field",
-			file: `package badmetadata
-
-import (
-  "my-project/events"
-  "my-project/goodimpl"
-)
-
-func EmitAuditEvent(){
-  
-    events.Emit(goodimpl.AuditEventImplementation{
-        Metadata: events.Metadata{
-           Name: "My Metadata",
-	},
-    })
-}
-`,
-			expectedDiagnostic: analysis.Diagnostic{
-				Pos:     174,
-				Message: "required field Type is missing in a declaration of my-project/events.Metadata",
-			},
-		},
-		{
-			description: "Metadata with empty string literal desired field",
-			file: `package badmetadata
-
-import (
-  "my-project/events"
-  "my-project/goodimpl"
-)
-
-func EmitAuditEvent(){
-  
-    events.Emit(goodimpl.GoodAuditEventImplementation{
-        Metadata: events.Metadata{
-           Name: "My Metadata",
-	   Type: "",
-	},
-    })
-}
-`,
-			expectedDiagnostic: analysis.Diagnostic{
-				Pos:     178,
-				Message: "the field Type in composite literal my-project/events.Metadata must have a value that is a variable or constant",
-			},
-		},
-		{
-			description: "Metadata with nonempty string literal desired field",
-			file: `package badmetadata
-
-import (
-  "my-project/events"
-  "my-project/goodimpl"
-)
-
-func EmitAuditEvent(){
-  
-    events.Emit(goodimpl.GoodAuditEventImplementation{
-        Metadata: events.Metadata{
-           Name: "My Metadata",
-	   Type: "auditEventType",
-	},
-    })
-}
-`,
-			expectedDiagnostic: analysis.Diagnostic{
-				Pos:     178,
-				Message: "the field Type in composite literal my-project/events.Metadata must have a value that is a variable or constant",
-			},
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.description, func(t *testing.T) {
-
-			fset := token.FileSet{}
-
-			i := RequiredFieldInfo{
-				workingDir:                  "",
-				packageName:                 "my-project/events",
-				interfaceTypeName:           "AuditEvent",
-				requiredFieldName:           "Metadata",
-				requiredFieldPackageName:    "my-project/events",
-				requiredFieldTypeName:       "Metadata",
-				envPairs:                    []string{},
-				fieldTypeMustPopulateFields: []string{"Type"},
-			}
-			f, err := parser.ParseFile(&fset, "badmetadata.go", c.file, parser.ParseComments)
-
-			if err != nil {
-				t.Fatalf("unexpected error parsing the fixture: %v", err)
-			}
-
-			d, s := checkValuesOfRequiredFields(i, f)
-			if !reflect.DeepEqual(d, c.expectedDiagnostic) {
-				t.Fatalf("expected to receive diagnostic: %+v\nbut got: %+v", c.expectedDiagnostic, d)
-			}
-			if c.expectedFacts != nil {
-				var actualFacts []valueIdentifierFact
-				for _, fact := range s {
-					actualFacts = append(actualFacts, *fact)
-				}
-				if !reflect.DeepEqual(c.expectedFacts, actualFacts) {
-					t.Fatalf("expected facts: %v\ngot: %v", c.expectedFacts, actualFacts)
-				}
-			}
-		})
-	}
 }
