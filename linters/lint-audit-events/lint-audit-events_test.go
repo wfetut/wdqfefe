@@ -18,6 +18,7 @@ import "fmt"
 var NewConnectionEvent string = "connection.new"
 
 type Metadata struct {
+  Name string
   Type string
 }
 
@@ -43,7 +44,7 @@ func (g GoodAuditEventImplementation) GetType() string{
 }
 
 func emitGoodAuditEventImplementation(){
-    events.Emit(goodimpl.GoodAuditEventImplementation{
+    events.Emit(GoodAuditEventImplementation{
       Metadata: events.Metadata{
 	Type: events.NewConnectionEvent,
       },
@@ -80,7 +81,6 @@ func (b BadAuditEventImplementation) GetType() string{
 
 import (
   "my-project/badimpl"
-  "my-project/goodimpl"
   "my-project/events"
 )
 
@@ -122,7 +122,7 @@ import (
 
 func EmitAuditEvent(){
   
-    events.Emit(goodimpl.AuditEventImplementation{
+    events.Emit(goodimpl.GoodAuditEventImplementation{
         Metadata: events.Metadata{ // want "Metadata struct does not specify a Type field"
            Name: "My Metadata",
 	},
