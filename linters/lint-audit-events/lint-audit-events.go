@@ -185,9 +185,13 @@ func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node
 
 			}
 
-			id, ok := kv.Value.(*ast.Ident)
-
-			if !ok {
+			var id *ast.Ident
+			switch t := kv.Value.(type) {
+			case *ast.Ident:
+				id = t
+			case *ast.SelectorExpr:
+				id = t.Sel
+			default:
 				return analysis.Diagnostic{
 					Pos: c.Pos(),
 					Message: fmt.Sprintf(

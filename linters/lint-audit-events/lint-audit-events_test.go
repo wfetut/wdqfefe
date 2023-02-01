@@ -31,7 +31,8 @@ func Emit(e AuditEvent){
 }
 
 		    `,
-		"my-project/goodimpl/goodimpl.go": `package goodimpl
+		"my-project/goodimpl/goodimpl.go": `// want package:"NewConnectionEvent"
+package goodimpl 
 
 import "my-project/events"
 
