@@ -105,7 +105,7 @@ import (
 
 func EmitAuditEvent(){
     events.Emit(goodimpl.GoodAuditEventImplementation{
-        Metadata: events.Metadata{}, // want "Metadata struct does not specify a Type field"
+        Metadata: events.Metadata{}, // want "required field Type is missing in a declaration of my-project/events.Metadata"
     })
 }
 `,

@@ -78,21 +78,12 @@ func (*valueIdentifierFact) AFact() {}
 //   for the required fields.
 func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node) (analysis.Diagnostic, []*valueIdentifierFact) {
 
-	// We'll use this to determine whether all declarations of the target struct
-	// include all required fields. Keys are the selector expressions that
-	// declare a struct with the required type. Each value is a map where
-	// keys are strings representing field names and values are the original
-	// KeyValueExprs in the struct correspondign to those names.
-	targetFields := make(map[*ast.SelectorExpr]map[string]*ast.KeyValueExpr)
+	var facts []*valueIdentifierFact
+	var diag analysis.Diagnostic
 
 	astutil.Apply(n, func(c *astutil.Cursor) bool {
 
-		// We're checking a field, so it must have a parent
-		if c.Parent() == nil {
-			return true
-		}
-
-		expr, ok := c.Parent().(ast.Expr)
+		expr, ok := c.Node().(ast.Expr)
 
 		// We're only looking at expressions
 		if !ok {
@@ -115,76 +106,47 @@ func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node
 			return true
 		}
 
-		l, ok := c.Parent().(*ast.CompositeLit)
+		l, ok := c.Node().(*ast.CompositeLit)
 
-		// The parent must be a struct, which is a composite literal
+		// The cursor's node must be a struct, which is a composite
+		// literal
 		if !ok {
 			return true
 		}
 
-		s, ok := l.Type.(*ast.SelectorExpr)
-		// The parent's type must be a selector expression, e.g., events.Metadata
-		if !ok {
-			return true
+		targetFields := make(map[string]*ast.KeyValueExpr)
+
+		for _, e := range l.Elts {
+			kv, ok := e.(*ast.KeyValueExpr)
+			if !ok {
+				continue
+			}
+			id, ok := kv.Key.(*ast.Ident)
+			if !ok {
+				continue
+			}
+			targetFields[id.Name] = kv
 		}
 
-		// This composite literal doesn't have the name of the required
-		// field, so skip it.
-		if s.Sel.Name != i.requiredFieldTypeName {
-			return true
-		}
-
-		kv, ok := c.Node().(*ast.KeyValueExpr)
-		// The node is not a key/value expression like:
-		//
-		// { Type: myValue, }
-		if !ok {
-			return true
-		}
-
-		// Now that we know that the cursor's Node is a key/value
-		// expression, add the parent to the map so we can ensure later
-		// that the parent has all required fields.
-		if _, ok := targetFields[s]; !ok {
-			targetFields[s] = make(map[string]*ast.KeyValueExpr)
-		}
-
-		id, ok := kv.Key.(*ast.Ident)
-
-		// The key isn't an identifier for some reason, so skip it
-		if !ok {
-			return true
-		}
-
-		targetFields[s][id.Name] = kv
-
-		return true
-	}, nil)
-
-	var facts []*valueIdentifierFact
-
-	// Range through each struct in targetFields. For each struct, range
-	// through the fields we expect to be populated and ensure that those
-	// fields are present and populated within the struct.
-	for c, m := range targetFields {
 		for _, e := range i.fieldTypeMustPopulateFields {
 
-			kv, ok := m[e]
+			kv, ok := targetFields[e]
 
 			if !ok {
-
-				return analysis.Diagnostic{
-					Pos: c.Pos(),
+				diag = analysis.Diagnostic{
+					Pos: c.Node().Pos(),
 					Message: fmt.Sprintf(
 						"required field %v is missing in a declaration of %v.%v",
 						e,
 						i.requiredFieldPackageName,
 						i.requiredFieldTypeName,
 					),
-				}, nil
-
+				}
+				return false
 			}
 
+			// We've found a field with the required key, so we'll
+			// check the type.
 			var id *ast.Ident
 			switch t := kv.Value.(type) {
 			case *ast.Ident:
@@ -192,16 +154,17 @@ func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node
 			case *ast.SelectorExpr:
 				id = t.Sel
 			default:
-				return analysis.Diagnostic{
-					Pos: c.Pos(),
+				diag = analysis.Diagnostic{
+					Pos: c.Node().Pos(),
 					Message: fmt.Sprintf(
 						"the field %v in composite literal %v.%v must have a value that is a variable or constant",
 						e,
 						i.requiredFieldPackageName,
 						i.requiredFieldTypeName,
 					),
-				}, nil
+				}
 
+				return false
 			}
 
 			fact := valueIdentifierFact(id.Name)
@@ -209,9 +172,11 @@ func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node
 			facts = append(facts, &fact)
 
 		}
-	}
 
-	return analysis.Diagnostic{}, facts
+		return true
+	}, nil)
+
+	return diag, facts
 }
 
 // loadPackage loads the package named n using the PrintfRequiredFieldInfo r.
