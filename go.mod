@@ -360,7 +360,7 @@ require (
 
 // Update also `ignore` in .github/dependabot.yml.
 replace (
-	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.6
+	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.7-0.20230118210440-433e4b5df9f4
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90
 	github.com/denisenkom/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20221006130402-25bef12c7ee1
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.5.0-teleport.1
