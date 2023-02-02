@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/token"
 	"go/types"
 	"os"
 	"strings"
@@ -53,32 +54,65 @@ type RequiredFieldInfo struct {
 	envPairs []string
 }
 
-// An identifier used to provide the value of a struct field
-type valueIdentifierFact string
+// A value spec declaration found in another package
+type valueSpecFact struct {
+	// The first name found for the value spec
+	name string
+	// The text of the value spec's godoc
+	doc string
+	// Position where the ValueSpec was declared. Used for reporting
+	// diagnostics.
+	pos token.Pos
+}
 
-func (f *valueIdentifierFact) String() string {
-	return string(*f)
+// newValueSpecFact generates a *valueIdentifierFact using the *ast.GenSpec
+// provided in s. This makes it possible for one pass of the analyzer to look up
+// value specs declared in other passes. This assumes that the *ast.GenDecl has
+// a single *ast.ValueSpec, and returns an error otherwise.
+func newValueSpecFact(s *ast.GenDecl) (*valueSpecFact, error) {
+
+	if len(s.Specs) != 1 {
+		return nil, errors.New("expected a GenDecl with a single ValueSpec, but got multiple")
+	}
+
+	vs, ok := s.Specs[0].(*ast.ValueSpec)
+
+	if !ok {
+		return nil, errors.New("the GenDecl does not contain a ValueSpec")
+	}
+
+	var n string
+	if len(vs.Names) > 0 {
+		n = vs.Names[0].Name
+	}
+
+	return &valueSpecFact{
+		name: n,
+		doc:  s.Doc.Text(),
+		pos:  s.Pos(),
+	}, nil
+}
+
+func (f *valueSpecFact) String() string {
+	return f.name
 }
 
 // Required to implement analysis.Fact
-func (*valueIdentifierFact) AFact() {}
+func (*valueSpecFact) AFact() {}
 
 // checkValuesOfRequiredFields traverses the children of n and ensures that any
 // values of the required field type populate certain required fields, specified
 // in i.fieldTypeMustPopulateFields.
 //
-// checkValuesOfRequiredFields acts on an AST with no type information, so
-// callers will need to ensure that n includes a declaration of a struct and the
-// struct has the required type.
-//
-// The return values are:
-// - an analysis.Diagnostic indicating the first error encountered while
-//   checking field values
-// - a slice of valueIdentifierFact representing the identifiers used as values
-//   for the required fields.
-func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node) (analysis.Diagnostic, []*valueIdentifierFact) {
+// It also makes sure that any values of the required field type are identifiers
+// (rather than, say, string literals) that refer to a value spec, and that the
+// value spec has a godoc. It uses the provided map[string]*valueSpecFact to
+// look up value specs by the name of the identifier.
 
-	var facts []*valueIdentifierFact
+// The return value is an analysis.Diagnostic indicating the first error
+// encountered while checking field values.
+func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node, vsm map[string]*valueSpecFact) analysis.Diagnostic {
+
 	var diag analysis.Diagnostic
 
 	astutil.Apply(n, func(c *astutil.Cursor) bool {
@@ -167,16 +201,47 @@ func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node
 				return false
 			}
 
-			fact := valueIdentifierFact(id.Name)
+			// Now that we know that the required field's value is a
+			// variable or constant, look up the identifier's value
+			// spec to see if it is properly formatted.
+			vs, ok := vsm[id.Name]
 
-			facts = append(facts, &fact)
+			// analysis.Analyzers look up packages in a dependency
+			// tree from leaf to root, so any value specs we use as
+			// the values of the reqiured fields must already have
+			// been exported as package facts.
+			if !ok {
+				diag = analysis.Diagnostic{
+					Pos: c.Node().Pos(),
+					Message: fmt.Sprintf(
+						"the value of field %v in composite literal %v.%v is an identifier that isn't declared anywhere",
+						e,
+						i.requiredFieldPackageName,
+						i.requiredFieldTypeName,
+					),
+				}
+
+				return false
+			}
+
+			if vs.doc == "" {
+				diag = analysis.Diagnostic{
+					Pos:     vs.pos,
+					Message: "blah!",
+				}
+
+				return false
+			}
+
+			// TODO: Check that the doc begins with the name of the
+			// identifier
 
 		}
 
 		return true
 	}, nil)
 
-	return diag, facts
+	return diag
 }
 
 // loadPackage loads the package named n using the PrintfRequiredFieldInfo r.
@@ -322,6 +387,33 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 	// interface, and if so, ensures that they contain the required field.
 	fn := func(p *analysis.Pass) (interface{}, error) {
 
+		// Check if this package declares any value specs and export these as facts
+		for _, f := range p.Files {
+
+			astutil.Apply(f, func(r *astutil.Cursor) bool {
+				gd, ok := r.Node().(*ast.GenDecl)
+				if !ok {
+					return true
+				}
+				vf, err := newValueSpecFact(gd)
+
+				// This GenDecl cannot be a valueSpecFact, so
+				// try the next node
+				if err != nil {
+					return true
+				}
+				p.ExportPackageFact(vf)
+
+				return true
+
+			}, nil)
+
+		}
+
+		if strings.Contains(p.Pkg.Path(), "my-project") {
+			fmt.Println("current package name: ", p.Pkg.Name())
+		}
+
 		// Check each type definition in the package for correct
 		// implementations of the target interface
 		for a, d := range p.TypesInfo.Defs {
@@ -385,14 +477,18 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 
 		}
 
+		vsm := make(map[string]*valueSpecFact)
+
+		for _, fact := range p.AllPackageFacts() {
+			if vs, ok := fact.Fact.(*valueSpecFact); ok {
+				vsm[vs.name] = vs
+			}
+		}
+
 		for _, f := range p.Files {
-			d, a := checkValuesOfRequiredFields(p.TypesInfo, c, f)
+			d := checkValuesOfRequiredFields(p.TypesInfo, c, f, vsm)
 			if d.Message != "" {
 				p.Report(d)
-			}
-
-			for _, fact := range a {
-				p.ExportPackageFact(fact)
 			}
 		}
 
@@ -428,7 +524,7 @@ func (a analyzerPlugin) GetAnalyzers() []*analysis.Analyzer {
 		panic(err)
 	}
 
-	var f valueIdentifierFact
+	var f valueSpecFact
 
 	var auditEventDeclarationLinter = &analysis.Analyzer{
 		Name: "lint-audit-event-declarations",

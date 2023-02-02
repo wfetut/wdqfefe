@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 
 	"golang.org/x/tools/go/analysis"
@@ -10,9 +11,7 @@ import (
 func TestAuditEventDeclarationLinter(t *testing.T) {
 
 	defaultFiles := map[string]string{
-		"my-project/events/events.go": `package events
-
-import "fmt"
+		"my-project/events/events.go": `package events // want package:"NewConnectionEvent"
 
 // NewConnectionEvent is emitted when there is a new connection
 var NewConnectionEvent string = "connection.new"
@@ -26,13 +25,12 @@ type AuditEvent interface{
   GetType() string
 }
 
-func Emit(e AuditEvent){
-  fmt.Println(e.GetType())
+func Emit(e AuditEvent) string {
+  return e.GetType()
 }
 
 		    `,
-		"my-project/goodimpl/goodimpl.go": `// want package:"NewConnectionEvent"
-package goodimpl 
+		"my-project/goodimpl/goodimpl.go": `package goodimpl 
 
 import "my-project/events"
 
@@ -179,10 +177,10 @@ func EmitAuditEvent(){
 		{
 			description: "Event type with no comment",
 			files: map[string]string{
-				"my-project/events/authnevent.go": `package events
+				"my-project/events/authnevent.go": `package events // want package:"NewConnectionEvent"
 var AuthnEvent = "login.new" // want "my-project/events.AuthnEvent needs a comment since it is used when emitting an audit event"
 			    `,
-				"my-project/authn/authn.go": `// want package:"AuthnEvent"
+				"my-project/authn/authn.go": `
 package authn 
 
 import "my-project/events"
@@ -207,6 +205,7 @@ func emitAuthnEvent(){
 		},
 		// TODO: Event type with comment that doesn't start with the
 		// variable
+		// TODO: Test case for Type value that isn't declared anywhere
 		// TODO: Event type that clashes with an event type with the
 		// same name in a different  package. Note that package facts
 		// already store their package when you retrieve the fact via
@@ -216,6 +215,9 @@ func emitAuthnEvent(){
 
 	for _, tc := range cases {
 		t.Run(tc.description, func(t *testing.T) {
+
+			fmt.Println("STARTING TEST CASE: ", tc.description)
+			defer fmt.Println("")
 
 			// Assemble files for the test case by combining the default
 			// files with the ones used for the test case into a new
@@ -259,7 +261,7 @@ func emitAuthnEvent(){
 				t.Fatal(err)
 			}
 
-			var f valueIdentifierFact
+			var f valueSpecFact
 
 			var auditEventDeclarationLinter = &analysis.Analyzer{
 				Name:      tc.description + ": lint-audit-event-declarations",
