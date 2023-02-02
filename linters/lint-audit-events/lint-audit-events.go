@@ -241,8 +241,17 @@ func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node
 				return false
 			}
 
-			// TODO: Check that the doc begins with the name of the
-			// identifier
+			if vs.doc[:len(vs.name)] != vs.name {
+				diag = analysis.Diagnostic{
+					Pos: vs.pos,
+					Message: fmt.Sprintf(
+						"the GoDoc for %v.%v must begin with \"%v\" so we can generate audit event documentation",
+						vs.pkg,
+						vs.name,
+						vs.name,
+					),
+				}
+			}
 
 		}
 

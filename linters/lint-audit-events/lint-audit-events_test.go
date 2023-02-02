@@ -207,9 +207,40 @@ func emitAuthnEvent(){
 		    `,
 			},
 		},
-		// TODO: Event type with comment that doesn't start with the
-		// variable
-		// TODO: Test case for Type value that isn't declared anywhere
+		{
+			description: "Event type with a comment that does not begin with the type name",
+			files: map[string]string{
+				"my-project/loginevents/authnevent.go": `package loginevents // want package:"AuthnEvent"
+
+// This is an AuthnEvent.
+var AuthnEvent = "login.new" // want "the GoDoc for my-project/loginevents.AuthnEvent must begin with \"AuthnEvent\" so we can generate audit event documentation"
+			    `,
+				"my-project/authn/authn.go": `
+package authn 
+
+import (
+  "my-project/events"
+  "my-project/loginevents"
+)
+
+type AuthnEvent struct{
+  Metadata events.Metadata
+}
+
+func (e AuthnEvent) GetType() string{
+  return e.Metadata.Type
+}
+
+func emitAuthnEvent(){
+    events.Emit(AuthnEvent{
+      Metadata: events.Metadata{
+	Type: loginevents.AuthnEvent,
+      },
+    })
+}
+		    `,
+			},
+		},
 		// TODO: Event type that clashes with an event type with the
 		// same name in a different  package. Note that package facts
 		// already store their package when you retrieve the fact via
