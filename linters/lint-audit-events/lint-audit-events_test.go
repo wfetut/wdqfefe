@@ -176,6 +176,42 @@ func EmitAuditEvent(){
 `,
 			},
 		},
+		{
+			description: "Event type with no comment",
+			files: map[string]string{
+				"my-project/events/authnevent.go": `package events
+var AuthnEvent = "login.new" // want "my-project/events.AuthnEvent needs a comment since it is used when emitting an audit event"
+			    `,
+				"my-project/authn/authn.go": `// want package:"AuthnEvent"
+package authn 
+
+import "my-project/events"
+
+type AuthnEvent struct{
+  Metadata events.Metadata
+}
+
+func (e AuthnEvent) GetType() string{
+  return e.Metadata.Type
+}
+
+func emitAuthnEvent(){
+    events.Emit(AuthnEvent{
+      Metadata: events.Metadata{
+	Type: events.AuthnEvent,
+      },
+    })
+}
+		    `,
+			},
+		},
+		// TODO: Event type with comment that doesn't start with the
+		// variable
+		// TODO: Event type that clashes with an event type with the
+		// same name in a different  package. Note that package facts
+		// already store their package when you retrieve the fact via
+		// AllPackageFacts, so there's no need to encode
+		// this in the fact itself.
 	}
 
 	for _, tc := range cases {
