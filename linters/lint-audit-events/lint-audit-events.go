@@ -63,13 +63,16 @@ type valueSpecFact struct {
 	// Position where the ValueSpec was declared. Used for reporting
 	// diagnostics.
 	pos token.Pos
+	// The name of the packae where the value spec originated.
+	pkg string
 }
 
 // newValueSpecFact generates a *valueIdentifierFact using the *ast.GenSpec
-// provided in s. This makes it possible for one pass of the analyzer to look up
-// value specs declared in other passes. This assumes that the *ast.GenDecl has
-// a single *ast.ValueSpec, and returns an error otherwise.
-func newValueSpecFact(s *ast.GenDecl) (*valueSpecFact, error) {
+// provided in s and the package name provided in in. This makes it possible for
+// one pass of the analyzer to look up value specs declared in other passes.
+// This assumes that the *ast.GenDecl has a single *ast.ValueSpec, and returns
+// an error otherwise.
+func newValueSpecFact(n string, s *ast.GenDecl) (*valueSpecFact, error) {
 
 	if len(s.Specs) != 1 {
 		return nil, errors.New("expected a GenDecl with a single ValueSpec, but got multiple")
@@ -81,15 +84,16 @@ func newValueSpecFact(s *ast.GenDecl) (*valueSpecFact, error) {
 		return nil, errors.New("the GenDecl does not contain a ValueSpec")
 	}
 
-	var n string
+	var m string
 	if len(vs.Names) > 0 {
-		n = vs.Names[0].Name
+		m = vs.Names[0].Name
 	}
 
 	return &valueSpecFact{
-		name: n,
+		name: m,
 		doc:  s.Doc.Text(),
 		pos:  s.Pos(),
+		pkg:  n,
 	}, nil
 }
 
@@ -226,8 +230,12 @@ func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node
 
 			if vs.doc == "" {
 				diag = analysis.Diagnostic{
-					Pos:     vs.pos,
-					Message: "blah!",
+					Pos: vs.pos,
+					Message: fmt.Sprintf(
+						"%v.%v needs a comment since it is used when emitting an audit event",
+						vs.pkg,
+						vs.name,
+					),
 				}
 
 				return false
@@ -395,7 +403,7 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 				if !ok {
 					return true
 				}
-				vf, err := newValueSpecFact(gd)
+				vf, err := newValueSpecFact(p.Pkg.Path(), gd)
 
 				// This GenDecl cannot be a valueSpecFact, so
 				// try the next node

@@ -177,13 +177,17 @@ func EmitAuditEvent(){
 		{
 			description: "Event type with no comment",
 			files: map[string]string{
-				"my-project/events/authnevent.go": `package events // want package:"NewConnectionEvent"
-var AuthnEvent = "login.new" // want "my-project/events.AuthnEvent needs a comment since it is used when emitting an audit event"
+				"my-project/loginevents/authnevent.go": `package loginevents // want package:"AuthnEvent"
+
+var AuthnEvent = "login.new" // want "my-project/loginevents.AuthnEvent needs a comment since it is used when emitting an audit event"
 			    `,
 				"my-project/authn/authn.go": `
 package authn 
 
-import "my-project/events"
+import (
+  "my-project/events"
+  "my-project/loginevents"
+)
 
 type AuthnEvent struct{
   Metadata events.Metadata
@@ -196,7 +200,7 @@ func (e AuthnEvent) GetType() string{
 func emitAuthnEvent(){
     events.Emit(AuthnEvent{
       Metadata: events.Metadata{
-	Type: events.AuthnEvent,
+	Type: loginevents.AuthnEvent,
       },
     })
 }
