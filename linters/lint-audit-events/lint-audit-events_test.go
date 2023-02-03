@@ -198,7 +198,7 @@ func (e AuthnEvent) GetType() string{
 func emitAuthnEvent(){
     events.Emit(AuthnEvent{ 
       Metadata: events.Metadata{
-	Type: loginevents.AuthnEvent, // want "my-project/loginevents.AuthnEvent needs a comment since it is used when emitting an audit event"
+	Type: loginevents.AuthnEvent, // want "loginevents.AuthnEvent needs a comment since it is used when emitting an audit event"
 
       },
     })
@@ -232,7 +232,7 @@ func (e AuthnEvent) GetType() string{
 func emitAuthnEvent(){
     events.Emit(AuthnEvent{
       Metadata: events.Metadata{
-	Type: loginevents.AuthnEvent, // want "the GoDoc for my-project/loginevents.AuthnEvent must begin with \"AuthnEvent\" so we can generate audit event documentation"
+	Type: loginevents.AuthnEvent, // want "the GoDoc for loginevents.AuthnEvent must begin with \"AuthnEvent\" so we can generate audit event documentation"
 
       },
     })
@@ -243,7 +243,7 @@ func emitAuthnEvent(){
 		{
 			description: "Event type value with the same name as a declaration in another package",
 			files: map[string]string{
-				"my-project/authn/authn.go": `package authn // want package:"my-project/authn.NewAuthnEvent"
+				"my-project/authn/authn.go": `package authn // want package:"authn.NewAuthnEvent"
 
 import (
   "my-project/events"
@@ -261,7 +261,7 @@ func (e AuthnEvent) GetType() string{
 }
 
 `,
-				"my-project/authn2/authn2.go": `package authn2 // want package:"my-project/authn2.NewAuthnEvent"
+				"my-project/authn2/authn2.go": `package authn2 // want package:"authn2.NewAuthnEvent"
 
 import (
   "my-project/events"
@@ -297,7 +297,7 @@ func main(){
 
     events.Emit(authn.AuthnEvent{
       Metadata: events.Metadata{
-	Type: authn.NewAuthnEvent, // want "the GoDoc for my-project/authn.NewAuthnEvent must begin with \"NewAuthnEvent\" so we can generate audit event documentation"
+	Type: authn.NewAuthnEvent, // want "the GoDoc for authn.NewAuthnEvent must begin with \"NewAuthnEvent\" so we can generate audit event documentation"
       },
     })
 }

@@ -99,6 +99,25 @@ func (f *valueSpecFact) String() string {
 // Required to implement analysis.Fact
 func (*valueSpecFact) AFact() {}
 
+// valueSpecFactCollection enables lookups of valueSpecFacts with consistent
+// keys. Insertions and lookups are not goroutine safe.
+type valueSpecFactCollection struct {
+	facts map[string]*valueSpecFact
+}
+
+// insert adds a *valueSpecFact to the collection with the appropriate key.
+func (c valueSpecFactCollection) insert(f *valueSpecFact) {
+	c.facts[f.pkg+"."+f.name] = f
+}
+
+// lookup looks up a valueSpecFact from the collection using the provided
+// package name and identifier name. It returns a *valueSpecFact and a Boolean
+// value indicating whether the fact was found.
+func (c valueSpecFactCollection) lookup(pkg string, identifier string) (*valueSpecFact, bool) {
+	f, ok := c.facts[pkg+"."+identifier]
+	return f, ok
+}
+
 // checkValuesOfRequiredFields traverses the children of n and ensures that any
 // values of the required field type populate certain required fields, specified
 // in i.fieldTypeMustPopulateFields.
@@ -110,7 +129,7 @@ func (*valueSpecFact) AFact() {}
 
 // The return value is an analysis.Diagnostic indicating the first error
 // encountered while checking field values.
-func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node, vsm map[string]*valueSpecFact) analysis.Diagnostic {
+func checkValuesOfRequiredFields(pass *analysis.Pass, i RequiredFieldInfo, n ast.Node, vsc valueSpecFactCollection) analysis.Diagnostic {
 
 	var diag analysis.Diagnostic
 
@@ -123,7 +142,7 @@ func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node
 			return true
 		}
 
-		typ := ti.TypeOf(expr)
+		typ := pass.TypesInfo.TypeOf(expr)
 
 		if typ == nil {
 			return true
@@ -181,10 +200,15 @@ func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node
 			// We've found a field with the required key, so we'll
 			// check the type.
 			var id *ast.Ident
+			var pkg string
 			switch t := kv.Value.(type) {
 			case *ast.Ident:
 				id = t
 			case *ast.SelectorExpr:
+				if xi, ok := t.X.(*ast.Ident); ok {
+					pkg = xi.Name
+				}
+
 				id = t.Sel
 			default:
 				diag = analysis.Diagnostic{
@@ -203,7 +227,7 @@ func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node
 			// Now that we know that the required field's value is a
 			// variable or constant, look up the identifier's value
 			// spec to see if it is properly formatted.
-			vs, ok := vsm[id.Name]
+			vs, ok := vsc.lookup(pkg, id.Name)
 
 			// analysis.Analyzers look up packages in a dependency
 			// tree from leaf to root, so any value specs we use as
@@ -407,15 +431,12 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 				if !ok {
 					return true
 				}
-				vf, err := newValueSpecFact(p.Pkg.Path(), gd)
+				vf, err := newValueSpecFact(p.Pkg.Name(), gd)
 
 				// This GenDecl cannot be a valueSpecFact, so
 				// try the next node
 				if err != nil {
 					return true
-				}
-				if strings.Contains(p.Pkg.Path(), "loginevents") {
-					fmt.Println("exporting package fact: ", vf.String())
 				}
 				p.ExportPackageFact(vf)
 
@@ -488,19 +509,18 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 
 		}
 
-		vsm := make(map[string]*valueSpecFact)
+		vsc := valueSpecFactCollection{
+			facts: make(map[string]*valueSpecFact),
+		}
 
 		for _, fact := range p.AllPackageFacts() {
 			if vs, ok := fact.Fact.(*valueSpecFact); ok {
-				if strings.Contains(vs.name, "NewConnectionEvent") {
-					fmt.Println("adding NewConnectionEvent")
-				}
-				vsm[vs.name] = vs
+				vsc.insert(vs)
 			}
 		}
 
 		for _, f := range p.Files {
-			d := checkValuesOfRequiredFields(p.TypesInfo, c, f, vsm)
+			d := checkValuesOfRequiredFields(p, c, f, vsc)
 			if d.Message != "" {
 				p.Report(d)
 			}
