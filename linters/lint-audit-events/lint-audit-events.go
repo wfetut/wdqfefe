@@ -93,7 +93,7 @@ func newValueSpecFact(n string, s *ast.GenDecl) (*valueSpecFact, error) {
 }
 
 func (f *valueSpecFact) String() string {
-	return f.name
+	return f.pkg + "." + f.name
 }
 
 // Required to implement analysis.Fact
@@ -414,6 +414,9 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 				if err != nil {
 					return true
 				}
+				if strings.Contains(p.Pkg.Path(), "loginevents") {
+					fmt.Println("exporting package fact: ", vf.String())
+				}
 				p.ExportPackageFact(vf)
 
 				return true
@@ -489,6 +492,9 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 
 		for _, fact := range p.AllPackageFacts() {
 			if vs, ok := fact.Fact.(*valueSpecFact); ok {
+				if strings.Contains(vs.name, "NewConnectionEvent") {
+					fmt.Println("adding NewConnectionEvent")
+				}
 				vsm[vs.name] = vs
 			}
 		}

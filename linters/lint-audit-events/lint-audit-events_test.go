@@ -41,7 +41,7 @@ func (g GoodAuditEventImplementation) GetType() string{
   return g.Metadata.Type
 }
 
-func emitGoodAuditEventImplementation(){
+func EmitGoodAuditEventImplementation(){
     events.Emit(GoodAuditEventImplementation{
       Metadata: events.Metadata{
 	Type: events.NewConnectionEvent,
@@ -240,11 +240,70 @@ func emitAuthnEvent(){
 		    `,
 			},
 		},
-		// TODO: Event type that clashes with an event type with the
-		// same name in a different  package. Note that package facts
-		// already store their package when you retrieve the fact via
-		// AllPackageFacts, so there's no need to encode
-		// this in the fact itself.
+		{
+			description: "Event type value with the same name as a declaration in another package",
+			files: map[string]string{
+				"my-project/authn/authn.go": `package authn // want package:"my-project/authn.NewAuthnEvent"
+
+import (
+  "my-project/events"
+)
+
+// This is an NewAuthnEvent.
+var NewAuthnEvent = "login.new"
+
+type AuthnEvent struct{
+  Metadata events.Metadata
+}
+
+func (e AuthnEvent) GetType() string{
+  return e.Metadata.Type
+}
+
+`,
+				"my-project/authn2/authn2.go": `package authn2 // want package:"my-project/authn2.NewAuthnEvent"
+
+import (
+  "my-project/events"
+)
+
+// NewAuthnEvent indicates that a user has authenticated.
+var NewAuthnEvent = "login.new" 
+
+type AuthnEvent struct{
+  Metadata events.Metadata
+}
+
+func (e AuthnEvent) GetType() string{
+  return e.Metadata.Type
+}
+
+`,
+				"my-project/main.go": `package main
+
+import (
+  "my-project/authn2"
+  "my-project/authn"
+  "my-project/events"
+)
+
+func main(){
+
+    events.Emit(authn2.AuthnEvent{
+      Metadata: events.Metadata{
+	Type: authn2.NewAuthnEvent, 
+      },
+    })
+
+    events.Emit(authn.AuthnEvent{
+      Metadata: events.Metadata{
+	Type: authn.NewAuthnEvent, // want "the GoDoc for my-project/authn.NewAuthnEvent must begin with \"NewAuthnEvent\" so we can generate audit event documentation"
+      },
+    })
+}
+`,
+			},
+		},
 	}
 
 	for _, tc := range cases {
