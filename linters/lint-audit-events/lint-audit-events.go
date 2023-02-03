@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
-	"go/token"
 	"go/types"
 	"os"
 	"strings"
@@ -60,9 +59,6 @@ type valueSpecFact struct {
 	name string
 	// The text of the value spec's godoc
 	doc string
-	// Position where the ValueSpec was declared. Used for reporting
-	// diagnostics.
-	pos token.Pos
 	// The name of the packae where the value spec originated.
 	pkg string
 }
@@ -92,7 +88,6 @@ func newValueSpecFact(n string, s *ast.GenDecl) (*valueSpecFact, error) {
 	return &valueSpecFact{
 		name: m,
 		doc:  s.Doc.Text(),
-		pos:  s.Pos(),
 		pkg:  n,
 	}, nil
 }
@@ -230,7 +225,7 @@ func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node
 
 			if vs.doc == "" {
 				diag = analysis.Diagnostic{
-					Pos: vs.pos,
+					Pos: id.Pos(),
 					Message: fmt.Sprintf(
 						"%v.%v needs a comment since it is used when emitting an audit event",
 						vs.pkg,
@@ -243,7 +238,7 @@ func checkValuesOfRequiredFields(ti *types.Info, i RequiredFieldInfo, n ast.Node
 
 			if vs.doc[:len(vs.name)] != vs.name {
 				diag = analysis.Diagnostic{
-					Pos: vs.pos,
+					Pos: id.Pos(),
 					Message: fmt.Sprintf(
 						"the GoDoc for %v.%v must begin with \"%v\" so we can generate audit event documentation",
 						vs.pkg,
@@ -425,10 +420,6 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 
 			}, nil)
 
-		}
-
-		if strings.Contains(p.Pkg.Path(), "my-project") {
-			fmt.Println("current package name: ", p.Pkg.Name())
 		}
 
 		// Check each type definition in the package for correct

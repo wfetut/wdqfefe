@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 
 	"golang.org/x/tools/go/analysis"
@@ -179,8 +178,7 @@ func EmitAuditEvent(){
 			files: map[string]string{
 				"my-project/loginevents/authnevent.go": `package loginevents // want package:"AuthnEvent"
 
-var AuthnEvent = "login.new" // want "my-project/loginevents.AuthnEvent needs a comment since it is used when emitting an audit event"
-			    `,
+var AuthnEvent = "login.new"			    `,
 				"my-project/authn/authn.go": `
 package authn 
 
@@ -198,9 +196,10 @@ func (e AuthnEvent) GetType() string{
 }
 
 func emitAuthnEvent(){
-    events.Emit(AuthnEvent{
+    events.Emit(AuthnEvent{ 
       Metadata: events.Metadata{
-	Type: loginevents.AuthnEvent,
+	Type: loginevents.AuthnEvent, // want "my-project/loginevents.AuthnEvent needs a comment since it is used when emitting an audit event"
+
       },
     })
 }
@@ -213,8 +212,7 @@ func emitAuthnEvent(){
 				"my-project/loginevents/authnevent.go": `package loginevents // want package:"AuthnEvent"
 
 // This is an AuthnEvent.
-var AuthnEvent = "login.new" // want "the GoDoc for my-project/loginevents.AuthnEvent must begin with \"AuthnEvent\" so we can generate audit event documentation"
-			    `,
+var AuthnEvent = "login.new" 			    `,
 				"my-project/authn/authn.go": `
 package authn 
 
@@ -234,7 +232,8 @@ func (e AuthnEvent) GetType() string{
 func emitAuthnEvent(){
     events.Emit(AuthnEvent{
       Metadata: events.Metadata{
-	Type: loginevents.AuthnEvent,
+	Type: loginevents.AuthnEvent, // want "the GoDoc for my-project/loginevents.AuthnEvent must begin with \"AuthnEvent\" so we can generate audit event documentation"
+
       },
     })
 }
@@ -250,10 +249,6 @@ func emitAuthnEvent(){
 
 	for _, tc := range cases {
 		t.Run(tc.description, func(t *testing.T) {
-
-			fmt.Println("STARTING TEST CASE: ", tc.description)
-			defer fmt.Println("")
-
 			// Assemble files for the test case by combining the default
 			// files with the ones used for the test case into a new
 			// map.
