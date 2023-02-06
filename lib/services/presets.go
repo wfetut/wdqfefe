@@ -73,6 +73,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindConnectionDiagnostic, RW()),
 					types.NewRule(types.KindDatabase, RW()),
 					types.NewRule(types.KindDatabaseCertificate, RW()),
+					types.NewRule(types.KindNode, RW()),
 					types.NewRule(types.KindInstaller, RW()),
 					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
 					types.NewRule(types.KindDatabaseService, RO()),
