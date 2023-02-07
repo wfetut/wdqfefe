@@ -33,29 +33,29 @@ export function getHttpFileTransferHandlers() {
       abortController?: AbortController
     ): FileTransferListeners {
       const eventEmitter = createFileTransferEventsEmitter();
-      const xhr = getBaseXhrRequest({
-        method: 'get',
-        url,
-        eventEmitter,
-        abortController,
-        transformSuccessfulResponse: () => {
-          const fileName = getDispositionFileName(xhr);
-          if (!fileName) {
-            throw new Error('Bad response');
-          } else {
-            saveOnDisk(fileName, xhr.response);
-          }
-        },
-        transformFailedResponse: () => getFileReaderErrorAsText(xhr.response),
-      });
-
-      xhr.onprogress = e => {
-        if (xhr.status === 200) {
-          eventEmitter.emitProgress(calculateProgress(e));
-        }
-      };
-      xhr.responseType = 'blob';
-      xhr.send();
+      /* const xhr = getBaseXhrRequest({ */
+      /*   method: 'get', */
+      /*   url, */
+      /*   eventEmitter, */
+      /*   abortController, */
+      /*   transformSuccessfulResponse: () => { */
+      /*     const fileName = getDispositionFileName(xhr); */
+      /*     if (!fileName) { */
+      /*       throw new Error('Bad response'); */
+      /*     } else { */
+      /*       saveOnDisk(fileName, xhr.response); */
+      /*     } */
+      /*   }, */
+      /*   transformFailedResponse: () => getFileReaderErrorAsText(xhr.response), */
+      /* }); */
+      /**/
+      /* xhr.onprogress = e => { */
+      /*   if (xhr.status === 200) { */
+      /*     eventEmitter.emitProgress(calculateProgress(e)); */
+      /*   } */
+      /* }; */
+      /* xhr.responseType = 'blob'; */
+      /* xhr.send(); */
       return eventEmitter;
     },
   };

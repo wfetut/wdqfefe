@@ -123,7 +123,10 @@ const cfg = {
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
     checkAccessToRegisteredResource: `/v1/webapi/sites/:clusterId/resources/check`,
 
-    scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
+    /* h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile)) */
+    scp: 'wss://:fqdn/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?access_token=:token',
+    scpWsAdr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?access_token=:token',
     webRenewTokenPath: '/v1/webapi/sessions/web/renew',
     resetPasswordTokenPath: '/v1/webapi/users/password/token',
     webSessionPath: '/v1/webapi/sessions/web',

@@ -36,15 +36,30 @@ import Document from '../Document';
 import Terminal from './Terminal';
 import useSshSession from './useSshSession';
 import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
+import useFileTransferClient from './useFileTransferClient';
 
 export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
   const { tty, status, closeDocument } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
+  const ftcInit = useRef(false);
+  const fileTransferClient = useFileTransferClient({
+    clusterId: doc.clusterId,
+    serverId: doc.serverId,
+    login: doc.login,
+  });
 
   function handleCloseFileTransfer() {
     refTerminal.current.terminal.term.focus();
   }
+
+  useEffect(() => {
+    // only open the fileTransferClient socket once
+    if (fileTransferClient.fileTransferClient && !ftcInit.current) {
+      fileTransferClient.fileTransferClient.init();
+      ftcInit.current = true;
+    }
+  }, [fileTransferClient]);
 
   useEffect(() => {
     if (refTerminal && refTerminal.current) {
@@ -55,6 +70,13 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
 
   return (
     <Document visible={visible} flexDirection="column">
+      <div
+        onClick={() => {
+          console.log(fileTransferClient);
+        }}
+      >
+        CLICK ME FOR WEBSOCKET INTO
+      </div>
       <FileTransferContextProvider>
         <FileTransferActionBar isConnected={doc.status === 'connected'} />
         {status === 'loading' && (
@@ -79,13 +101,14 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
           transferHandlers={{
             getDownloader: async (location, abortController) =>
               getHttpFileTransferHandlers().download(
-                cfg.getScpUrl({
-                  location,
-                  clusterId: doc.clusterId,
-                  serverId: doc.serverId,
-                  login: doc.login,
-                  filename: location,
-                }),
+                'testing',
+                /* cfg.getScpUrl({ */
+                /*   location, */
+                /*   clusterId: doc.clusterId, */
+                /*   serverId: doc.serverId, */
+                /*   login: doc.login, */
+                /*   filename: location, */
+                /* }), */
                 abortController
               ),
             getUploader: async (location, file, abortController) =>

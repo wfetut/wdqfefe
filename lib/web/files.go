@@ -17,17 +17,22 @@ limitations under the License.
 package web
 
 import (
+	"fmt"
 	"net/http"
+	"sync"
 
+	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"golang.org/x/text/encoding"
+	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
+	// "github.com/gravitational/teleport/lib/sshutils/scp"
 )
 
 // fileTransferRequest describes HTTP file transfer request
@@ -46,136 +51,215 @@ type fileTransferRequest struct {
 	filename string
 }
 
-func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	query := r.URL.Query()
-	req := fileTransferRequest{
-		cluster:        site.GetName(),
-		login:          p.ByName("login"),
-		server:         p.ByName("server"),
-		remoteLocation: query.Get("location"),
-		filename:       query.Get("filename"),
-		namespace:      defaults.Namespace,
-	}
-
-	clt, err := sctx.GetUserClient(r.Context(), site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ft := fileTransfer{
-		ctx:           sctx,
-		authClient:    clt,
-		proxyHostPort: h.ProxyHostPort(),
-	}
-
-	isUpload := r.Method == http.MethodPost
-	if isUpload {
-		err = ft.upload(req, r)
-	} else {
-		err = ft.download(req, r, w)
-	}
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// We must return nil so that we don't write anything to
-	// the response, which would corrupt the downloaded file.
-	return nil, nil
-}
-
-type fileTransfer struct {
+type FileTransferHandler struct {
 	// ctx is a web session context for the currently logged in user.
 	ctx           *SessionContext
 	authClient    auth.ClientI
 	proxyHostPort string
+	// stream manages sending and receiving [Envelope] to the UI
+	// for the duration of the session
+	stream *FileTransferStream
 }
 
-func (f *fileTransfer) download(req fileTransferRequest, httpReq *http.Request, w http.ResponseWriter) error {
-	cmd, err := scp.CreateHTTPDownload(scp.HTTPTransferRequest{
-		RemoteLocation: req.remoteLocation,
-		HTTPResponse:   w,
-		User:           f.ctx.GetUser(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+type FileTransferStream struct {
+	// encoder is used to encode UTF-8 strings.
+	encoder *encoding.Encoder
+	// decoder is used to decode UTF-8 strings.
+	decoder *encoding.Decoder
 
-	tc, err := f.createClient(req, httpReq)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// buffer is a buffer used to store the remaining payload data if it did not
+	// fit into the buffer provided by the callee to Read method
+	buffer []byte
 
-	err = tc.ExecuteSCP(httpReq.Context(), cmd)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	// once ensures that resizeC is closed at most one time
+	once sync.Once
 
-	return nil
+	// mu protects writes to ws
+	mu sync.Mutex
+	// ws the connection to the UI
+	ws *websocket.Conn
 }
 
-func (f *fileTransfer) upload(req fileTransferRequest, httpReq *http.Request) error {
-	cmd, err := scp.CreateHTTPUpload(scp.HTTPTransferRequest{
-		RemoteLocation: req.remoteLocation,
-		FileName:       req.filename,
-		HTTPRequest:    httpReq,
-		User:           f.ctx.GetUser(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
+func (h *Handler) fileTransferhandle(
+	w http.ResponseWriter,
+	r *http.Request,
+	p httprouter.Params,
+	sctx *SessionContext,
+	site reversetunnel.RemoteSite,
+) (interface{}, error) {
+	// desktopName := p.ByName("desktopName")
+	// if desktopName == "" {
+	// 	return nil, trace.BadParameter("missing desktopName in request URL")
+	// }
 
-	tc, err := f.createClient(req, httpReq)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = tc.ExecuteSCP(httpReq.Context(), cmd)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	h.fileTransferConnection(w, r, p, sctx, site)
+	return nil, nil
 }
 
-func (f *fileTransfer) createClient(req fileTransferRequest, httpReq *http.Request) (*client.TeleportClient, error) {
-	if !types.IsValidNamespace(req.namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", req.namespace)
+func (h *Handler) fileTransferConnection(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) {
+	// query := r.URL.Query()
+	// req := fileTransferRequest{
+	// 	cluster:        site.GetName(),
+	// 	login:          p.ByName("login"),
+	// 	server:         p.ByName("server"),
+	// 	remoteLocation: query.Get("location"),
+	// 	filename:       query.Get("filename"),
+	// 	namespace:      defaults.Namespace,
+	// }
+
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     func(r *http.Request) bool { return true },
 	}
 
-	if req.login == "" {
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		errMsg := "Error upgrading to websocket"
+		http.Error(w, errMsg, http.StatusInternalServerError)
+		return
+	}
+
+	h.handler(ws, r, p, sctx, site)
+}
+
+func (h *Handler) handler(ws *websocket.Conn, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) {
+	defer ws.Close()
+	// defer ws.Close()
+	//
+	stream, err := NewFileTransferStream(ws)
+	if err != nil {
+		//
+		return
+	}
+
+	fmt.Println("---")
+	fmt.Printf("stream: %+v\n", stream)
+	fmt.Println("---")
+
+	// tc, err := h.createClient(r, ws, p, sctx, site)
+	// if err != nil {
+	// 	fmt.Printf("err: %+v\n", err)
+	// 	return
+	// }
+	// fmt.Println("-----")
+	// fmt.Printf("made client: %+v\n", tc)
+	// fmt.Println("-----")
+}
+
+func (h *Handler) createClient(r *http.Request, ws *websocket.Conn, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (*client.TeleportClient, error) {
+	ctx := r.Context()
+	// query := r.URL.Query()
+	// req := fileTransferRequest{
+	// 	cluster:        site.GetName(),
+	// 	login:          p.ByName("login"),
+	// 	server:         p.ByName("server"),
+	// 	remoteLocation: query.Get("location"),
+	// 	filename:       query.Get("filename"),
+	// 	namespace:      defaults.Namespace,
+	clientConfig, err := makeTeleportClientConfig(ctx, sctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clientConfig.Namespace = defaults.Namespace
+	if !types.IsValidNamespace(defaults.Namespace) {
+		return nil, trace.BadParameter("invalid namespace %q", clientConfig.Namespace)
+	}
+
+	clientConfig.HostLogin = p.ByName("login")
+	if clientConfig.HostLogin == "" {
 		return nil, trace.BadParameter("missing login")
 	}
 
-	servers, err := f.authClient.GetNodes(httpReq.Context(), req.namespace)
+	servers, err := sctx.cfg.RootClient.GetNodes(ctx, clientConfig.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	hostName, hostPort, err := resolveServerHostPort(req.server, servers)
+	server := p.ByName("server")
+	hostName, hostPort, err := resolveServerHostPort(server, servers)
 	if err != nil {
-		return nil, trace.BadParameter("invalid server name %q: %v", req.server, err)
+		return nil, trace.BadParameter("invalid server name %q: %v", server, err)
 	}
 
-	cfg, err := makeTeleportClientConfig(httpReq.Context(), f.ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cfg.HostLogin = req.login
-	cfg.SiteName = req.cluster
-	cfg.Namespace = req.namespace
-	if err := cfg.ParseProxyHost(f.proxyHostPort); err != nil {
+	clientConfig.SiteName = site.GetName()
+	if err := clientConfig.ParseProxyHost(h.ProxyHostPort()); err != nil {
 		return nil, trace.BadParameter("failed to parse proxy address: %v", err)
 	}
-	cfg.Host = hostName
-	cfg.HostPort = hostPort
-	cfg.ClientAddr = httpReq.RemoteAddr
+	clientConfig.Host = hostName
+	clientConfig.HostPort = hostPort
+	clientConfig.ClientAddr = r.RemoteAddr
 
-	tc, err := client.NewClient(cfg)
+	tc, err := client.NewClient(clientConfig)
 	if err != nil {
 		return nil, trace.BadParameter("failed to create client: %v", err)
 	}
-
 	return tc, nil
+}
+
+func (f *FileTransferHandler) download(req fileTransferRequest, httpReq *http.Request, w http.ResponseWriter) error {
+	// cmd, err := scp.CreateHTTPDownload(scp.HTTPTransferRequest{
+	// 	RemoteLocation: req.remoteLocation,
+	// 	HTTPResponse:   w,
+	// 	User:           f.ctx.GetUser(),
+	// })
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+	//
+	// tc, err := f.createClient(req, httpReq)
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+	//
+	// err = tc.ExecuteSCP(httpReq.Context(), cmd)
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+	//
+	return nil
+}
+
+func (f *FileTransferHandler) upload(req fileTransferRequest, httpReq *http.Request) error {
+	// cmd, err := scp.CreateHTTPUpload(scp.HTTPTransferRequest{
+	// 	RemoteLocation: req.remoteLocation,
+	// 	FileName:       req.filename,
+	// 	HTTPRequest:    httpReq,
+	// 	User:           f.ctx.GetUser(),
+	// })
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+	//
+	// tc, err := f.createClient(req, httpReq)
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+	//
+	// err = tc.ExecuteSCP(httpReq.Context(), cmd)
+	// if err != nil {
+	// 	return trace.Wrap(err)
+	// }
+
+	return nil
+}
+
+// func (f *FileTransferHandler) createClient(req fileTransferRequest, httpReq *http.Request) (*client.TeleportClient, error) {
+
+// }
+
+func NewFileTransferStream(ws *websocket.Conn) (*FileTransferStream, error) {
+	switch {
+	case ws == nil:
+		return nil, trace.BadParameter("required parameter ws not provided")
+	}
+
+	t := &FileTransferStream{
+		ws:      ws,
+		encoder: unicode.UTF8.NewEncoder(),
+		decoder: unicode.UTF8.NewDecoder(),
+	}
+
+	return t, nil
 }
