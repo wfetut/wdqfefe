@@ -42,8 +42,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
   const { tty, status, closeDocument } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
-  const ftcInit = useRef(false);
-  const fileTransferClient = useFileTransferClient({
+  const { sendWebAuthn } = useFileTransferClient({
     clusterId: doc.clusterId,
     serverId: doc.serverId,
     login: doc.login,
@@ -52,14 +51,6 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
   function handleCloseFileTransfer() {
     refTerminal.current.terminal.term.focus();
   }
-
-  useEffect(() => {
-    // only open the fileTransferClient socket once
-    if (fileTransferClient.fileTransferClient && !ftcInit.current) {
-      fileTransferClient.fileTransferClient.init();
-      ftcInit.current = true;
-    }
-  }, [fileTransferClient]);
 
   useEffect(() => {
     if (refTerminal && refTerminal.current) {
@@ -72,7 +63,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
     <Document visible={visible} flexDirection="column">
       <div
         onClick={() => {
-          console.log(fileTransferClient);
+          sendWebAuthn();
         }}
       >
         CLICK ME FOR WEBSOCKET INTO

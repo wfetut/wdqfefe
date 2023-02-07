@@ -1,10 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
 import cfg from 'teleport/config';
-
-import FileTransferClient from './fileTransferClient';
 
 type Props = {
   clusterId: string;
@@ -14,11 +12,10 @@ type Props = {
 
 export default function useFileTransferClient(props: Props) {
   const { clusterId, serverId, login } = props;
-  const [fileTransferClient, setFileTransferClient] =
-    useState<FileTransferClient | null>(null);
+  const ws = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    // scp: 'wss://:fqdn/v1/webapi/sites/:clusterId/nodes/:serverId/scp?location=:location&filename=:filename&access_token=:token'
+    // scp: 'wss://:fqdn/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename&access_token=:token'
     const addr = cfg.api.scpWsAdr
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
@@ -26,16 +23,19 @@ export default function useFileTransferClient(props: Props) {
       .replace(':login', login)
       .replace(':token', getAccessToken());
 
-    setFileTransferClient(new FileTransferClient(addr));
+    ws.current = new WebSocket(addr);
+    return () => {
+      ws.current.close();
+    };
   }, [clusterId, serverId]);
 
-  /* useEffect(() => { */
-  /*   if (fileTransferClient) { */
-  /*     fileTransferClient.init(); */
-  /*   } */
-  /* }, [fileTransferClient]); */
+  const sendWebAuthn = () => {
+    if (ws.current) {
+      ws.current.send('MESSAGE');
+    }
+  };
 
   return {
-    fileTransferClient,
+    sendWebAuthn,
   };
 }

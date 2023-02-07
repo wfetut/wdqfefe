@@ -71,9 +71,6 @@ type FileTransferStream struct {
 	// fit into the buffer provided by the callee to Read method
 	buffer []byte
 
-	// once ensures that resizeC is closed at most one time
-	once sync.Once
-
 	// mu protects writes to ws
 	mu sync.Mutex
 	// ws the connection to the UI
@@ -120,7 +117,31 @@ func (h *Handler) fileTransferConnection(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	h.handler(ws, r, p, sctx, site)
+	fmt.Println("--------------")
+	fmt.Printf("%+v\n", "opening here")
+	fmt.Println("--------------")
+	readMessages(ws)
+	// h.handler(ws, r, p, sctx, site)
+}
+
+func readMessages(ws *websocket.Conn) {
+	go func() {
+		for {
+			ty, bytes, err := ws.ReadMessage()
+			if err != nil {
+				log.Println(err)
+				return
+			}
+
+			log.Println("-----------")
+			log.Printf("ty: %+v\n, bytes: %+v\n", ty, bytes)
+			log.Println("-----------")
+			if err := ws.WriteMessage(ty, bytes); err != nil {
+				log.Println(err)
+				return
+			}
+		}
+	}()
 }
 
 func (h *Handler) handler(ws *websocket.Conn, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) {
