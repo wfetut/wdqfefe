@@ -24,6 +24,10 @@ export default function useFileTransferClient(props: Props) {
       .replace(':token', getAccessToken());
 
     ws.current = new WebSocket(addr);
+    ws.current.onmessage = async (ev: MessageEvent) => {
+      await handleMessage(ev.data as ArrayBuffer);
+    };
+
     return () => {
       ws.current.close();
     };
@@ -33,6 +37,10 @@ export default function useFileTransferClient(props: Props) {
     if (ws.current) {
       ws.current.send('MESSAGE');
     }
+  };
+
+  const handleMessage = async (buffer: ArrayBuffer) => {
+    console.log('message', buffer);
   };
 
   return {

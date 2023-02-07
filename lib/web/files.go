@@ -120,11 +120,19 @@ func (h *Handler) fileTransferConnection(w http.ResponseWriter, r *http.Request,
 	fmt.Println("--------------")
 	fmt.Printf("%+v\n", "opening here")
 	fmt.Println("--------------")
-	readMessages(ws)
+	h.readMessages(ws, r, p, sctx, site)
 	// h.handler(ws, r, p, sctx, site)
 }
 
-func readMessages(ws *websocket.Conn) {
+func (h *Handler) readMessages(
+	ws *websocket.Conn,
+	r *http.Request,
+	p httprouter.Params,
+	sctx *SessionContext,
+	site reversetunnel.RemoteSite,
+) {
+	client, err := h.createClient(ws, r, p, sctx, site)
+
 	go func() {
 		for {
 			ty, bytes, err := ws.ReadMessage()
@@ -168,7 +176,7 @@ func (h *Handler) handler(ws *websocket.Conn, r *http.Request, p httprouter.Para
 	// fmt.Println("-----")
 }
 
-func (h *Handler) createClient(r *http.Request, ws *websocket.Conn, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (*client.TeleportClient, error) {
+func (h *Handler) createClient(ws *websocket.Conn, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (*client.TeleportClient, error) {
 	ctx := r.Context()
 	// query := r.URL.Query()
 	// req := fileTransferRequest{
