@@ -329,6 +329,72 @@ func EmitGoodAuditEventImplementation(){
 		    `,
 			},
 		},
+		{
+			description: "Expected audit event implementation with two clashing package names, one aliased",
+			files: map[string]string{
+				"my-project/services/events/events.go": `package events
+
+import apievents "my-project/events"
+
+type NewConnectionEvent struct{
+  Metadata apievents.Metadata
+}
+
+func (e NewConnectionEvent) GetType() string{
+  return e.Metadata.Type
+}
+
+`,
+				"my-project/main.go": `package main
+
+import (
+  apievents "my-project/events"
+  "my-project/services/events"
+)
+
+func main(){
+    apievents.Emit(events.NewConnectionEvent{
+      Metadata: apievents.Metadata{
+	Type: apievents.NewConnectionEvent,
+      },
+    })
+}
+		    `,
+			},
+		},
+		{
+			description: "event types declared in parenthetical var block",
+			files: map[string]string{
+				"my-project/kube/events.go": `package kube
+
+var (
+    // KubeRequestEvent fires when a Kubernetes Service instance handles a
+    // generic Kubernetes request.
+    KubeRequestEvent = "kube.request"
+
+    // KubernetesClusterCreateEvent is emitted when a Kubernetes cluster
+    // resource is created.
+    KubernetesClusterCreateEvent = "kube.create"
+)
+`,
+				"my-project/main.go": `package main
+
+import (
+  "my-project/events"
+  "my-project/kube"
+  "my-project/goodimpl"
+)
+
+func main(){    
+    events.Emit(goodimpl.GoodAuditEventImplementation{
+      Metadata: events.Metadata{
+	Type: kube.KubeRequestEvent,
+      },
+    })
+}
+`,
+			},
+		},
 	}
 
 	for _, tc := range cases {
