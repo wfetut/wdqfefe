@@ -53,67 +53,97 @@ type RequiredFieldInfo struct {
 	envPairs []string
 }
 
-// A value spec declaration found in another package
+// A list of value spec declarations found in another package
 type ValueSpecFact struct {
-	// The first name found for the value spec
-	Name string
-	// The text of the value spec's godoc
-	Doc string
-	// The name of the packae where the value spec originated.
+	// The name of the package where the value specs originated.
 	Pkg string
+	// Information about value specs found in the package
+	Specs []*ValueSpecInfo
 }
 
-// newValueSpecFact generates a *valueIdentifierFact using the *ast.GenSpec
-// provided in s and the package name provided in in. This makes it possible for
-// one pass of the analyzer to look up value specs declared in other passes.
-// This assumes that the *ast.GenDecl has a single *ast.ValueSpec, and returns
-// an error otherwise.
-func newValueSpecFact(n string, s *ast.GenDecl) (*ValueSpecFact, error) {
+type ValueSpecInfo struct {
+	// The first name found for the value spec
+	Name string
+	// The text of the value spec's GoDoc
+	Doc string
+}
 
-	if len(s.Specs) != 1 {
-		return nil, errors.New("expected a GenDecl with a single ValueSpec, but got multiple")
+// makeValueSpecInfo generates one or more *ValueSpecInfos using the
+// *ast.GenSpec provided in s. This makes it possible for one pass of the
+// analyzer to look up value specs declared in other passes.
+func makeValueSpecInfo(s *ast.GenDecl) ([]*ValueSpecInfo, error) {
+
+	switch len(s.Specs) {
+
+	case 0:
+		return nil, errors.New("the GenDecl does not contain any Specs")
+
+	// Use the comment for the whole GenDecl as the doc for the
+	// ValueSpecInfo, since there's only one ValueSpec.
+	case 1:
+		vs, ok := s.Specs[0].(*ast.ValueSpec)
+
+		if !ok {
+			return nil, errors.New("the GenDecl does not contain a ValueSpec")
+		}
+
+		if len(vs.Names) != 1 {
+			return nil, errors.New("we can only export ValueSpecFacts with a single name")
+		}
+
+		return []*ValueSpecInfo{&ValueSpecInfo{
+			Name: vs.Names[0].Name,
+			Doc:  s.Doc.Text(),
+		}}, nil
+	default:
+		res := make([]*ValueSpecInfo, len(s.Specs))
+		for i, c := range s.Specs {
+
+			vs, ok := c.(*ast.ValueSpec)
+
+			if !ok {
+				return nil, errors.New("the GenDecl does not contain a ValueSpec")
+			}
+			if len(vs.Names) != 1 {
+				return nil, errors.New("we can only export ValueSpecFacts with a single name")
+			}
+
+			res[i] = &ValueSpecInfo{
+				Name: vs.Names[0].Name,
+				Doc:  vs.Doc.Text(),
+			}
+		}
+		return res, nil
 	}
 
-	vs, ok := s.Specs[0].(*ast.ValueSpec)
-
-	if !ok {
-		return nil, errors.New("the GenDecl does not contain a ValueSpec")
-	}
-
-	var m string
-	if len(vs.Names) > 0 {
-		m = vs.Names[0].Name
-	}
-
-	return &ValueSpecFact{
-		Name: m,
-		Doc:  s.Doc.Text(),
-		Pkg:  n,
-	}, nil
 }
 
 func (f *ValueSpecFact) String() string {
-	return f.Pkg + "." + f.Name
+	return fmt.Sprintf("%v: %v value specs", f.Pkg, len(f.Specs))
 }
 
 // Required to implement analysis.Fact
 func (*ValueSpecFact) AFact() {}
 
-// valueSpecFactCollection enables lookups of valueSpecFacts with consistent
+// valueSpecInfoCollection enables lookups of ValueSpecInfo with consistent
 // keys. Insertions and lookups are not goroutine safe.
-type valueSpecFactCollection struct {
-	facts map[string]*ValueSpecFact
+type valueSpecInfoCollection struct {
+	facts map[string]*ValueSpecInfo
 }
 
-// insert adds a *valueSpecFact to the collection with the appropriate key.
-func (c valueSpecFactCollection) insert(f *ValueSpecFact) {
-	c.facts[f.Pkg+"."+f.Name] = f
+// insert inserts each ValueSpecInfo of a *ValueSpecFact to the collection with
+// the appropriate keys.
+func (c valueSpecInfoCollection) insert(f *ValueSpecFact) {
+	for _, s := range f.Specs {
+		c.facts[f.Pkg+"."+s.Name] = s
+	}
+
 }
 
-// lookup looks up a valueSpecFact from the collection using the provided
-// package name and identifier name. It returns a *valueSpecFact and a Boolean
+// lookup looks up a ValueSpecInfo from the collection using the provided
+// package name and identifier name. It returns a *ValueSpecInfo and a Boolean
 // value indicating whether the fact was found.
-func (c valueSpecFactCollection) lookup(pkg string, identifier string) (*ValueSpecFact, bool) {
+func (c valueSpecInfoCollection) lookup(pkg string, identifier string) (*ValueSpecInfo, bool) {
 	f, ok := c.facts[pkg+"."+identifier]
 	return f, ok
 }
@@ -129,7 +159,7 @@ func (c valueSpecFactCollection) lookup(pkg string, identifier string) (*ValueSp
 
 // The return value is an analysis.Diagnostic indicating the first error
 // encountered while checking field values.
-func checkValuesOfRequiredFields(pass *analysis.Pass, i RequiredFieldInfo, n ast.Node, vsc valueSpecFactCollection) analysis.Diagnostic {
+func checkValuesOfRequiredFields(pass *analysis.Pass, i RequiredFieldInfo, n ast.Node, vsc valueSpecInfoCollection) analysis.Diagnostic {
 
 	var diag analysis.Diagnostic
 
@@ -208,11 +238,11 @@ func checkValuesOfRequiredFields(pass *analysis.Pass, i RequiredFieldInfo, n ast
 			// declared in regardless of import alias.
 			case *ast.Ident:
 				obj := pass.TypesInfo.ObjectOf(t)
-				pkg = obj.Pkg().Name()
+				pkg = obj.Pkg().Path()
 				id = t
 			case *ast.SelectorExpr:
 				obj := pass.TypesInfo.ObjectOf(t.Sel)
-				pkg = obj.Pkg().Name()
+				pkg = obj.Pkg().Path()
 
 				id = t.Sel
 			default:
@@ -242,10 +272,12 @@ func checkValuesOfRequiredFields(pass *analysis.Pass, i RequiredFieldInfo, n ast
 				diag = analysis.Diagnostic{
 					Pos: c.Node().Pos(),
 					Message: fmt.Sprintf(
-						"the value of field %v in composite literal %v.%v is an identifier that isn't declared anywhere",
+						"the %v field in a %v.%v declaration is an identifier that isn't declared anywhere: %v.%v",
 						e,
 						i.requiredFieldPackageName,
 						i.requiredFieldTypeName,
+						pkg,
+						id.Name,
 					),
 				}
 
@@ -257,7 +289,7 @@ func checkValuesOfRequiredFields(pass *analysis.Pass, i RequiredFieldInfo, n ast
 					Pos: id.Pos(),
 					Message: fmt.Sprintf(
 						"%v.%v needs a comment since it is used when emitting an audit event",
-						vs.Pkg,
+						pkg,
 						vs.Name,
 					),
 				}
@@ -270,7 +302,7 @@ func checkValuesOfRequiredFields(pass *analysis.Pass, i RequiredFieldInfo, n ast
 					Pos: id.Pos(),
 					Message: fmt.Sprintf(
 						"the GoDoc for %v.%v must begin with \"%v\" so we can generate audit event documentation",
-						vs.Pkg,
+						pkg,
 						vs.Name,
 						vs.Name,
 					),
@@ -428,7 +460,9 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 	// interface, and if so, ensures that they contain the required field.
 	fn := func(p *analysis.Pass) (interface{}, error) {
 
-		// Check if this package declares any value specs and export these as facts
+		// Check if this package declares any value specs and export
+		// these within a PackageFact.
+		var info []*ValueSpecInfo
 		for _, f := range p.Files {
 
 			astutil.Apply(f, func(r *astutil.Cursor) bool {
@@ -436,19 +470,26 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 				if !ok {
 					return true
 				}
-				vf, err := newValueSpecFact(p.Pkg.Name(), gd)
+				vfs, err := makeValueSpecInfo(gd)
 
 				// This GenDecl cannot be a valueSpecFact, so
 				// try the next node
 				if err != nil {
 					return true
 				}
-				p.ExportPackageFact(vf)
+
+				info = append(info, vfs...)
 
 				return true
 
 			}, nil)
+		}
 
+		if len(info) > 0 {
+			p.ExportPackageFact(&ValueSpecFact{
+				Pkg:   p.Pkg.Path(),
+				Specs: info,
+			})
 		}
 
 		// Check each type definition in the package for correct
@@ -514,8 +555,8 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 
 		}
 
-		vsc := valueSpecFactCollection{
-			facts: make(map[string]*ValueSpecFact),
+		vsc := valueSpecInfoCollection{
+			facts: make(map[string]*ValueSpecInfo),
 		}
 
 		for _, fact := range p.AllPackageFacts() {

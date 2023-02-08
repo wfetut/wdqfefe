@@ -10,7 +10,7 @@ import (
 func TestAuditEventDeclarationLinter(t *testing.T) {
 
 	defaultFiles := map[string]string{
-		"my-project/events/events.go": `package events // want package:"NewConnectionEvent"
+		"my-project/events/events.go": `package events // want package:"my-project/events: 1 value specs"
 
 // NewConnectionEvent is emitted when there is a new connection
 var NewConnectionEvent string = "connection.new"
@@ -176,7 +176,7 @@ func EmitAuditEvent(){
 		{
 			description: "Event type with no comment",
 			files: map[string]string{
-				"my-project/loginevents/authnevent.go": `package loginevents // want package:"AuthnEvent"
+				"my-project/loginevents/authnevent.go": `package loginevents // want package:"my-project/loginevents: 1 value specs"
 
 var AuthnEvent = "login.new"			    `,
 				"my-project/authn/authn.go": `
@@ -209,7 +209,7 @@ func emitAuthnEvent(){
 		{
 			description: "Event type with a comment that does not begin with the type name",
 			files: map[string]string{
-				"my-project/loginevents/authnevent.go": `package loginevents // want package:"AuthnEvent"
+				"my-project/loginevents/authnevent.go": `package loginevents // want package:"my-project/loginevents: 1 value specs"
 
 // This is an AuthnEvent.
 var AuthnEvent = "login.new" 			    `,
@@ -232,7 +232,7 @@ func (e AuthnEvent) GetType() string{
 func emitAuthnEvent(){
     events.Emit(AuthnEvent{
       Metadata: events.Metadata{
-	Type: loginevents.AuthnEvent, // want "the GoDoc for loginevents.AuthnEvent must begin with \"AuthnEvent\" so we can generate audit event documentation"
+	Type: loginevents.AuthnEvent, // want "the GoDoc for my-project/loginevents.AuthnEvent must begin with \"AuthnEvent\" so we can generate audit event documentation"
 
       },
     })
@@ -243,7 +243,7 @@ func emitAuthnEvent(){
 		{
 			description: "Event type value with the same name as a declaration in another package",
 			files: map[string]string{
-				"my-project/authn/authn.go": `package authn // want package:"authn.NewAuthnEvent"
+				"my-project/authn/authn.go": `package authn // want package:"authn: 1 value specs"
 
 import (
   "my-project/events"
@@ -261,7 +261,7 @@ func (e AuthnEvent) GetType() string{
 }
 
 `,
-				"my-project/authn2/authn2.go": `package authn2 // want package:"authn2.NewAuthnEvent"
+				"my-project/authn2/authn2.go": `package authn2 // want package:"authn2: 1 value specs"
 
 import (
   "my-project/events"
@@ -297,7 +297,7 @@ func main(){
 
     events.Emit(authn.AuthnEvent{
       Metadata: events.Metadata{
-	Type: authn.NewAuthnEvent, // want "the GoDoc for authn.NewAuthnEvent must begin with \"NewAuthnEvent\" so we can generate audit event documentation"
+	Type: authn.NewAuthnEvent, // want "the GoDoc for my-project/authn.NewAuthnEvent must begin with \"NewAuthnEvent\" so we can generate audit event documentation"
       },
     })
 }
@@ -365,7 +365,7 @@ func main(){
 		{
 			description: "event types declared in parenthetical var block",
 			files: map[string]string{
-				"my-project/kube/events.go": `package kube
+				"my-project/kube/events.go": `package kube // want package:"my-project/kube: 2 value specs"
 
 var (
     // KubeRequestEvent fires when a Kubernetes Service instance handles a
