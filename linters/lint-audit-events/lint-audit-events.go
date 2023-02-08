@@ -202,12 +202,17 @@ func checkValuesOfRequiredFields(pass *analysis.Pass, i RequiredFieldInfo, n ast
 			var id *ast.Ident
 			var pkg string
 			switch t := kv.Value.(type) {
+			// Look up the object that the field's value belongs to
+			// within the pass's TypesInfo. This way, we can
+			// identify the package that the fields' value was
+			// declared in regardless of import alias.
 			case *ast.Ident:
+				obj := pass.TypesInfo.ObjectOf(t)
+				pkg = obj.Pkg().Name()
 				id = t
 			case *ast.SelectorExpr:
-				if xi, ok := t.X.(*ast.Ident); ok {
-					pkg = xi.Name
-				}
+				obj := pass.TypesInfo.ObjectOf(t.Sel)
+				pkg = obj.Pkg().Name()
 
 				id = t.Sel
 			default:
