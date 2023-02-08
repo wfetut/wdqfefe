@@ -350,10 +350,10 @@ func main(){
 				t.Fatal(err)
 			}
 
-			var f valueSpecFact
+			var f ValueSpecFact
 
 			var auditEventDeclarationLinter = &analysis.Analyzer{
-				Name:      tc.description + ": lint-audit-event-declarations",
+				Name:      "LintAuditEventDeclarations",
 				Doc:       "ensure that Teleport audit events follow the structure required",
 				Run:       fn,
 				FactTypes: []analysis.Fact{&f},

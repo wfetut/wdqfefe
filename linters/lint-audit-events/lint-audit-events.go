@@ -54,13 +54,13 @@ type RequiredFieldInfo struct {
 }
 
 // A value spec declaration found in another package
-type valueSpecFact struct {
+type ValueSpecFact struct {
 	// The first name found for the value spec
-	name string
+	Name string
 	// The text of the value spec's godoc
-	doc string
+	Doc string
 	// The name of the packae where the value spec originated.
-	pkg string
+	Pkg string
 }
 
 // newValueSpecFact generates a *valueIdentifierFact using the *ast.GenSpec
@@ -68,7 +68,7 @@ type valueSpecFact struct {
 // one pass of the analyzer to look up value specs declared in other passes.
 // This assumes that the *ast.GenDecl has a single *ast.ValueSpec, and returns
 // an error otherwise.
-func newValueSpecFact(n string, s *ast.GenDecl) (*valueSpecFact, error) {
+func newValueSpecFact(n string, s *ast.GenDecl) (*ValueSpecFact, error) {
 
 	if len(s.Specs) != 1 {
 		return nil, errors.New("expected a GenDecl with a single ValueSpec, but got multiple")
@@ -85,35 +85,35 @@ func newValueSpecFact(n string, s *ast.GenDecl) (*valueSpecFact, error) {
 		m = vs.Names[0].Name
 	}
 
-	return &valueSpecFact{
-		name: m,
-		doc:  s.Doc.Text(),
-		pkg:  n,
+	return &ValueSpecFact{
+		Name: m,
+		Doc:  s.Doc.Text(),
+		Pkg:  n,
 	}, nil
 }
 
-func (f *valueSpecFact) String() string {
-	return f.pkg + "." + f.name
+func (f *ValueSpecFact) String() string {
+	return f.Pkg + "." + f.Name
 }
 
 // Required to implement analysis.Fact
-func (*valueSpecFact) AFact() {}
+func (*ValueSpecFact) AFact() {}
 
 // valueSpecFactCollection enables lookups of valueSpecFacts with consistent
 // keys. Insertions and lookups are not goroutine safe.
 type valueSpecFactCollection struct {
-	facts map[string]*valueSpecFact
+	facts map[string]*ValueSpecFact
 }
 
 // insert adds a *valueSpecFact to the collection with the appropriate key.
-func (c valueSpecFactCollection) insert(f *valueSpecFact) {
-	c.facts[f.pkg+"."+f.name] = f
+func (c valueSpecFactCollection) insert(f *ValueSpecFact) {
+	c.facts[f.Pkg+"."+f.Name] = f
 }
 
 // lookup looks up a valueSpecFact from the collection using the provided
 // package name and identifier name. It returns a *valueSpecFact and a Boolean
 // value indicating whether the fact was found.
-func (c valueSpecFactCollection) lookup(pkg string, identifier string) (*valueSpecFact, bool) {
+func (c valueSpecFactCollection) lookup(pkg string, identifier string) (*ValueSpecFact, bool) {
 	f, ok := c.facts[pkg+"."+identifier]
 	return f, ok
 }
@@ -247,27 +247,27 @@ func checkValuesOfRequiredFields(pass *analysis.Pass, i RequiredFieldInfo, n ast
 				return false
 			}
 
-			if vs.doc == "" {
+			if vs.Doc == "" {
 				diag = analysis.Diagnostic{
 					Pos: id.Pos(),
 					Message: fmt.Sprintf(
 						"%v.%v needs a comment since it is used when emitting an audit event",
-						vs.pkg,
-						vs.name,
+						vs.Pkg,
+						vs.Name,
 					),
 				}
 
 				return false
 			}
 
-			if vs.doc[:len(vs.name)] != vs.name {
+			if vs.Doc[:len(vs.Name)] != vs.Name {
 				diag = analysis.Diagnostic{
 					Pos: id.Pos(),
 					Message: fmt.Sprintf(
 						"the GoDoc for %v.%v must begin with \"%v\" so we can generate audit event documentation",
-						vs.pkg,
-						vs.name,
-						vs.name,
+						vs.Pkg,
+						vs.Name,
+						vs.Name,
 					),
 				}
 			}
@@ -510,11 +510,11 @@ func makeAuditEventDeclarationLinter(c RequiredFieldInfo) (func(*analysis.Pass) 
 		}
 
 		vsc := valueSpecFactCollection{
-			facts: make(map[string]*valueSpecFact),
+			facts: make(map[string]*ValueSpecFact),
 		}
 
 		for _, fact := range p.AllPackageFacts() {
-			if vs, ok := fact.Fact.(*valueSpecFact); ok {
+			if vs, ok := fact.Fact.(*ValueSpecFact); ok {
 				vsc.insert(vs)
 			}
 		}
@@ -558,10 +558,10 @@ func (a analyzerPlugin) GetAnalyzers() []*analysis.Analyzer {
 		panic(err)
 	}
 
-	var f valueSpecFact
+	var f ValueSpecFact
 
 	var auditEventDeclarationLinter = &analysis.Analyzer{
-		Name: "lint-audit-event-declarations",
+		Name: "LintAuditEventDeclarations",
 		Doc:  "ensure that Teleport audit events follow the structure required",
 		Run:  fn,
 		FactTypes: []analysis.Fact{
