@@ -304,6 +304,31 @@ func main(){
 `,
 			},
 		},
+		{
+			description: "Expected audit event implementation with an import alias",
+			files: map[string]string{
+				"my-project/goodimpl2/goodimpl2.go": `package goodimpl2
+
+import apievents "my-project/events"
+
+type GoodAuditEventImplementation struct{
+  Metadata apievents.Metadata
+}
+
+func (g GoodAuditEventImplementation) GetType() string{
+  return g.Metadata.Type
+}
+
+func EmitGoodAuditEventImplementation(){
+    apievents.Emit(GoodAuditEventImplementation{
+      Metadata: apievents.Metadata{
+	Type: apievents.NewConnectionEvent,
+      },
+    })
+}
+		    `,
+			},
+		},
 	}
 
 	for _, tc := range cases {
