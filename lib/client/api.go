@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
+	dtenroll "github.com/gravitational/teleport/lib/devicetrust/enroll"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
@@ -3113,8 +3114,25 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 
 	// Allow tests to override the default authn function.
 	runCeremony := tc.dtAuthnRunCeremony
+	attemptEnroll := false
 	if runCeremony == nil {
 		runCeremony = dtauthn.RunCeremony
+		// TODO(codingllama): This is a strong assumption, consider alternatives.
+		attemptEnroll = true
+	}
+
+	// TODO(codingllama): This is an alright place for this logic for now,
+	//  but consider later whether both methods should be tied unconditionally
+	//  like this.
+	if attemptEnroll {
+		tokenPath := os.Getenv("TELEPORT_DEVICE_TOKEN_FILE")
+		if tokenPath == "" {
+			tokenPath = "/var/lib/teleport/device_enroll_token"
+		}
+		if _, err := dtenroll.AttemptTokenFileEnroll(ctx, authClient.DevicesClient(), tokenPath); err != nil {
+			log.WithError(err).Debug("Device Trust: automatic device enrollment failed")
+			// err swallowed on purpose.
+		}
 	}
 
 	newCerts, err := runCeremony(ctx, authClient.DevicesClient(), certs)
