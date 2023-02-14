@@ -119,6 +119,10 @@ export class Protobuf {
     };
   }
 
+  decodeFileTransfer(uintarray) {
+    return uintarray;
+  }
+
   decodeVersion(uintArray) {
     if (
       uintArray[0] === messageFields.version.code &&

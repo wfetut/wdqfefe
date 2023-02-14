@@ -18,6 +18,7 @@ export default class FileTransferClient {
   _proto = new Protobuf();
 
   constructor(socketAddr: string) {
+    console.log('socketAddr', socketAddr);
     this._socketAddr = socketAddr;
     /* this.codec = new Codec(); */
   }
@@ -34,14 +35,14 @@ export default class FileTransferClient {
     };
     this.socket.onclose = () => {
       this._logger.info('websocket is closed');
-      this.saveOnDisk('masters.zip');
+      this.saveOnDisk('neon.png');
     };
   }
 
   async processMessage(data: ArrayBuffer) {
-    this.prepareFileBuffer(data);
-    /* const uintArray = new Uint8Array(data); */
-    /* const msg = this._proto.decode(uintArray); */
+    const uintArray = new Uint8Array(data);
+    const msg = this._proto.decodeFileTransfer(uintArray);
+    this.prepareFileBuffer(msg);
     /* switch (msg.type) { */
     /*   case MessageTypeEnum.WEBAUTHN_CHALLENGE: */
     /*     this.authenticate(msg.payload); */

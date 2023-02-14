@@ -19,10 +19,11 @@ package web
 import (
 	"context"
 	"fmt"
+	// "fmt"
 	"net/http"
 	"sync"
 
-	"github.com/gogo/protobuf/proto"
+	// "github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -117,19 +118,12 @@ func NewFileTransferStream(ws *websocket.Conn, opts ...func(*FileTransferStream)
 		return nil, trace.BadParameter("required parameter ws not provided")
 	}
 
-	t := &FileTransferStream{
+	f := &FileTransferStream{
 		ws: ws,
-		// encoder: unicode.UTF8.NewEncoder(),
-		// decoder: unicode.UTF8.NewDecoder(),
 	}
 
-	return t, nil
+	return f, nil
 }
-
-// type FileTransferEnvelope struct {
-// 	Type    string `json:"type"`
-// 	Payload []byte `json:"payload"`
-// }
 
 const (
 	WebsocketRawData      = "r"
@@ -137,15 +131,16 @@ const (
 )
 
 func (f *FileTransferStream) Write(data []byte) (n int, err error) {
-	envelope := &Envelope{
-		Type:    WebsocketRawData,
-		Payload: data,
-	}
-
-	fmt.Printf("%+v\n", envelope)
-
-	// envelopeBytes, _ := proto.Marshal(envelope)
-	// Send bytes over the websocket to the web client.
+	// envelope := &Envelope{
+	// 	Type: WebsocketRawData,
+	// 	// Payload: data,
+	// }
+	//
+	// fmt.Printf("%+v\n", envelope)
+	//
+	// // envelopeBytes, _ := proto.Marshal(envelope)
+	//
+	// // Send bytes over the websocket to the web client.
 	f.mu.Lock()
 	err = f.ws.WriteMessage(websocket.BinaryMessage, data)
 	f.mu.Unlock()
