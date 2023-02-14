@@ -35,18 +35,14 @@ import Document from '../Document';
 
 import Terminal from './Terminal';
 import useSshSession from './useSshSession';
-import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
 import useFileTransferClient from './useFileTransferClient';
+import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
 
 export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
   const { tty, status, closeDocument } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
-  const { sendWebAuthn } = useFileTransferClient({
-    clusterId: doc.clusterId,
-    serverId: doc.serverId,
-    login: doc.login,
-  });
+  const { download, upload } = useFileTransferClient();
 
   function handleCloseFileTransfer() {
     refTerminal.current.terminal.term.focus();
@@ -61,13 +57,6 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
 
   return (
     <Document visible={visible} flexDirection="column">
-      <div
-        onClick={() => {
-          sendWebAuthn();
-        }}
-      >
-        CLICK ME FOR WEBSOCKET INTO
-      </div>
       <FileTransferContextProvider>
         <FileTransferActionBar isConnected={doc.status === 'connected'} />
         {status === 'loading' && (
@@ -91,17 +80,26 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
           backgroundColor={colors.primary.light}
           transferHandlers={{
             getDownloader: async (location, abortController) =>
-              getHttpFileTransferHandlers().download(
-                'testing',
-                /* cfg.getScpUrl({ */
-                /*   location, */
-                /*   clusterId: doc.clusterId, */
-                /*   serverId: doc.serverId, */
-                /*   login: doc.login, */
-                /*   filename: location, */
-                /* }), */
+              download(
+                {
+                  location,
+                  clusterId: doc.clusterId,
+                  serverId: doc.serverId,
+                  login: doc.login,
+                  filename: location,
+                },
                 abortController
               ),
+            /* getHttpFileTransferHandlers().download( */
+            /*   { */
+            /*     location, */
+            /*     clusterId: doc.clusterId, */
+            /*     serverId: doc.serverId, */
+            /*     login: doc.login, */
+            /*     filename: location, */
+            /*   }, */
+            /*   abortController */
+            /* ), */
             getUploader: async (location, file, abortController) =>
               getHttpFileTransferHandlers().upload(
                 cfg.getScpUrl({

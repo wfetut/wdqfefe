@@ -39,6 +39,20 @@ const (
 	httpUploadFileMode = 0644
 )
 
+type WebsocketFileRequest struct {
+	// RemoteLocation is a destination location of the file
+	RemoteLocation string
+	// FileName is a file name
+	FileName string
+
+	Response io.Writer
+
+	// User is a username
+	User string
+	// AuditLog is AuditLog log
+	AuditLog events.IAuditLog
+}
+
 // HTTPTransferRequest describes HTTP file transfer request
 type HTTPTransferRequest struct {
 	// RemoteLocation is a destination location of the file
@@ -57,10 +71,10 @@ type HTTPTransferRequest struct {
 	AuditLog events.IAuditLog
 }
 
-func (r *HTTPTransferRequest) parseRemoteLocation() (string, string, error) {
-	dir, filename := filepath.Split(r.RemoteLocation)
+func parseRemoteLocation(remoteLocation string) (string, string, error) {
+	dir, filename := filepath.Split(remoteLocation)
 	if filename == "" {
-		return "", "", trace.BadParameter("failed to parse file remote location: %q", r.RemoteLocation)
+		return "", "", trace.BadParameter("failed to parse file remote location: %q", remoteLocation)
 	}
 
 	return dir, filename, nil
@@ -114,9 +128,35 @@ func CreateHTTPUpload(req HTTPTransferRequest) (Command, error) {
 	return cmd, nil
 }
 
+func CreateSocketDownload(req WebsocketFileRequest) (Command, error) {
+	_, filename, err := parseRemoteLocation(req.RemoteLocation)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	flags := Flags{
+		Target: []string{filename},
+	}
+
+	cfg := Config{
+		Flags: flags,
+		FileSystem: &wsFileSystem{
+			writer:         req.Response,
+			metadataWriter: req.Response,
+		},
+		User:           req.User,
+		RemoteLocation: req.RemoteLocation,
+	}
+	cmd, err := CreateDownloadCommand(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cmd, nil
+}
+
 // CreateHTTPDownload creates an HTTP download command
 func CreateHTTPDownload(req HTTPTransferRequest) (Command, error) {
-	_, filename, err := req.parseRemoteLocation()
+	_, filename, err := parseRemoteLocation(req.RemoteLocation)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -151,9 +191,25 @@ type httpFileSystem struct {
 	fileSize int64
 }
 
+type metadataWriter struct {
+	io.Writer
+}
+
+type wsFileSystem struct {
+	writer         io.Writer
+	metadataWriter io.Writer
+	reader         io.ReadCloser
+	fileName       string
+	fileSize       int64
+}
+
 // Chmod sets file permissions. It does nothing as there are no permissions
 // while processing HTTP downloads
 func (l *httpFileSystem) Chmod(path string, mode int) error {
+	return nil
+}
+
+func (w *wsFileSystem) Chmod(path string, mode int) error {
 	return nil
 }
 
@@ -163,15 +219,27 @@ func (l *httpFileSystem) Chtimes(path string, atime, mtime time.Time) error {
 	return nil
 }
 
+func (w *wsFileSystem) Chtimes(path string, atime, mtime time.Time) error {
+	return nil
+}
+
 // MkDir creates a directory. This method is not implemented as creating directories
 // is not supported during HTTP downloads.
 func (l *httpFileSystem) MkDir(path string, mode int) error {
 	return trace.BadParameter("directories are not supported in http file transfer")
 }
 
+func (w *wsFileSystem) MkDir(path string, mode int) error {
+	return trace.BadParameter("directories are not supported in http file transfer")
+}
+
 // IsDir tells if this file is a directory. It always returns false as
 // directories are not supported in HTTP file transfer
 func (l *httpFileSystem) IsDir(path string) bool {
+	return false
+}
+
+func (w *wsFileSystem) IsDir(path string) bool {
 	return false
 }
 
@@ -182,6 +250,14 @@ func (l *httpFileSystem) OpenFile(filePath string) (io.ReadCloser, error) {
 	}
 
 	return l.reader, nil
+}
+
+func (w *wsFileSystem) OpenFile(filePath string) (io.ReadCloser, error) {
+	if w.reader == nil {
+		return nil, trace.BadParameter("missing reader")
+	}
+
+	return w.reader, nil
 }
 
 // CreateFile sets proper HTTP headers and returns HTTP writer to stream incoming
@@ -201,8 +277,29 @@ func (l *httpFileSystem) CreateFile(filePath string, length uint64) (io.WriteClo
 	return &nopWriteCloser{Writer: l.writer}, nil
 }
 
+func (w *wsFileSystem) CreateFile(filePath string, length uint64) (io.WriteCloser, error) {
+	_, filename := filepath.Split(filePath)
+	contentLength := strconv.FormatUint(length, 10)
+
+	fmt.Println("-----")
+	fmt.Printf("lenlen: %+v\n", contentLength)
+	fmt.Println("-----")
+	filename = url.QueryEscape(filename)
+	// w.writer.Write([]byte())
+
+	return &nopWriteCloser{Writer: w.writer}, nil
+}
+
 // GetFileInfo returns file information
 func (l *httpFileSystem) GetFileInfo(filePath string) (FileInfo, error) {
+	return &httpFileInfo{
+		name: l.fileName,
+		path: l.fileName,
+		size: l.fileSize,
+	}, nil
+}
+
+func (l *wsFileSystem) GetFileInfo(filePath string) (FileInfo, error) {
 	return &httpFileInfo{
 		name: l.fileName,
 		path: l.fileName,

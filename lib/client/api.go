@@ -41,14 +41,17 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/net/http2"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
@@ -1130,7 +1133,7 @@ func (tc *TeleportClient) RootClusterName(ctx context.Context) (string, error) {
 
 // getTargetNodes returns a list of node addresses this SSH command needs to
 // operate on.
-func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient) ([]string, error) {
+func (tc *TeleportClient) GetTargetNodes(ctx context.Context, proxy *ProxyClient) ([]string, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/getTargetNodes",
@@ -1391,7 +1394,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	defer proxyClient.Close()
 
 	// which nodes are we executing this commands on?
-	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
+	nodeAddrs, err := tc.GetTargetNodes(ctx, proxyClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1439,7 +1442,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, proxyClient *ProxyC
 	}
 
 	// grab the cluster details
-	details, err := proxyClient.clusterDetails(ctx)
+	details, err := proxyClient.ClusterDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1849,7 +1852,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 	defer proxyClient.Close()
 
 	// which nodes are we executing this commands on?
-	nodeAddrs, err := tc.getTargetNodes(ctx, proxyClient)
+	nodeAddrs, err := tc.GetTargetNodes(ctx, proxyClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4298,4 +4301,31 @@ func parseMFAMode(in string) (wancli.AuthenticatorAttachment, error) {
 	default:
 		return 0, trace.BadParameter("unsupported mfa mode %q", in)
 	}
+}
+
+// NewKubernetesServiceClient connects to the proxy and returns an authenticated gRPC
+// client to the Kubernetes service.
+func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, clusterName string) (kubeproto.KubeServiceClient, error) {
+	if !tc.TLSRoutingEnabled {
+		return nil, trace.BadParameter("kube service is not supported if TLS routing is not enabled")
+	}
+	// get tlsConfig to dial to proxy.
+	tlsConfig, err := tc.LoadTLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Set the ALPN protocols to use when dialing the proxy gRPC mTLS endpoint.
+	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxyGRPCSecure), http2.NextProtoTLS}
+
+	clt, err := client.New(ctx, client.Config{
+		Addrs:            []string{tc.Config.WebProxyAddr},
+		DialInBackground: false,
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return kubeproto.NewKubeServiceClient(clt.GetConnection()), nil
 }

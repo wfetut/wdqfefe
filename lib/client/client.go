@@ -1315,7 +1315,7 @@ func nodeName(node string) string {
 }
 
 // clusterDetails retrieves information about the current cluster needed to connect to nodes.
-func (proxy *ProxyClient) clusterDetails(ctx context.Context) (sshutils.ClusterDetails, error) {
+func (proxy *ProxyClient) ClusterDetails(ctx context.Context) (sshutils.ClusterDetails, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/clusterDetails",

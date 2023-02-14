@@ -656,6 +656,8 @@ const (
 
 	// WebsocketError is sending an error message.
 	WebsocketError = "e"
+
+	WebsocketFileMetadata = "f"
 )
 
 // The following are cryptographic primitives Teleport does not support in

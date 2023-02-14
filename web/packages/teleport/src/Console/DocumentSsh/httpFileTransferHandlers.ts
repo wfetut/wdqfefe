@@ -22,6 +22,16 @@ import {
 
 import { getAuthHeaders, getNoCacheHeaders } from 'teleport/services/api';
 
+/* import FileTransferClient from './fileTransferClient'; */
+
+/* type DownloadProps = { */
+/*   location: string; */
+/*   clusterId: string; */
+/*   serverId: string; */
+/*   login: string; */
+/*   filename: string; */
+/* }; */
+
 export function getHttpFileTransferHandlers() {
   return {
     upload(
@@ -44,36 +54,15 @@ export function getHttpFileTransferHandlers() {
       xhr.send(file);
       return eventEmitter;
     },
-    download(
-      url: string,
-      abortController?: AbortController
-    ): FileTransferListeners {
-      const eventEmitter = createFileTransferEventsEmitter();
-      /* const xhr = getBaseXhrRequest({ */
-      /*   method: 'get', */
-      /*   url, */
-      /*   eventEmitter, */
-      /*   abortController, */
-      /*   transformSuccessfulResponse: () => { */
-      /*     const fileName = getDispositionFileName(xhr); */
-      /*     if (!fileName) { */
-      /*       throw new Error('Bad response'); */
-      /*     } else { */
-      /*       saveOnDisk(fileName, xhr.response); */
-      /*     } */
-      /*   }, */
-      /*   transformFailedResponse: () => getFileReaderErrorAsText(xhr.response), */
-      /* }); */
-      /**/
-      /* xhr.onprogress = e => { */
-      /*   if (xhr.status === 200) { */
-      /*     eventEmitter.emitProgress(calculateProgress(e)); */
-      /*   } */
-      /* }; */
-      /* xhr.responseType = 'blob'; */
-      /* xhr.send(); */
-      return eventEmitter;
-    },
+    /* download, */
+    /* download( */
+    /*   { location, login, filename, serverId, clusterId }: DownloadProps, */
+    /*   abortController?: AbortController */
+    /* ): FileTransferListeners { */
+    /*   const eventEmitter = createFileTransferEventsEmitter(); */
+    /**/
+    /*   return eventEmitter; */
+    /* }, */
   };
 }
 
@@ -145,31 +134,31 @@ function getBaseXhrRequest({
   return xhr;
 }
 
-function getFileReaderErrorAsText(xhrResponse: Blob): Promise<string> {
-  return new Promise(resolve => {
-    const reader = new FileReader();
+/* function getFileReaderErrorAsText(xhrResponse: Blob): Promise<string> { */
+/*   return new Promise(resolve => { */
+/*     const reader = new FileReader(); */
+/**/
+/*     reader.onerror = () => { */
+/*       resolve(reader.error.message); */
+/*     }; */
+/**/
+/*     reader.onload = () => { */
+/*       const text = getErrorText(reader.result as string); */
+/*       resolve(text); */
+/*     }; */
+/**/
+/*     reader.readAsText(xhrResponse); */
+/*   }); */
+/* } */
 
-    reader.onerror = () => {
-      resolve(reader.error.message);
-    };
-
-    reader.onload = () => {
-      const text = getErrorText(reader.result as string);
-      resolve(text);
-    };
-
-    reader.readAsText(xhrResponse);
-  });
-}
-
-function saveOnDisk(fileName: string, blob: Blob): void {
-  const a = document.createElement('a');
-  a.href = window.URL.createObjectURL(blob);
-  a.download = fileName;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
+/* function saveOnDisk(fileName: string, blob: Blob): void { */
+/*   const a = document.createElement('a'); */
+/*   a.href = window.URL.createObjectURL(blob); */
+/*   a.download = fileName; */
+/*   document.body.appendChild(a); */
+/*   a.click(); */
+/*   document.body.removeChild(a); */
+/* } */
 
 // backend may return errors in different formats,
 // look at different JSON structures to retrieve the error message
@@ -198,16 +187,16 @@ function calculateProgress(e: ProgressEvent): number {
   }
 }
 
-function getDispositionFileName(xhr: XMLHttpRequest) {
-  let fileName = '';
-  const disposition = xhr.getResponseHeader('Content-Disposition');
-  if (disposition) {
-    const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
-    const matches = filenameRegex.exec(disposition);
-    if (matches != null && matches[1]) {
-      fileName = matches[1].replace(/['"]/g, '');
-    }
-  }
-
-  return decodeURIComponent(fileName);
-}
+/* function getDispositionFileName(xhr: XMLHttpRequest) { */
+/*   let fileName = ''; */
+/*   const disposition = xhr.getResponseHeader('Content-Disposition'); */
+/*   if (disposition) { */
+/*     const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/; */
+/*     const matches = filenameRegex.exec(disposition); */
+/*     if (matches != null && matches[1]) { */
+/*       fileName = matches[1].replace(/['"]/g, ''); */
+/*     } */
+/*   } */
+/**/
+/*   return decodeURIComponent(fileName); */
+/* } */

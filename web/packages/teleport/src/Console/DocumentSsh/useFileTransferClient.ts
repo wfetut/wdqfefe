@@ -1,49 +1,42 @@
-import { useEffect, useRef } from 'react';
-
-import { getAccessToken, getHostName } from 'teleport/services/api';
+import { FileTransferListeners } from 'shared/components/FileTransfer';
 
 import cfg from 'teleport/config';
+import { getAccessToken, getHostName } from 'teleport/services/api';
 
-type Props = {
+import FileTransferClient from './fileTransferClient';
+
+type DownloadProps = {
+  location: string;
   clusterId: string;
   serverId: string;
   login: string;
+  filename: string;
 };
 
-export default function useFileTransferClient(props: Props) {
-  const { clusterId, serverId, login } = props;
-  const ws = useRef<WebSocket | null>(null);
-
-  useEffect(() => {
-    // scp: 'wss://:fqdn/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename&access_token=:token'
+export default function useFileTransferClient() {
+  const download = (
+    props: DownloadProps,
+    abortController: AbortController
+  ): Promise<FileTransferListeners | undefined> => {
+    const { location, login, filename, serverId, clusterId } = props;
     const addr = cfg.api.scpWsAdr
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
       .replace(':serverId', serverId)
       .replace(':login', login)
-      .replace(':token', getAccessToken());
+      .replace(':token', getAccessToken())
+      .replace(':location', location)
+      .replace(':filename', filename);
 
-    ws.current = new WebSocket(addr);
-    ws.current.onmessage = async (ev: MessageEvent) => {
-      await handleMessage(ev.data as ArrayBuffer);
-    };
+    const ftc = new FileTransferClient(addr);
+    ftc.init();
 
-    return () => {
-      ws.current.close();
-    };
-  }, [clusterId, serverId]);
-
-  const sendWebAuthn = () => {
-    if (ws.current) {
-      ws.current.send('MESSAGE');
-    }
+    return;
   };
 
-  const handleMessage = async (buffer: ArrayBuffer) => {
-    console.log('message', buffer);
-  };
-
+  const upload = () => {};
   return {
-    sendWebAuthn,
+    download,
+    upload,
   };
 }

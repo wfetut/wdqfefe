@@ -1,75 +1,91 @@
 import Logger from 'shared/libs/logger';
 
-import Codec, {
-  MessageType,
-  FileType,
-  SharedDirectoryErrCode,
-  Severity,
-} from 'teleport/lib/tdp/codec';
+import { Protobuf, MessageTypeEnum } from 'teleport/lib/term/protobuf';
 import {
   makeMfaAuthenticateChallenge,
   makeWebauthnAssertionResponse,
-  MfaAuthenticateChallenge,
+  WebauthnAssertionResponse,
 } from 'teleport/services/auth';
 
 export default class FileTransferClient {
   protected socket: WebSocket | undefined;
-  protected codec: Codec;
+  /* protected codec: Codec; */
 
-  private socketAddr: string;
-  private logger = Logger.create('FileTransferClient');
+  private _filename: string;
+  private _socketAddr: string;
+  private _logger = Logger.create('FileTransferClient');
+  private _chunks = [];
+  _proto = new Protobuf();
 
   constructor(socketAddr: string) {
-    /* super(); */
-    this.socketAddr = socketAddr;
-    this.codec = new Codec();
+    this._socketAddr = socketAddr;
+    /* this.codec = new Codec(); */
   }
 
   init() {
-    this.socket = new WebSocket(this.socketAddr);
+    this.socket = new WebSocket(this._socketAddr);
     this.socket.binaryType = 'arraybuffer';
     this.socket.onopen = () => {
-      this.logger.info('websocket is open');
-      /* this.emit(TdpClientEvent.WS_OPEN); */
+      this._logger.info('websocket is open');
     };
 
     this.socket.onmessage = async (ev: MessageEvent) => {
       await this.processMessage(ev.data as ArrayBuffer);
     };
     this.socket.onclose = () => {
-      this.logger.info('websocket is closed');
-
-      // Clean up all of our socket's listeners and the socket itself.
-      /* this.socket.onopen = null; */
-      /* this.socket.onmessage = null; */
-      /* this.socket.onclose = null; */
-      /* this.socket = null; */
-
-      /* this.emit(TdpClientEvent.WS_CLOSE); */
+      this._logger.info('websocket is closed');
+      this.saveOnDisk('masters.zip');
     };
   }
 
-  /* const onChallenge = challengeJson => { */
-  /*   const challenge = JSON.parse(challengeJson); */
-  /*   const publicKey = makeMfaAuthenticateChallenge(challenge).webauthnPublicKey; */
-  /**/
-  /*   setState({ */
-  /*     ...state, */
-  /*     requested: true, */
-  /*     publicKey, */
-  /*   }); */
-  /* }; */
-  async processMessage(message: ArrayBuffer) {
-    console.log('message here: ', message);
-    /* const mfaJson = this.codec.decodeMfaJson(message); */
-    /* const publicKey = makeMfaAuthenticateChallenge( */
-    /*   JSON.parse(mfaJson.jsonString) */
-    /* ).webauthnPublicKey; */
-    /**/
-    /* this.authenticate(publicKey); */
+  async processMessage(data: ArrayBuffer) {
+    this.prepareFileBuffer(data);
+    /* const uintArray = new Uint8Array(data); */
+    /* const msg = this._proto.decode(uintArray); */
+    /* switch (msg.type) { */
+    /*   case MessageTypeEnum.WEBAUTHN_CHALLENGE: */
+    /*     this.authenticate(msg.payload); */
+    /*     break; */
+    /*   case MessageTypeEnum.RAW: */
+    /*     this.prepareFileBuffer(uintArray); */
+    /*     break; */
+    /*   default: */
+    /*     throw Error(`unknown message type: ${msg.type}`); */
+    /* } */
   }
 
-  authenticate(publicKey: PublicKeyCredentialRequestOptions) {
+  prepareFileBuffer(data) {
+    let newData = new Uint8Array(data);
+    this._chunks.push(newData);
+  }
+
+  saveOnDisk(fileName: string): void {
+    let blob = new Blob(this._chunks, { type: 'application/octet-stream' });
+    const a = document.createElement('a');
+    a.href = window.URL.createObjectURL(blob);
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  send(data) {
+    if (!this.socket || !data) {
+      return;
+    }
+
+    const msg = this._proto.encodeRawMessage(data);
+    const bytearray = new Uint8Array(msg);
+    this.socket.send(bytearray.buffer);
+  }
+
+  sendWebAuthn(data: WebauthnAssertionResponse) {
+    this.send(JSON.stringify(data));
+  }
+
+  authenticate(challengeJson) {
+    const challenge = JSON.parse(challengeJson);
+    const publicKey = makeMfaAuthenticateChallenge(challenge).webauthnPublicKey;
     if (!window.PublicKeyCredential) {
       const errorText =
         'This browser does not support WebAuthn required for hardware tokens, \
@@ -80,52 +96,7 @@ export default class FileTransferClient {
     }
     navigator.credentials.get({ publicKey }).then(res => {
       const credential = makeWebauthnAssertionResponse(res);
-      console.log('credential', credential);
-      const msg = this.codec.encodeMfaJson({
-        mfaType: 'n',
-        jsonString: JSON.stringify(credential),
-      });
-      this.socket.send(msg);
-      /* this.send(msg); */
+      this.sendWebAuthn(credential);
     });
   }
-  /* navigator.credentials */
-  /*   .get({ publicKey }) */
-  /*   .then(res => { */
-  /*     const credential = makeWebauthnAssertionResponse(res); */
-  /*     emitterSender.sendWebAuthn(credential); */
-  /**/
-  /*     setState({ */
-  /*       ...state, */
-  /*       requested: false, */
-  /*       errorText: '', */
-  /*     }); */
-  /*   }) */
-  /*   .catch((err: Error) => { */
-  /*     setState({ */
-  /*       ...state, */
-  /*       errorText: err.message, */
-  /*     }); */
-  /*   }); */
-  /* handleMfaChallenge(buffer: ArrayBuffer) { */
-  /*   try { */
-  /*     const mfaJson = this.codec.decodeMfaJson(buffer); */
-  /*     if (mfaJson.mfaType == 'n') { */
-  /*       this.emit(TermEvent.WEBAUTHN_CHALLENGE, mfaJson.jsonString); */
-  /*     } else { */
-  /*       // mfaJson.mfaType === 'u', or else decodeMfaJson would have thrown an error. */
-  /*       this.handleError( */
-  /*         new Error( */
-  /*           'Multifactor authentication is required for accessing this desktop, \ */
-  /*     however the U2F API for hardware keys is not supported for desktop sessions. \ */
-  /*     Please notify your system administrator to update cluster settings \ */
-  /*     to use WebAuthn as the second factor protocol.' */
-  /*         ), */
-  /*         TdpClientEvent.CLIENT_ERROR */
-  /*       ); */
-  /*     } */
-  /*   } catch (err) { */
-  /*     this.handleError(err, TdpClientEvent.CLIENT_ERROR); */
-  /*   } */
-  /* } */
 }

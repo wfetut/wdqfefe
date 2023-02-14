@@ -588,7 +588,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/sites/:site/sessions/:sid/stream", h.siteSessionStreamGet)                            // get recorded session's bytes (from events)
 
 	// scp file transfer
-	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.fileTransferhandle))
+	h.GET("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.fileTransferhandler))
 	// h.POST("/webapi/sites/:site/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
 	// Sign required files to set up mTLS using the db format.
