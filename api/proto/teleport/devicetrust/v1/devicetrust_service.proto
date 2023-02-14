@@ -217,6 +217,11 @@ message DeviceOrStatus {
 message CreateDeviceEnrollTokenRequest {
   // ID of the device.
   string device_id = 1;
+
+  // Token to be created.
+  // Only the `expire_time` field may be set at the present.
+  // If absent, default values are used.
+  DeviceEnrollToken token = 2;
 }
 
 // Request for EnrollDevice.
