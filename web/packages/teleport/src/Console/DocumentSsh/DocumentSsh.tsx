@@ -36,7 +36,6 @@ import Document from '../Document';
 import Terminal from './Terminal';
 import useSshSession from './useSshSession';
 import useFileTransferClient from './useFileTransferClient';
-import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
 
 export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
@@ -101,14 +100,14 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
             /*   abortController */
             /* ), */
             getUploader: async (location, file, abortController) =>
-              getHttpFileTransferHandlers().upload(
-                cfg.getScpUrl({
+              upload(
+                {
                   location,
                   clusterId: doc.clusterId,
                   serverId: doc.serverId,
                   login: doc.login,
-                  filename: file.name,
-                }),
+                  filename: location,
+                },
                 file,
                 abortController
               ),

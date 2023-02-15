@@ -1,11 +1,18 @@
 import Logger from 'shared/libs/logger';
 
-import { Protobuf, MessageTypeEnum } from 'teleport/lib/term/protobuf';
+import { Protobuf } from 'teleport/lib/term/protobuf';
 import {
   makeMfaAuthenticateChallenge,
   makeWebauthnAssertionResponse,
   WebauthnAssertionResponse,
 } from 'teleport/services/auth';
+
+export const MessageTypeEnum = {
+  RAW: 'r',
+  FILENAME: 'f',
+  FILESIZE: 's',
+  WEBAUTHN_CHALLENGE: 'n',
+};
 
 export default class FileTransferClient {
   protected socket: WebSocket | undefined;
@@ -15,40 +22,53 @@ export default class FileTransferClient {
   private _socketAddr: string;
   private _logger = Logger.create('FileTransferClient');
   private _chunks = [];
+  private _receivedSize = 0;
   _proto = new Protobuf();
 
   constructor(socketAddr: string) {
-    console.log('socketAddr', socketAddr);
     this._socketAddr = socketAddr;
     /* this.codec = new Codec(); */
   }
 
-  init() {
+  async download() {
+    const file = await window.showSaveFilePicker();
+    const writableStream = await file.createWritable();
     this.socket = new WebSocket(this._socketAddr);
     this.socket.binaryType = 'arraybuffer';
     this.socket.onopen = () => {
       this._logger.info('websocket is open');
     };
-
+    /* const fileStream = new WritableStream<Uint8Array>({ */
+    /*   write(chunk) { */
+    /*     // Write each chunk of data to the file as it is received */
+    /*     const writer = fileWriter.getWriter(); */
+    /*     writer.write(chunk); */
+    /*     writer.releaseLock(); */
+    /*   }, */
+    /* }); */
+    /**/
     this.socket.onmessage = async (ev: MessageEvent) => {
-      await this.processMessage(ev.data as ArrayBuffer);
+      await writableStream.write(ev.data);
     };
-    this.socket.onclose = () => {
+    this.socket.onclose = async () => {
+      await writableStream.close();
       this._logger.info('websocket is closed');
-      this.saveOnDisk('neon.png');
+      /* this._logger.info('websocket is closed'); */
+      /* this.saveOnDisk('masters.zip'); */
+      /* this._chunks = []; */
     };
   }
 
   async processMessage(data: ArrayBuffer) {
-    const uintArray = new Uint8Array(data);
-    const msg = this._proto.decodeFileTransfer(uintArray);
-    this.prepareFileBuffer(msg);
+    /* const uintArray = new Uint8Array(data); */
+    console.log(data);
+    /* const msg = this._proto.decodeFileTransfer(uintArray); */
     /* switch (msg.type) { */
     /*   case MessageTypeEnum.WEBAUTHN_CHALLENGE: */
     /*     this.authenticate(msg.payload); */
     /*     break; */
     /*   case MessageTypeEnum.RAW: */
-    /*     this.prepareFileBuffer(uintArray); */
+    /*     this.prepareFileBuffer(msg.payload); */
     /*     break; */
     /*   default: */
     /*     throw Error(`unknown message type: ${msg.type}`); */
@@ -56,8 +76,8 @@ export default class FileTransferClient {
   }
 
   prepareFileBuffer(data) {
-    let newData = new Uint8Array(data);
-    this._chunks.push(newData);
+    this._receivedSize += data.length;
+    this._chunks.push(data);
   }
 
   saveOnDisk(fileName: string): void {
@@ -84,13 +104,14 @@ export default class FileTransferClient {
     this.send(JSON.stringify(data));
   }
 
-  authenticate(challengeJson) {
-    const challenge = JSON.parse(challengeJson);
+  authenticate(data) {
+    const msg = this._proto.decode(data);
+    const challenge = JSON.parse(msg.payload);
     const publicKey = makeMfaAuthenticateChallenge(challenge).webauthnPublicKey;
     if (!window.PublicKeyCredential) {
       const errorText =
         'This browser does not support WebAuthn required for hardware tokens, \
-      please try the latest version of Chrome, Firefox or Safari.';
+        please try the latest version of Chrome, Firefox or Safari.';
       console.log('errorText', errorText);
 
       return;

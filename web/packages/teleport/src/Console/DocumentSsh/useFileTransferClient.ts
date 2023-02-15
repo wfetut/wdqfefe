@@ -26,15 +26,35 @@ export default function useFileTransferClient() {
       .replace(':login', login)
       .replace(':token', getAccessToken())
       .replace(':location', location)
-      .replace(':filename', filename);
+      .replace(':filename', filename)
+      .replace(':upload', 'upload');
 
     const ftc = new FileTransferClient(addr);
-    ftc.init();
+    ftc.download();
 
     return;
   };
 
-  const upload = () => {};
+  const upload = (
+    props: DownloadProps,
+    file: File,
+    abortController: AbortController
+  ): Promise<FileTransferListeners | undefined> => {
+    const { location, login, filename, serverId, clusterId } = props;
+    const addr = cfg.api.scpWsAdr
+      .replace(':fqdn', getHostName())
+      .replace(':clusterId', clusterId)
+      .replace(':serverId', serverId)
+      .replace(':login', login)
+      .replace(':token', getAccessToken())
+      .replace(':location', location)
+      .replace(':filename', filename);
+
+    /* const ftc = new FileTransferClient(addr); */
+    /* ftc.init(); */
+
+    return;
+  };
   return {
     download,
     upload,

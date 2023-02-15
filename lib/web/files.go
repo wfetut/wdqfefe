@@ -19,22 +19,21 @@ package web
 import (
 	"context"
 	"fmt"
-	// "fmt"
 	"net/http"
 	"sync"
 
-	// "github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"golang.org/x/crypto/ssh"
 
+	authproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 
-	// webdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 )
@@ -53,6 +52,8 @@ type fileTransferRequest struct {
 	remoteLocation string
 	// filename is a file name
 	filename string
+	// upload determines if the request is an upload. Empty string means download
+	upload string
 }
 
 func (h *Handler) fileTransferhandler(
@@ -63,7 +64,9 @@ func (h *Handler) fileTransferhandler(
 	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
 	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     func(r *http.Request) bool { return true },
 	}
 
 	ws, err := upgrader.Upgrade(w, r, nil)
@@ -80,6 +83,7 @@ func (h *Handler) fileTransferhandler(
 		server:         p.ByName("server"),
 		remoteLocation: query.Get("location"),
 		filename:       query.Get("filename"),
+		upload:         p.ByName("upload"),
 		namespace:      defaults.Namespace,
 	}
 
@@ -93,63 +97,19 @@ func (h *Handler) fileTransferhandler(
 		return nil, trace.Wrap(err)
 	}
 
+	fmt.Printf("%+v\n", nodeClient)
+
 	h.handler(r.Context(), ws, sctx, req, nodeClient)
 	// return nil response here because we upgraded to wss
 	return nil, nil
 }
 
-type FileTransferStream struct {
-	// buffer is a buffer used to store the remaining payload data if it did not
-	// fit into the buffer provided by the callee to Read method
-	buffer []byte
-
-	// once ensures that resizeC is closed at most one time
-	once sync.Once
-
-	// mu protects writes to ws
-	mu sync.Mutex
-	// ws the connection to the UI
-	ws *websocket.Conn
-}
-
-func NewFileTransferStream(ws *websocket.Conn, opts ...func(*FileTransferStream)) (*FileTransferStream, error) {
-	switch {
-	case ws == nil:
-		return nil, trace.BadParameter("required parameter ws not provided")
-	}
-
-	f := &FileTransferStream{
-		ws: ws,
-	}
-
-	return f, nil
-}
-
 const (
+	WebsocketVersion      = "1"
 	WebsocketRawData      = "r"
 	WebsocketMfaChallenge = "n"
+	WebsocketMetadata     = "m"
 )
-
-func (f *FileTransferStream) Write(data []byte) (n int, err error) {
-	// envelope := &Envelope{
-	// 	Type: WebsocketRawData,
-	// 	// Payload: data,
-	// }
-	//
-	// fmt.Printf("%+v\n", envelope)
-	//
-	// // envelopeBytes, _ := proto.Marshal(envelope)
-	//
-	// // Send bytes over the websocket to the web client.
-	f.mu.Lock()
-	err = f.ws.WriteMessage(websocket.BinaryMessage, data)
-	f.mu.Unlock()
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	return len(data), nil
-}
 
 func (h *Handler) handler(ctx context.Context, ws *websocket.Conn, sctx *SessionContext, req fileTransferRequest, nc *client.NodeClient) {
 	stream, err := NewFileTransferStream(ws)
@@ -157,17 +117,9 @@ func (h *Handler) handler(ctx context.Context, ws *websocket.Conn, sctx *Session
 		return
 	}
 
-	cmd, err := scp.CreateSocketDownload(scp.WebsocketFileRequest{
-		RemoteLocation: req.remoteLocation,
-		Response:       stream,
-		FileName:       req.filename,
-		User:           sctx.GetUser(),
-	})
-	if err != nil {
-		return
+	if req.upload == "" {
+		stream.download(req, ctx, ws, sctx, nc)
 	}
-
-	nc.ExecuteSCP(ctx, cmd)
 }
 
 func (h *Handler) createClient(ws *websocket.Conn, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (*client.TeleportClient, error) {
@@ -214,7 +166,7 @@ func (h *Handler) createClient(ws *websocket.Conn, r *http.Request, p httprouter
 }
 
 func connectToNode(ctx context.Context, tc *client.TeleportClient, ws *websocket.Conn, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (*client.NodeClient, error) {
-	stream, err := NewTerminalStream(ws)
+	stream, err := NewFileTransferStream(ws)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -247,7 +199,7 @@ func connectToNode(ctx context.Context, tc *client.TeleportClient, ws *websocket
 			Cert:       sctx.cfg.Session.GetPub(),
 			TLSCert:    sctx.cfg.Session.GetTLSCert(),
 		},
-	}, promptMFAChallenge(stream, protobufMFACodec{}))
+	}, promptFileTransferMFAChallenge(stream, protobufMFACodec{}))
 
 	am, err := key.AsAuthMethod()
 	if err != nil {
@@ -265,4 +217,119 @@ func connectToNode(ctx context.Context, tc *client.TeleportClient, ws *websocket
 		return nil, trace.Wrap(err)
 	}
 	return nodeClient, nil
+}
+
+func (f *FileTransferStream) download(req fileTransferRequest,
+	ctx context.Context,
+	ws *websocket.Conn,
+	sctx *SessionContext,
+	nc *client.NodeClient,
+) {
+	writer, err := ws.NextWriter(websocket.BinaryMessage)
+
+	cmd, err := scp.CreateSocketDownload(scp.WebsocketFileRequest{
+		RemoteLocation: req.remoteLocation,
+		Response:       f,
+		Writer:         writer,
+		FileName:       req.filename,
+		User:           sctx.GetUser(),
+	})
+	if err != nil {
+		return
+	}
+
+	nc.ExecuteSCP(ctx, cmd)
+}
+
+func promptFileTransferMFAChallenge(
+	stream *FileTransferStream,
+	codec mfaCodec,
+) client.PromptMFAChallengeHandler {
+	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
+		var challenge *client.MFAAuthenticateChallenge
+
+		// Convert from proto to JSON types.
+		switch {
+		case c.GetWebauthnChallenge() != nil:
+			challenge = &client.MFAAuthenticateChallenge{
+				WebauthnChallenge: wanlib.CredentialAssertionFromProto(c.WebauthnChallenge),
+			}
+		default:
+			return nil, trace.AccessDenied("only hardware keys are supported on the web terminal, please register a hardware device to connect to this server")
+		}
+
+		if err := stream.writeChallenge(challenge, codec); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resp, err := stream.readChallenge(codec)
+		return resp, trace.Wrap(err)
+	}
+}
+
+type FileTransferStream struct {
+	// buffer is a buffer used to store the remaining payload data if it did not
+	// fit into the buffer provided by the callee to Read method
+	buffer []byte
+
+	// once ensures that resizeC is closed at most one time
+	once sync.Once
+
+	// mu protects writes to ws
+	mu sync.Mutex
+	// ws the connection to the UI
+	ws *websocket.Conn
+}
+
+func NewFileTransferStream(ws *websocket.Conn, opts ...func(*FileTransferStream)) (*FileTransferStream, error) {
+	switch {
+	case ws == nil:
+		return nil, trace.BadParameter("required parameter ws not provided")
+	}
+
+	f := &FileTransferStream{
+		ws: ws,
+	}
+
+	return f, nil
+}
+
+func (f *FileTransferStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, codec mfaCodec) error {
+	// Send the challenge over the socket.
+	msg, err := codec.encode(challenge, WebsocketMfaChallenge)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return trace.Wrap(f.ws.WriteMessage(websocket.BinaryMessage, append([]byte(WebsocketMfaChallenge), msg...)))
+}
+
+// readChallenge reads and decodes the challenge response from the
+// websocket in the correct format.
+func (f *FileTransferStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
+	// Read the challenge response.
+	ty, bytes, err := f.ws.ReadMessage()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ty != websocket.BinaryMessage {
+		return nil, trace.BadParameter("expected websocket.BinaryMessage, got %v", ty)
+	}
+
+	resp, err := codec.decode(bytes, WebsocketMfaChallenge)
+	return resp, trace.Wrap(err)
+}
+
+func (f *FileTransferStream) Write(data []byte) (n int, err error) {
+	f.mu.Lock()
+	err = f.ws.WriteMessage(websocket.BinaryMessage, append([]byte(WebsocketRawData), data...))
+	f.mu.Unlock()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return len(data), nil
 }

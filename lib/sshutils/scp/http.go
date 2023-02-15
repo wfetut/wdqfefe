@@ -47,6 +47,8 @@ type WebsocketFileRequest struct {
 
 	Response io.Writer
 
+	Writer io.WriteCloser
+
 	// User is a username
 	User string
 	// AuditLog is AuditLog log
@@ -140,8 +142,7 @@ func CreateSocketDownload(req WebsocketFileRequest) (Command, error) {
 	cfg := Config{
 		Flags: flags,
 		FileSystem: &wsFileSystem{
-			writer:         req.Response,
-			metadataWriter: req.Response,
+			writer: req.Writer,
 		},
 		User:           req.User,
 		RemoteLocation: req.RemoteLocation,
@@ -191,16 +192,11 @@ type httpFileSystem struct {
 	fileSize int64
 }
 
-type metadataWriter struct {
-	io.Writer
-}
-
 type wsFileSystem struct {
-	writer         io.Writer
-	metadataWriter io.Writer
-	reader         io.ReadCloser
-	fileName       string
-	fileSize       int64
+	writer   io.WriteCloser
+	reader   io.ReadCloser
+	fileName string
+	fileSize int64
 }
 
 // Chmod sets file permissions. It does nothing as there are no permissions
@@ -278,16 +274,14 @@ func (l *httpFileSystem) CreateFile(filePath string, length uint64) (io.WriteClo
 }
 
 func (w *wsFileSystem) CreateFile(filePath string, length uint64) (io.WriteCloser, error) {
-	_, filename := filepath.Split(filePath)
-	contentLength := strconv.FormatUint(length, 10)
+	// _, filename := filepath.Split(filePath)
+	// filenameB := []byte(filename)
+	// contentLengthB := []byte(strconv.FormatUint(length, 10))
 
-	fmt.Println("-----")
-	fmt.Printf("lenlen: %+v\n", contentLength)
-	fmt.Println("-----")
-	filename = url.QueryEscape(filename)
-	// w.writer.Write([]byte())
-
-	return &nopWriteCloser{Writer: w.writer}, nil
+	// w.writer.Write(append([]byte("f"), filenameB...))
+	// w.writer.Write(append([]byte("s"), contentLengthB...))
+	//
+	return w.writer, nil
 }
 
 // GetFileInfo returns file information
@@ -299,11 +293,11 @@ func (l *httpFileSystem) GetFileInfo(filePath string) (FileInfo, error) {
 	}, nil
 }
 
-func (l *wsFileSystem) GetFileInfo(filePath string) (FileInfo, error) {
+func (w *wsFileSystem) GetFileInfo(filePath string) (FileInfo, error) {
 	return &httpFileInfo{
-		name: l.fileName,
-		path: l.fileName,
-		size: l.fileSize,
+		name: w.fileName,
+		path: w.fileName,
+		size: w.fileSize,
 	}, nil
 }
 

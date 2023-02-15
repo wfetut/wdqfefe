@@ -119,8 +119,13 @@ export class Protobuf {
     };
   }
 
-  decodeFileTransfer(uintarray) {
-    return uintarray;
+  decodeFileTransfer(uintArray) {
+    const type = String.fromCharCode(uintArray[0]);
+    const payload = uintArray.slice(1);
+    return {
+      type,
+      payload,
+    };
   }
 
   decodeVersion(uintArray) {
