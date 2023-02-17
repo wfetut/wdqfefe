@@ -318,6 +318,9 @@ const (
 	// KindUserGroup is an externally sourced user group.
 	KindUserGroup = "user_group"
 
+	// KindHeadlessAuthentication is a headless authentication resource.
+	KindHeadlessAuthentication = "headless_authentication"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
