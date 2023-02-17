@@ -4942,6 +4942,47 @@ func (g *GRPCServer) DeleteAllUserGroups(ctx context.Context, _ *emptypb.Empty) 
 	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllUserGroups(ctx))
 }
 
+// CreateHeadlessAuthentication creates a headless authentication.
+func (g *GRPCServer) CreateHeadlessAuthentication(ctx context.Context, req *proto.CreateHeadlessAuthenticationRequest) (*types.HeadlessAuthentication, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authReq, err := auth.CreateHeadlessAuthentication(ctx, req.HeadlessAuthentication)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return authReq, nil
+}
+
+// UpdateHeadlessAuthenticationState updates a headless authentication state.
+func (g *GRPCServer) UpdateHeadlessAuthenticationState(ctx context.Context, req *proto.UpdateHeadlessAuthenticationStateRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return &emptypb.Empty{}, trace.Wrap(err)
+	}
+
+	err = auth.UpdateHeadlessAuthenticationState(ctx, req.Name, req.NewState, req.MfaResponse)
+	return &emptypb.Empty{}, trace.Wrap(err)
+}
+
+// GetHeadlessAuthentication retrieves a headless authentication by name.
+func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.GetHeadlessAuthenticationRequest) (*types.HeadlessAuthentication, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authReq, err := auth.GetHeadlessAuthentication(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return authReq, nil
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
