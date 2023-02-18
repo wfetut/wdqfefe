@@ -765,8 +765,8 @@ func (s *sessionCache) GetCertificateWithoutOTP(
 				Password: []byte(c.Password),
 			},
 			ClientMetadata: clientMeta,
+			PublicKey:      c.PubKey,
 		},
-		PublicKey:            c.PubKey,
 		CompatibilityMode:    c.Compatibility,
 		TTL:                  c.TTL,
 		RouteToCluster:       c.RouteToCluster,
@@ -788,8 +788,8 @@ func (s *sessionCache) GetCertificateWithOTP(
 				Token:    c.OTPToken,
 			},
 			ClientMetadata: clientMeta,
+			PublicKey:      c.PubKey,
 		},
-		PublicKey:            c.PubKey,
 		CompatibilityMode:    c.Compatibility,
 		TTL:                  c.TTL,
 		RouteToCluster:       c.RouteToCluster,
@@ -804,6 +804,7 @@ func (s *sessionCache) AuthenticateSSHUser(
 	authReq := auth.AuthenticateUserRequest{
 		Username:       c.User,
 		ClientMetadata: clientMeta,
+		PublicKey:      c.PubKey,
 	}
 	if c.Password != "" {
 		authReq.Pass = &auth.PassCreds{Password: []byte(c.Password)}
@@ -819,7 +820,6 @@ func (s *sessionCache) AuthenticateSSHUser(
 	}
 	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authReq,
-		PublicKey:               c.PubKey,
 		CompatibilityMode:       c.Compatibility,
 		TTL:                     c.TTL,
 		RouteToCluster:          c.RouteToCluster,

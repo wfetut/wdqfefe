@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
@@ -440,7 +442,8 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 				// Solve challenge (client-side)
 				resp, err := test.solveChallenge(challenge)
 				authReq := AuthenticateUserRequest{
-					Username: username,
+					Username:  username,
+					PublicKey: []byte(sshPubKey),
 				}
 				require.NoError(t, err)
 
@@ -463,7 +466,6 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 		t.Run(test.name+"/ssh", makeRun(func(s *Server, req AuthenticateUserRequest) error {
 			_, err := s.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: req,
-				PublicKey:               []byte(sshPubKey),
 				TTL:                     24 * time.Hour,
 			})
 			return err
@@ -560,10 +562,10 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 					AuthenticateUserRequest: AuthenticateUserRequest{
-						Webauthn: resp,
+						Webauthn:  resp,
+						PublicKey: []byte(sshPubKey),
 					},
-					PublicKey: []byte(sshPubKey),
-					TTL:       24 * time.Hour,
+					TTL: 24 * time.Hour,
 				})
 				require.NoError(t, err, "Failed to perform passwordless authentication")
 				require.NotNil(t, loginResp, "SSH response nil")
@@ -587,11 +589,11 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			// Fail a login attempt so have a non-empty list of attempts.
 			_, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: AuthenticateUserRequest{
-					Username: user,
-					Webauthn: &wanlib.CredentialAssertionResponse{}, // bad response
+					Username:  user,
+					Webauthn:  &wanlib.CredentialAssertionResponse{}, // bad response
+					PublicKey: []byte(sshPubKey),
 				},
-				PublicKey: []byte(sshPubKey),
-				TTL:       24 * time.Hour,
+				TTL: 24 * time.Hour,
 			})
 			require.True(t, trace.IsAccessDenied(err), "got err = %v, want AccessDenied")
 			attempts, err := authServer.GetUserLoginAttempts(user)
@@ -668,6 +670,8 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			require.NoError(t, err)
 
 			var req AuthenticateUserRequest
+			req.PublicKey = []byte(sshPubKey)
+
 			switch {
 			case mfaResp.GetWebauthn() != nil:
 				req.Webauthn = wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn())
@@ -681,7 +685,6 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			// SSH.
 			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: req,
-				PublicKey:               []byte(sshPubKey),
 				TTL:                     24 * time.Hour,
 			})
 			require.Error(t, err, "SSH authentication expected fail (missing username)")
@@ -698,6 +701,57 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			require.NoError(t, err, "Web authentication expected to succeed")
 		})
 	}
+}
+
+func TestServer_Authenticate_headless(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	// We don't mind about the specifics of the configuration, as long as we have
+	// a user and TOTP/WebAuthn devices.
+	mfa := configureForMFA(t, srv)
+	username := mfa.User
+
+	proxyClient, err := srv.NewClient(TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
+	ctx := context.Background()
+
+	// Approve the headless login in a goroutine
+	go func() {
+		ctx, cancel := context.WithTimeout(ctx, time.Millisecond*100)
+		defer cancel()
+
+		headlessAuthn, err := srv.Auth().GetOrCreateHeadlessAuthentication(ctx, headlessID)
+		assert.NoError(t, err)
+		if err != nil {
+			return
+		}
+
+		// create a shallow copy with approval for the compare and swap below.
+		approvedHeadlessAuthn := *headlessAuthn
+		approvedHeadlessAuthn.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
+		approvedHeadlessAuthn.MfaDevice = mfa.WebDev.MFA
+		_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &approvedHeadlessAuthn)
+		assert.NoError(t, err)
+	}()
+
+	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*100)
+	defer cancel()
+
+	_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username:                 username,
+			PublicKey:                []byte(sshPubKey),
+			HeadlessAuthenticationID: headlessID,
+			ClientMetadata: &ForwardedClientMetadata{
+				RemoteAddr: "0.0.0.0",
+			},
+		},
+		TTL: 24 * time.Hour,
+	})
+	require.NoError(t, err)
 }
 
 type configureMFAResp struct {

@@ -539,6 +539,10 @@ type Server struct {
 
 	// license is the Teleport Enterprise license used to start the auth server
 	license *liblicense.License
+
+	// headlessAuthenticationWatcher is a headless authentication watcher,
+	// used to catch and propagate headless authentication request changes.
+	headlessAuthenticationWatcher *local.HeadlessAuthenticationWatcher
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -599,6 +603,12 @@ func (a *Server) checkLockInForce(mode constants.LockingMode, targets []types.Lo
 		return trace.BadParameter("lockWatcher is not set")
 	}
 	return a.lockWatcher.CheckLockInForce(mode, targets...)
+}
+
+func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher *local.HeadlessAuthenticationWatcher) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -4528,6 +4538,40 @@ func (a *Server) GetLicense(ctx context.Context) (string, error) {
 		return "", trace.NotFound("license not found")
 	}
 	return fmt.Sprintf("%s%s", a.license.CertPEM, a.license.KeyPEM), nil
+}
+
+// GetOrCreateHeadlessAuthentication returns a headless authentication from the backend by name.
+// If it does not yet exist, an empty item will be inserted and this function will wait until
+// the item is updated with the request details from the headless login request.
+func (a *Server) GetOrCreateHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	if headlessAuthn, err := a.Services.GetHeadlessAuthentication(ctx, name); err == nil {
+		return headlessAuthn, nil
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := a.Services.CreateHeadlessAuthenticationStub(ctx, name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// wait for the headless authentication to be updated with valid login details.
+	headlessAuthn, err := a.headlessAuthenticationWatcher.Wait(ctx, name, func(ha *types.HeadlessAuthentication) (bool, error) {
+		return services.ValidateHeadlessAuthentication(ha) == nil, nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return headlessAuthn, nil
+}
+
+// CompareAndSwapHeadlessAuthentication performs a compare
+// and swap replacement on a headless authentication resource.
+func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
+	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return headlessAuthn, nil
 }
 
 // authKeepAliver is a keep aliver using auth server directly

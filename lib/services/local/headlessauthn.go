@@ -18,15 +18,182 @@ package local
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+const maxWaiters = 1024
+
+// HeadlessAuthenticationWatcher is a custom backend watcher for the headless authentication resource.
+type HeadlessAuthenticationWatcher struct {
+	log         logrus.FieldLogger
+	b           backend.Backend
+	watchersMux sync.Mutex
+	waiters     [maxWaiters]headlessAuthenticationWaiter
+	closed      chan struct{}
+}
+
+type headlessAuthenticationWaiter struct {
+	name string
+	ch   chan *types.HeadlessAuthentication
+}
+
+// NewHeadlessAuthenticationWatcher creates a new headless login watcher.
+func NewHeadlessAuthenticationWatcher(ctx context.Context, b backend.Backend) (*HeadlessAuthenticationWatcher, error) {
+	if b == nil {
+		return nil, trace.BadParameter("missing required field backend")
+	}
+	watcher := &HeadlessAuthenticationWatcher{
+		log:    logrus.StandardLogger(),
+		b:      b,
+		closed: make(chan struct{}),
+	}
+
+	if err := watcher.start(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return watcher, nil
+}
+
+func (h *HeadlessAuthenticationWatcher) start(ctx context.Context) error {
+	w, err := h.b.NewWatcher(ctx, backend.Watch{
+		Prefixes: [][]byte{[]byte(headlessAuthenticationKey(""))},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	go h.processEvents(ctx, w)
+
+	return nil
+}
+
+func (h *HeadlessAuthenticationWatcher) close() {
+	h.watchersMux.Lock()
+	defer h.watchersMux.Unlock()
+	close(h.closed)
+}
+
+func (h *HeadlessAuthenticationWatcher) processEvents(ctx context.Context, w backend.Watcher) {
+	for {
+		select {
+		case event := <-w.Events():
+			headlessAuthn, err := unmarshalHeadlessAuthenticationFromItem(&event.Item)
+			if err != nil {
+				h.log.WithError(err).Debug("failed to unmarshal headless authentication from event")
+			} else {
+				h.notify(headlessAuthn)
+			}
+		case <-ctx.Done():
+			h.close()
+			return
+		}
+	}
+}
+
+func (h *HeadlessAuthenticationWatcher) notify(headlessAuthn *types.HeadlessAuthentication) {
+	h.watchersMux.Lock()
+	defer h.watchersMux.Unlock()
+	for i := range h.waiters {
+		if h.waiters[i].name == headlessAuthn.Metadata.Name {
+			select {
+			case h.waiters[i].ch <- headlessAuthn:
+			default:
+			}
+		}
+	}
+}
+
+// Wait watchers for the headless authentication with the given id to be added/updated
+// in the backend, and waits for the given condition to be met, to result in an error,
+// or for the given context to close.
+func (h *HeadlessAuthenticationWatcher) Wait(ctx context.Context, name string, cond func(*types.HeadlessAuthentication) (bool, error)) (*types.HeadlessAuthentication, error) {
+	waiter, err := h.assignWaiter(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer h.unassignWaiter(waiter)
+
+	// With the waiter allocated, check if there is an existing entry in the backend.
+	currentItem, err := h.b.Get(ctx, headlessAuthenticationKey(name))
+	if err == nil {
+		headlessAuthn, err := unmarshalHeadlessAuthenticationFromItem(currentItem)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		select {
+		case waiter.ch <- headlessAuthn:
+		default:
+		}
+	}
+
+	for {
+		select {
+		case headlessAuthn := <-waiter.ch:
+			if ok, err := cond(headlessAuthn); err != nil {
+				return nil, trace.Wrap(err)
+			} else if ok {
+				return headlessAuthn, nil
+			}
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-h.closed:
+			return nil, trace.Errorf("headless authentication watcher closed")
+		}
+	}
+}
+
+// CheckWaiter checks if there is an active waiter matching the given
+// headless authentication ID. Used in tests.
+func (h *HeadlessAuthenticationWatcher) CheckWaiter(name string) bool {
+	h.watchersMux.Lock()
+	defer h.watchersMux.Unlock()
+	for i := range h.waiters {
+		if h.waiters[i].name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *HeadlessAuthenticationWatcher) assignWaiter(ctx context.Context, name string) (*headlessAuthenticationWaiter, error) {
+	h.watchersMux.Lock()
+	defer h.watchersMux.Unlock()
+
+	select {
+	case <-h.closed:
+		return nil, trace.Errorf("headless authentication watcher closed")
+	default:
+	}
+
+	for i := range h.waiters {
+		if h.waiters[i].ch != nil {
+			continue
+		}
+		h.waiters[i].ch = make(chan *types.HeadlessAuthentication, 1)
+		h.waiters[i].name = name
+		return &h.waiters[i], nil
+	}
+
+	return nil, trace.LimitExceeded("too many in-flight headless login requests")
+}
+
+func (h *HeadlessAuthenticationWatcher) unassignWaiter(waiter *headlessAuthenticationWaiter) {
+	h.watchersMux.Lock()
+	defer h.watchersMux.Unlock()
+	close(waiter.ch)
+	waiter.ch = nil
+	waiter.name = ""
+}
 
 // CreateHeadlessAuthenticationStub creates a headless authentication stub in the backend.
 func (s *IdentityService) CreateHeadlessAuthenticationStub(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
@@ -87,6 +254,7 @@ func (s *IdentityService) GetHeadlessAuthentication(ctx context.Context, name st
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return headlessAuthn, nil
 }
 

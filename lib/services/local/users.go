@@ -55,7 +55,8 @@ var GlobalSessionDataMaxEntries = 5000 // arbitrary
 // user accounts as well
 type IdentityService struct {
 	backend.Backend
-	log logrus.FieldLogger
+	log                           logrus.FieldLogger
+	headlessAuthenticationWatcher HeadlessAuthenticationWatcher
 }
 
 // NewIdentityService returns a new instance of IdentityService object

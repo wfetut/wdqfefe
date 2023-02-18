@@ -5706,6 +5706,64 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 	return a.authServer.DeleteAllUserGroups(ctx)
 }
 
+// GetHeadlessAuthentication retrieves a headless authentication by name.
+func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	headlessAuthn, err := a.authServer.GetOrCreateHeadlessAuthentication(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// User can always get their own headless authentication state. Otherwise, check for associated rule.
+	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
+		if err := a.action(apidefaults.Namespace, types.KindHeadlessAuthentication, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return headlessAuthn, nil
+}
+
+// UpdateHeadlessAuthenticationState updates a headless authentication state.
+func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, name string, newState types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
+	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// User can always update their authentication state. Otherwise, check for associated rule.
+	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
+		if err := a.action(apidefaults.Namespace, types.KindHeadlessAuthentication, types.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Shallow copy headless authn for compare and swap below.
+	replaceHeadlessAuthn := *headlessAuthn
+	replaceHeadlessAuthn.State = newState
+
+	// The user must authenticate with MFA to change the state to approved.
+	if newState == types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED {
+		if mfaResp == nil {
+			return trace.BadParameter("expected MFA auth challenge response")
+		}
+
+		// Only WebAuthn is supported in headless login flow for superior phishing prevention.
+		if _, ok := mfaResp.Response.(*proto.MFAAuthenticateResponse_Webauthn); !ok {
+			return trace.BadParameter("expected WebAuthn challenge response, but got %T", mfaResp.Response)
+		}
+
+		mfaDevice, _, err := a.authServer.validateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		replaceHeadlessAuthn.MfaDevice = mfaDevice
+	}
+
+	_, err = a.authServer.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
+	return trace.Wrap(err)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {
