@@ -3385,3 +3385,27 @@ func (c *Client) DeleteLoginRule(ctx context.Context, name string) error {
 	}, c.callOpts...)
 	return trail.FromGRPC(err)
 }
+
+// UpdateHeadlessAuthenticationState updates a headless authentication state.
+func (c *Client) UpdateHeadlessAuthenticationState(ctx context.Context, name string, newState types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error {
+	_, err := c.grpc.UpdateHeadlessAuthenticationState(ctx, &proto.UpdateHeadlessAuthenticationStateRequest{
+		Name:        name,
+		NewState:    newState,
+		MfaResponse: mfaResponse,
+	}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// GetHeadlessAuthentication retrieves a headless authentication by name.
+func (c *Client) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	headlessAuthn, err := c.grpc.GetHeadlessAuthentication(ctx, &proto.GetHeadlessAuthenticationRequest{
+		Name: name,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return headlessAuthn, nil
+}
