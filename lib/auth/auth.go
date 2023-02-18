@@ -4527,6 +4527,33 @@ func (a *Server) GetLicense(ctx context.Context) (string, error) {
 	return fmt.Sprintf("%s%s", a.license.CertPEM, a.license.KeyPEM), nil
 }
 
+// CreateHeadlessAuthentication creates a headless authentication.
+func (a *Server) CreateHeadlessAuthentication(ctx context.Context, headlessAuthn *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
+	headlessAuthn, err := a.Services.CreateHeadlessAuthentication(ctx, headlessAuthn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return headlessAuthn, nil
+}
+
+// UpsertHeadlessAuthentication upserts a headless authentication.
+func (a *Server) UpsertHeadlessAuthentication(ctx context.Context, headlessAuthn *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
+	headlessAuthn, err := a.Services.UpsertHeadlessAuthentication(ctx, headlessAuthn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return headlessAuthn, nil
+}
+
+// GetHeadlessAuthentication retrieves a headless authentication by name.
+func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	headlessAuthn, err := a.Services.GetHeadlessAuthentication(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return headlessAuthn, nil
+}
+
 // authKeepAliver is a keep aliver using auth server directly
 type authKeepAliver struct {
 	sync.RWMutex

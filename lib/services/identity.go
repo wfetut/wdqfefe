@@ -257,6 +257,15 @@ type Identity interface {
 	// GetKeyAttestationData gets a verified public key attestation response.
 	GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error)
 
+	// CreateHeadlessAuthentication creates a headless authentication.
+	CreateHeadlessAuthentication(ctx context.Context, headlessAuthn *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error)
+
+	// UpsertHeadlessAuthentication upserts a headless authentication.
+	UpsertHeadlessAuthentication(ctx context.Context, headlessAuthn *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error)
+
+	// GetHeadlessAuthentication retrieves a headless authentication by name.
+	GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error)
+
 	types.WebSessionsGetter
 	types.WebTokensGetter
 

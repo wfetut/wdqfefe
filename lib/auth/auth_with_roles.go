@@ -5668,6 +5668,75 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 	return a.authServer.DeleteAllUserGroups(ctx)
 }
 
+// CreateHeadlessAuthentication creates a headless authentication.
+func (a *ServerWithRoles) CreateHeadlessAuthentication(ctx context.Context, headlessAuthn *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
+	if err := a.action(apidefaults.Namespace, types.KindHeadlessAuthentication, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	headlessAuthn, err := a.authServer.CreateHeadlessAuthentication(ctx, headlessAuthn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return headlessAuthn, nil
+}
+
+// UpdateHeadlessAuthenticationState updates a headless authentication state.
+func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, name string, newState types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
+	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// User can always update their authentication state. Otherwise, check for associated rule.
+	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
+		if err := a.action(apidefaults.Namespace, types.KindHeadlessAuthentication, types.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// The user must authenticate with MFA to change the state to approved.
+	if newState == types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED {
+		if mfaResp == nil {
+			return trace.BadParameter("expected MFA auth challenge response")
+		}
+
+		// Only WebAuthn is supported in headless login flow for superior phishing prevention.
+		if _, ok := mfaResp.Response.(*proto.MFAAuthenticateResponse_Webauthn); !ok {
+			return trace.BadParameter("expected WebAuthn challenge response, but got %T", mfaResp.Response)
+		}
+
+		mfaDevice, _, err := a.authServer.validateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		headlessAuthn.MfaDevice = mfaDevice
+	}
+
+	headlessAuthn.State = newState
+	_, err = a.authServer.UpsertHeadlessAuthentication(ctx, headlessAuthn)
+	return trace.Wrap(err)
+}
+
+// GetHeadlessAuthentication retrieves a headless authentication by name.
+func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// User can always get their own headless authentication state. Otherwise, check for associated rule.
+	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
+		if err := a.action(apidefaults.Namespace, types.KindHeadlessAuthentication, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return headlessAuthn, nil
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {
