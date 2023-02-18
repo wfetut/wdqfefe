@@ -1536,6 +1536,13 @@ type IdentityService interface {
 	// CreatePrivilegeToken creates a privilege token for the logged in user who has successfully re-authenticated with their second factor.
 	// A privilege token allows users to perform privileged action eg: add/delete their MFA device.
 	CreatePrivilegeToken(ctx context.Context, req *proto.CreatePrivilegeTokenRequest) (*types.UserTokenV3, error)
+
+	// CreateHeadlessAuthentication creates a headless authentication.
+	CreateHeadlessAuthentication(ctx context.Context, headlessAuthn *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error)
+	// UpdateHeadlessAuthenticationState updates a headless authentication state.
+	UpdateHeadlessAuthenticationState(ctx context.Context, name string, newState types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error
+	// GetHeadlessAuthentication retrieves a headless authentication by name.
+	GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error)
 }
 
 // ProvisioningService is a service in control
