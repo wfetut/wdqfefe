@@ -35,6 +35,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
@@ -3140,8 +3141,9 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 			if !pr.Auth.AllowHeadless {
 				return nil, trace.BadParameter("headless disallowed by cluster settings")
 			}
-			// TODO (Joerger): Add headless login flow.
-			fallthrough
+			return func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+				return tc.headlessLogin(ctx, priv)
+			}, nil
 		case constants.LocalConnector, "":
 			// if passwordless is enabled and there are passwordless credentials
 			// registered, we can try to go with passwordless login even though
@@ -3412,6 +3414,28 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, priv *keys.PrivateK
 	})
 
 	return response, trace.Wrap(err)
+}
+
+func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+	headlessAuthenticationID := uuid.NewString()
+	fmt.Fprintf(tc.Stdout, "Complete headless authentication in your local web browser:\nhttps://proxy.example.com/headless/%v/approve\n", headlessAuthenticationID)
+
+	response, err := SSHAgentHeadlessLogin(ctx, SSHLoginHeadless{
+		SSHLogin: SSHLogin{
+			ProxyAddr:         tc.WebProxyAddr,
+			PubKey:            priv.MarshalSSHPublicKey(),
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Compatibility:     tc.CertificateFormat,
+			KubernetesCluster: tc.KubernetesCluster,
+		},
+		User:                     tc.Username,
+		HeadlessAuthenticationID: headlessAuthenticationID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return response, nil
 }
 
 // SSOLoginFunc is a function used in tests to mock SSO logins.
