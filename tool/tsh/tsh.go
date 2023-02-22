@@ -49,6 +49,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sys/unix"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/gravitational/teleport"
@@ -428,6 +429,9 @@ type CLIConf struct {
 
 	// Client only version display.  Skips checking proxy version.
 	clientOnlyVersionCheck bool
+
+	// Headless uses headless login for the client session.
+	Headless bool
 }
 
 // Stdout returns the stdout writer.
@@ -503,6 +507,7 @@ const (
 	loginEnvVar       = "TELEPORT_LOGIN"
 	bindAddrEnvVar    = "TELEPORT_LOGIN_BIND_ADDR"
 	proxyEnvVar       = "TELEPORT_PROXY"
+	headlessEnvVar    = "TELEPORT_HEADLESS"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
 	siteEnvVar               = "TELEPORT_SITE"
@@ -621,6 +626,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		Envar(mfaModeEnvVar).
 		EnumVar(&cf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
+	app.Flag("headless", "Use headless login. Shorthand for --auth=headless.").Envar(headlessEnvVar).BoolVar(&cf.Headless)
 
 	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
 	ver.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
@@ -3253,6 +3259,21 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.JumpHosts = hosts
 	}
 
+	// --headless is shorthand for --auth=headless
+	if cf.Headless {
+		if cf.AuthConnector != "" && cf.AuthConnector != constants.HeadlessConnector {
+			return nil, trace.BadParameter("either --headless or --auth can be specified, not both")
+		}
+		cf.AuthConnector = constants.HeadlessConnector
+	}
+
+	// Lock the process memory to prevent rsa keys and certificates from being exposed in a swap.
+	if cf.AuthConnector == constants.HeadlessConnector {
+		if err := unix.Mlockall(unix.MCL_FUTURE | unix.MCL_CURRENT); err != nil {
+			return nil, trace.Wrap(err, "tried to lock system memory for headless login with failure")
+		}
+	}
+
 	c.ClientStore, err = initClientStore(cf, proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3453,28 +3474,29 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
-	if cf.IdentityFileIn != "" {
-		keyStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
+	switch {
+	case cf.IdentityFileIn != "":
+		// Import identity file keys to in-memory client store.
+		clientStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return keyStore, nil
-	}
+		return clientStore, nil
 
-	// When logging in with an identity file output, we want to avoid writing
-	// any keys to disk, so we use a full memory client store.
-	if cf.IdentityFileOut != "" {
+	case cf.IdentityFileOut != "", cf.AuthConnector == constants.HeadlessConnector:
+		// Store client keys in memory, where they can be exported to non-standard
+		// FS formats (e.g. identity file) or used for a single client call in memory.
 		return client.NewMemClientStore(), nil
-	}
 
-	clientStore := client.NewFSClientStore(cf.HomePath)
-
-	// Store client keys in memory, but still save trusted certs and profile to disk.
-	if cf.AddKeysToAgent == client.AddKeysToAgentOnly {
+	case cf.AddKeysToAgent == client.AddKeysToAgentOnly:
+		// Store client keys in memory, but save trusted certs and profile to disk.
+		clientStore := client.NewFSClientStore(cf.HomePath)
 		clientStore.KeyStore = client.NewMemKeyStore()
-	}
+		return clientStore, nil
 
-	return clientStore, nil
+	default:
+		return client.NewFSClientStore(cf.HomePath), nil
+	}
 }
 
 func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
