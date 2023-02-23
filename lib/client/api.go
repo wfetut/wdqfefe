@@ -3418,7 +3418,7 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, priv *keys.PrivateK
 
 func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
 	headlessAuthenticationID := uuid.NewString()
-	fmt.Fprintf(tc.Stdout, "Complete headless authentication in your local web browser:\nhttps://proxy.example.com/headless/%v/approve\n", headlessAuthenticationID)
+	fmt.Fprintf(tc.Stdout, "Complete headless authentication in your local web browser:\ntsh headless approve %v\n", headlessAuthenticationID)
 
 	response, err := SSHAgentHeadlessLogin(ctx, SSHLoginHeadless{
 		SSHLogin: SSHLogin{
@@ -4366,4 +4366,43 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 		return nil, trace.Wrap(err)
 	}
 	return kubeproto.NewKubeServiceClient(clt.GetConnection()), nil
+}
+
+func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthenticationID string) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/HeadlessApprove",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("proxy", tc.Config.WebProxyAddr),
+		),
+	)
+	defer span.End()
+
+	// connect to proxy first:
+	if !tc.Config.ProxySpecified() {
+		return trace.BadParameter("proxy server is not specified")
+	}
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	chall, err := proxyClient.currentCluster.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	resp, err := tc.PromptMFAChallenge(ctx, tc.WebProxyAddr, chall, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = proxyClient.currentCluster.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
+	return trace.Wrap(err)
 }
