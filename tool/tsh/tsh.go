@@ -432,6 +432,9 @@ type CLIConf struct {
 
 	// Headless uses headless login for the client session.
 	Headless bool
+
+	// HeadlessRequestID ...
+	HeadlessRequestID string
 }
 
 // Stdout returns the stdout writer.
@@ -653,6 +656,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access").StringVar(&cf.RequestReason)
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
+
+	headless := app.Command("headless", "headless commands").Interspersed(true)
+	approve := headless.Command("approve", "headless approval").Interspersed(true)
+	approve.Arg("request id", "headless authentication request id").StringVar(&cf.HeadlessRequestID)
 
 	// Daemon service for teleterm client
 	daemon := app.Command("daemon", "Daemon is the tsh daemon service").Hidden()
@@ -1234,6 +1241,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
 		err = onKubectlCommand(&cf, args[idx:])
+	case approve.FullCommand():
+		err = onHeadlessApprove(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -4620,4 +4629,18 @@ func warnOnDeprecatedKubeConfigServerName(cf *CLIConf, tc *client.TeleportClient
 	}
 	fmt.Printf("Deprecated tls-server-name value detected in %s KUBECONFIG file for [%v] clusters\n", kubeConfigPath, strings.Join(outdatedClusters, ", "))
 	fmt.Printf("Please re-login and update your KUBECONFIG cluster configuration by running the 'tsh kube login' command.\n\n")
+}
+
+// onHeadlessApprove executes 'tsh headless approve' command
+func onHeadlessApprove(cf *CLIConf) error {
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.Stdin = os.Stdin
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		return tc.HeadlessApprove(cf.Context, cf.HeadlessRequestID)
+	})
+	return trace.Wrap(err)
 }
