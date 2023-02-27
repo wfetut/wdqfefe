@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMiddlewareGetUser(t *testing.T) {
@@ -203,6 +204,73 @@ func TestMiddlewareGetUser(t *testing.T) {
 			}
 			require.Empty(t, cmp.Diff(id, tt.wantID, cmpopts.EquateEmpty()))
 		})
+	}
+}
+
+func TestCheckIPPinning(t *testing.T) {
+	testCases := []struct {
+		desc       string
+		clientAddr string
+		pinnedIP   string
+		pinIP      bool
+		wantErr    string
+	}{
+		{
+			desc:       "no IP pinning",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "",
+			pinIP:      false,
+		},
+		{
+			desc:       "IP pinning, no pinned IP",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "",
+			pinIP:      true,
+			wantErr:    "pinned IP is required for the user, but is not present on identity",
+		},
+		{
+			desc:       "Pinned IP doesn't match",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.2",
+			pinIP:      true,
+			wantErr:    "pinned IP doesn't match observed client IP",
+		},
+		{
+			desc:       "Role doesn't require IP pinning now, but old certificate still pinned",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.2",
+			pinIP:      false,
+			wantErr:    "pinned IP doesn't match observed client IP",
+		},
+		{
+			desc:     "IP pinning enabled, missing client IP",
+			pinnedIP: "127.0.0.1",
+			pinIP:    true,
+			wantErr:  "missing observed client IP while checking IP pinning",
+		},
+		{
+			desc:       "correct IP pinning",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.1",
+			pinIP:      true,
+		},
+	}
+
+	for _, tt := range testCases {
+		ctx := context.Background()
+		if tt.clientAddr != "" {
+			ctx = context.WithValue(ctx, ContextClientAddr, utils.MustParseAddr(tt.clientAddr))
+		}
+		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
+
+		err := CheckIPPinning(ctx, identity, tt.pinIP)
+
+		if tt.wantErr != "" {
+			require.ErrorContains(t, err, tt.wantErr)
+		} else {
+			require.NoError(t, err)
+		}
+
 	}
 }
 

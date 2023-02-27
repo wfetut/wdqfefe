@@ -609,6 +609,11 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 		return nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
+
+	if err := auth.CheckIPPinning(ctx, identity, authContext.Checker.PinSourceIP()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if params.User != "" {
 		identity.RouteToDatabase.Username = params.User
 	}

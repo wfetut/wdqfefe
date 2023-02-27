@@ -653,6 +653,10 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// determine authenticated user based on the request parameters
 	ctx := r.Context()
 	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(r.TLS))
+	clientSrcAddr, err := utils.ParseAddr(r.RemoteAddr)
+	if err == nil {
+		ctx = context.WithValue(ctx, ContextClientAddr, clientSrcAddr)
+	}
 	ctx = context.WithValue(ctx, ContextUser, user)
 	a.Handler.ServeHTTP(w, r.WithContext(ctx))
 }
@@ -680,8 +684,38 @@ func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tl
 	}
 
 	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(&tlsState))
+	ctx = context.WithValue(ctx, ContextClientAddr, conn.RemoteAddr())
 	ctx = context.WithValue(ctx, ContextUser, user)
 	return ctx, nil
+}
+
+func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool) error {
+	if identity.PinnedIP == "" {
+		if pinSourceIP {
+			return trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
+		}
+		return nil
+	}
+
+	clientSrcAddr, _ := ctx.Value(ContextClientAddr).(net.Addr)
+	if clientSrcAddr == nil {
+		return trace.BadParameter("missing observed client IP while checking IP pinning")
+	}
+
+	clientIP, _, err := net.SplitHostPort(clientSrcAddr.String())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if clientIP != identity.PinnedIP {
+		log.WithFields(logrus.Fields{
+			"client_ip": clientIP,
+			"pinned_ip": identity.PinnedIP,
+		}).Debugf("Pinned IP and client IP mismatch")
+		return trace.AccessDenied("pinned IP doesn't match observed client IP")
+	}
+
+	return nil
 }
 
 // ClientCertPool returns trusted x509 certificate authority pool with CAs provided as caTypes.
