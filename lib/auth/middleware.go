@@ -713,7 +713,7 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 		log.WithFields(logrus.Fields{
 			"client_ip": clientIP,
 			"pinned_ip": identity.PinnedIP,
-		}).Debugf("Pinned IP and client IP mismatch")
+		}).Debug("Pinned IP and client IP mismatch")
 		return trace.AccessDenied("pinned IP doesn't match observed client IP")
 	}
 
