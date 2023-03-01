@@ -699,8 +699,8 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 		return nil
 	}
 
-	clientSrcAddr, _ := ctx.Value(ContextClientAddr).(net.Addr)
-	if clientSrcAddr == nil {
+	clientSrcAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
+	if !ok {
 		return trace.BadParameter("missing observed client IP while checking IP pinning")
 	}
 
