@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 
@@ -876,9 +877,43 @@ const (
 
 	// ContextUser is a user set in the context of the request
 	ContextUser contextKey = "teleport-user"
-	// ContextClientAddr is a client address set in the context of the request
-	ContextClientAddr contextKey = "client-addr"
+	// ContextClientSrcAddr is a client address set in the context of the request
+	ContextClientSrcAddr contextKey = "teleport-client-src-addr"
+	// ContextClientDstAddr is context key for client destination address
+	ContextClientDstAddr contextKey = "teleport-client-dst-addr"
 )
+
+// ClientSrcAddrContext is used to set incoming client's connection source address to the context, so it could be later
+// used for IP propagation and pinning  purpose. It is used when we don't have other source for client source/destination
+// addresses (don't have direct access to net.Conn)
+func ClientSrcAddrContext(ctx context.Context, src net.Addr) context.Context {
+	return context.WithValue(ctx, ContextClientSrcAddr, src)
+}
+
+// ClientDstAddrContext is used to set incoming client's connection destination address to the context.
+func ClientDstAddrContext(ctx context.Context, dst net.Addr) context.Context {
+	return context.WithValue(ctx, ContextClientDstAddr, dst)
+}
+
+// ClientSrcAddrFromContext gets client source addresses from the context. If an address is
+// not present, nil will be returned
+func ClientSrcAddrFromContext(ctx context.Context) net.Addr {
+	if ctx == nil {
+		return nil
+	}
+	src, _ := ctx.Value(ContextClientSrcAddr).(net.Addr)
+	return src
+}
+
+// ClientDstAddrFromContext gets client destination addresses from the context. If an address is
+// not present, nil will be returned
+func ClientDstAddrFromContext(ctx context.Context) net.Addr {
+	if ctx == nil {
+		return nil
+	}
+	dst, _ := ctx.Value(ContextClientDstAddr).(net.Addr)
+	return dst
+}
 
 // WithDelegator alias for backwards compatibility
 var WithDelegator = utils.WithDelegator

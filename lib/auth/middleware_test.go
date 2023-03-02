@@ -260,7 +260,7 @@ func TestCheckIPPinning(t *testing.T) {
 	for _, tt := range testCases {
 		ctx := context.Background()
 		if tt.clientAddr != "" {
-			ctx = context.WithValue(ctx, ContextClientAddr, utils.MustParseAddr(tt.clientAddr))
+			ctx = ClientSrcAddrContext(ctx, utils.MustParseAddr(tt.clientAddr))
 		}
 		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
 

@@ -200,7 +200,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			TLSConfig:         cfg.TLS,
 			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
 			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-				return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+				return auth.ClientDstAddrContext(auth.ClientSrcAddrContext(ctx, c.RemoteAddr()), c.LocalAddr())
 			},
 		},
 		heartbeats: make(map[string]*srv.Heartbeat),

@@ -23,7 +23,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -376,8 +375,8 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 		opt(cfg)
 	}
 
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
-	if !ok {
+	clientAddr := ClientSrcAddrFromContext(ctx)
+	if clientAddr == nil {
 		return nil, trace.BadParameter("logic error: client address was not set")
 	}
 

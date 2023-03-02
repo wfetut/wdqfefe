@@ -286,10 +286,11 @@ func dialAppServer(ctx context.Context, proxyClient reversetunnel.Tunnel, cluste
 
 	var from net.Addr
 	from = &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"}
-	clientSrcAddr, originalDst := utils.ClientAddrFromContext(ctx)
+	clientSrcAddr := auth.ClientSrcAddrFromContext(ctx)
 	if clientSrcAddr != nil {
 		from = clientSrcAddr
 	}
+	originalDst := auth.ClientDstAddrFromContext(ctx)
 
 	conn, err := clusterClient.Dial(reversetunnel.DialParams{
 		From:                  from,

@@ -21,7 +21,6 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
-	"net"
 	"net/url"
 	"time"
 
@@ -348,8 +347,8 @@ func (a *Server) RegisterUsingAzureMethod(ctx context.Context, challengeResponse
 		return nil, trace.Wrap(err)
 	}
 
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
-	if !ok {
+	clientAddr := ClientSrcAddrFromContext(ctx)
+	if clientAddr == nil {
 		return nil, trace.BadParameter("logic error: client address was not set")
 	}
 	challenge, err := generateAzureChallenge()

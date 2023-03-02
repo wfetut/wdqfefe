@@ -293,7 +293,8 @@ func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunn
 func clusterDialer(remoteCluster reversetunnel.RemoteSite) apiclient.ContextDialer {
 	return apiclient.ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
 		dialParams := reversetunnel.DialParams{}
-		clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(in)
+		clientSrcAddr := auth.ClientSrcAddrFromContext(in)
+		clientDstAddr := auth.ClientDstAddrFromContext(in)
 		dialParams.From = clientSrcAddr
 		dialParams.OriginalClientDstAddr = clientDstAddr
 

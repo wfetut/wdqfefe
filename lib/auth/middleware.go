@@ -414,7 +414,7 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 	}
 
 	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(connState))
-	ctx = context.WithValue(ctx, ContextClientAddr, peerInfo.Addr)
+	ctx = ClientSrcAddrContext(ctx, peerInfo.Addr)
 	ctx = context.WithValue(ctx, ContextUser, identityGetter)
 
 	return ctx, nil
@@ -655,7 +655,7 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(r.TLS))
 	clientSrcAddr, err := utils.ParseAddr(r.RemoteAddr)
 	if err == nil {
-		ctx = context.WithValue(ctx, ContextClientAddr, clientSrcAddr)
+		ctx = ClientSrcAddrContext(ctx, clientSrcAddr)
 	}
 	ctx = context.WithValue(ctx, ContextUser, user)
 	a.Handler.ServeHTTP(w, r.WithContext(ctx))
@@ -684,7 +684,7 @@ func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tl
 	}
 
 	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(&tlsState))
-	ctx = context.WithValue(ctx, ContextClientAddr, remoteAddr)
+	ctx = ClientSrcAddrContext(ctx, remoteAddr)
 	ctx = context.WithValue(ctx, ContextUser, user)
 	return ctx, nil
 }
@@ -699,8 +699,8 @@ func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bo
 		return nil
 	}
 
-	clientSrcAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
-	if !ok {
+	clientSrcAddr := ClientSrcAddrFromContext(ctx)
+	if clientSrcAddr == nil {
 		return trace.BadParameter("missing observed client IP while checking IP pinning")
 	}
 

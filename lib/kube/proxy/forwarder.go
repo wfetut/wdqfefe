@@ -695,7 +695,8 @@ func (f *Forwarder) setupContext(authCtx auth.Context, req *http.Request, isRemo
 	// the correct behavior when forwarding the request to the Kubernetes API.
 	kubeUsers, kubeGroups = fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups, authCtx.User.GetName())
 
-	clientSrc, clientDst := utils.ClientAddrFromContext(req.Context())
+	clientSrc := auth.ClientSrcAddrFromContext(req.Context())
+	clientDst := auth.ClientDstAddrFromContext(req.Context())
 
 	forwarderType := f.cfg.KubeServiceType
 

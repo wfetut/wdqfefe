@@ -161,7 +161,7 @@ func (c *TransportCredentials) ServerHandshake(rawConn net.Conn) (_ net.Conn, _ 
 	}
 
 	ctx := context.Background()
-	authCtx, err := c.authorize(ctx, conn.RemoteAddr().String(), identityGetter, &tlsInfo.State)
+	authCtx, err := c.authorize(ctx, conn.RemoteAddr(), identityGetter, &tlsInfo.State)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -197,7 +197,7 @@ func (c *TransportCredentials) performTLSHandshake(rawConn net.Conn) (net.Conn, 
 // authorize enforces that the identity is not restricted from connecting due
 // to things like locks, private key policy, device trust, etc. If the TransportCredentials
 // was not configured to do authorization then this is a noop and will return nil, nil.
-func (c *TransportCredentials) authorize(ctx context.Context, remoteAddr string, identityGetter IdentityGetter, connState *tls.ConnectionState) (*Context, error) {
+func (c *TransportCredentials) authorize(ctx context.Context, remoteAddr net.Addr, identityGetter IdentityGetter, connState *tls.ConnectionState) (*Context, error) {
 	if c.authorizer == nil {
 		return &Context{
 			Identity: identityGetter,
@@ -206,7 +206,7 @@ func (c *TransportCredentials) authorize(ctx context.Context, remoteAddr string,
 
 	// construct a context with the keys expected by the Authorizer
 	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(connState))
-	ctx = context.WithValue(ctx, ContextClientAddr, remoteAddr)
+	ctx = ClientSrcAddrContext(ctx, remoteAddr)
 	ctx = context.WithValue(ctx, ContextUser, identityGetter)
 
 	authCtx, err := c.authorizer.Authorize(ctx)
