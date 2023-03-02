@@ -191,6 +191,25 @@ const auth = {
       });
   },
 
+  headlessSSOAccept(transactionId: string) {
+    return auth
+        .checkWebauthnSupport()
+        .then(() => api.post(cfg.api.mfaAuthnChallengePath))
+        // .then(makeMfaAuthenticateChallenge)
+        .then(res =>
+            navigator.credentials.get({
+              publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
+            })
+        )
+        .then(res => {
+          const request = {
+            webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+          };
+
+          return api.post(cfg.getHeadlessAccept(transactionId), request);
+        });
+  },
+
   createPrivilegeTokenWithTotp(secondFactorToken: string) {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
