@@ -151,15 +151,6 @@ function getBaseXhrRequest({
 /*   }); */
 /* } */
 
-/* function saveOnDisk(fileName: string, blob: Blob): void { */
-/*   const a = document.createElement('a'); */
-/*   a.href = window.URL.createObjectURL(blob); */
-/*   a.download = fileName; */
-/*   document.body.appendChild(a); */
-/*   a.click(); */
-/*   document.body.removeChild(a); */
-/* } */
-
 // backend may return errors in different formats,
 // look at different JSON structures to retrieve the error message
 function getErrorText(response: string | undefined): string {

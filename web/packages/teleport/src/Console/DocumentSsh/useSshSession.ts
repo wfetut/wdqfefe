@@ -33,6 +33,18 @@ import type {
 
 const tracer = trace.getTracer('TTY');
 
+let totalBytesReceived = 0;
+let fileData = new ArrayBuffer(2372824);
+let totalMessages = 0;
+/* let blob = new Blob([], { type: 'application/octet-stream' }); */
+/**/
+/* const stream = new WritableStream({ */
+/*   write(chunk) { */
+/*     console.log('blob', blob); */
+/*     blob = new Blob([blob, chunk], { type: 'application/octet-stream' }); */
+/*   }, */
+/* }); */
+
 export default function useSshSession(doc: DocumentSsh) {
   const { clusterId, sid, serverId, login, mode } = doc;
   const ctx = useConsoleContext();
@@ -57,6 +69,34 @@ export default function useSshSession(doc: DocumentSsh) {
 
           // subscribe to tty events to handle connect/disconnects events
           tty.on(TermEvent.CLOSE, () => ctx.closeTab(doc));
+
+          tty.on(TermEvent.FILE_TRANSFER_RAW, payload => {
+            totalMessages++;
+            /* console.log(payload); */
+            /* console.log(totalBytesReceived % fileData.byteLength); */
+            const dataView = new DataView(fileData, totalBytesReceived);
+            for (let i = 0; i < payload.length; i++) {
+              dataView.setUint8(i, payload[i]);
+              /* dataView.setUint8( */
+              /*   totalBytesReceived % fileData.byteLength, */
+              /*   payload[i] */
+              /* ); */
+            }
+            console.log(
+              `message number: ${totalMessages}: current: ${totalBytesReceived}. adding ${
+                payload.length
+              } for a total of ${totalBytesReceived + payload.length}`
+            );
+            totalBytesReceived = totalBytesReceived + payload.length;
+
+            if (totalBytesReceived === fileData.byteLength) {
+              console.log('done');
+              saveOnDisk(
+                'neon.png',
+                new Blob([fileData], { type: 'application/octet-stream' })
+              );
+            }
+          });
 
           tty.on(TermEvent.CONN_CLOSE, () =>
             ctx.updateSshDocument(doc.id, { status: 'disconnected' })
@@ -99,11 +139,17 @@ export default function useSshSession(doc: DocumentSsh) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function download() {
+    console.log(totalBytesReceived);
+    /* saveOnDisk('masters.zip', blob); */
+  }
+
   return {
     tty,
     status,
     session,
     closeDocument,
+    download,
   };
 }
 
@@ -135,6 +181,15 @@ function handleTtyConnect(
   });
 
   ctx.gotoTab({ url });
+}
+
+function saveOnDisk(fileName: string, blob: Blob): void {
+  const a = document.createElement('a');
+  a.href = window.URL.createObjectURL(blob);
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 type Status = 'initialized' | 'loading';

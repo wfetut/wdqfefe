@@ -46,6 +46,7 @@ export default function useWebAuthn(emitterSender: EventEmitterWebAuthnSender) {
     navigator.credentials
       .get({ publicKey: state.publicKey })
       .then(res => {
+        console.log('sending credent');
         const credential = makeWebauthnAssertionResponse(res);
         emitterSender.sendWebAuthn(credential);
 
@@ -66,6 +67,7 @@ export default function useWebAuthn(emitterSender: EventEmitterWebAuthnSender) {
   const onChallenge = challengeJson => {
     const challenge = JSON.parse(challengeJson);
     const publicKey = makeMfaAuthenticateChallenge(challenge).webauthnPublicKey;
+    console.log('received challenge');
 
     setState({
       ...state,

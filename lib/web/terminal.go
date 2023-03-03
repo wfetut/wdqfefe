@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/session"
+	// "github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -379,7 +380,8 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// Create a terminal stream that wraps/unwraps the envelope used to
 	// communicate over the websocket.
 	resizeC := make(chan *session.TerminalParams, 1)
-	stream, err := NewTerminalStream(ws, WithTerminalStreamResizeHandler(resizeC))
+	fileTransferC := make(chan *session.FileTransferParams)
+	stream, err := NewTerminalStream(ws, WithTerminalStreamResizeHandler(resizeC), WithTerminalFileTransferHandler(fileTransferC))
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a terminal stream for session")
 		t.writeError(err)
@@ -418,6 +420,8 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	// process window resizing
 	go t.handleWindowResize(resizeC)
+
+	go t.handleFileTransfer(fileTransferC)
 
 	// Block until the terminal session is complete.
 	<-t.terminalContext.Done()
@@ -758,6 +762,17 @@ func (t *TerminalHandler) streamEvents(tc *client.TeleportClient) {
 	}
 }
 
+func (t *TerminalHandler) handleFileTransfer(fileTransferC <-chan *session.FileTransferParams) {
+	for {
+		select {
+		case <-t.terminalContext.Done():
+			return
+		case thing := <-fileTransferC:
+			t.download(t.terminalContext, thing.Location)
+		}
+	}
+}
+
 // handleWindowResize receives window resize events and forwards
 // them to the SSH session.
 func (t *TerminalHandler) handleWindowResize(resizeC <-chan *session.TerminalParams) {
@@ -773,6 +788,67 @@ func (t *TerminalHandler) handleWindowResize(resizeC <-chan *session.TerminalPar
 			// process window change
 			t.windowChange(t.terminalContext, params)
 		}
+	}
+}
+
+func (t *TerminalHandler) download(ctx context.Context, location string) {
+	tc, err := t.makeClient(ctx, t.stream.ws)
+	if err != nil {
+		return
+	}
+
+	err = t.issueSessionMFACerts(ctx, tc)
+	if err != nil {
+		fmt.Println("---")
+		fmt.Printf("errerr333 %+v\n", err)
+		fmt.Println("---")
+	}
+
+	// key, err := tc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+	// 	NodeName:       nodeAddrs[0],
+	// 	RouteToCluster: site.GetName(),
+	// 	ExistingCreds: &client.Key{
+	// 		PrivateKey: pk,
+	// 		Cert:       sctx.cfg.Session.GetPub(),
+	// 		TLSCert:    sctx.cfg.Session.GetTLSCert(),
+	// 	},
+	// }, promptFileTransferMFAChallenge(stream, protobufMFACodec{}))
+
+	// nodeClient, err := tc.ConnectToNode(
+	// 	ctx,
+	// 	proxyClient,
+	// 	client.NodeDetails{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: tc.SiteName},
+	// 	tc.Config.HostLogin,
+	// )
+	// if err != nil {
+	// 	tc.ExitStatus = 1
+	// 	// return trace.Wrap(err)
+	// 	return
+	// }
+
+	// fStream := &FileTransferStreamNew{
+	// 	stream:   t.stream,
+	// 	location: location,
+	// }
+
+	// cmd, err := scp.CreateSocketDownload(scp.WebsocketFileRequest{
+	// 	RemoteLocation: location,
+	// 	Writer:         fStream,
+	// 	Progress:       fStream,
+	// 	FileName:       location,
+	// 	User:           t.ctx.GetUser(),
+	// })
+	if err != nil {
+		fmt.Println("-----")
+		fmt.Printf("errerr11: %+v\n", err)
+		fmt.Println("-----")
+		return
+	}
+	// err = nodeClient.ExecuteSCP(ctx, cmd)
+	if err != nil {
+		fmt.Println("-----")
+		fmt.Printf("errerr22: %+v\n", err)
+		fmt.Println("-----")
 	}
 }
 
@@ -858,6 +934,12 @@ func WithTerminalStreamResizeHandler(resizeC chan<- *session.TerminalParams) fun
 	}
 }
 
+func WithTerminalFileTransferHandler(fileTransferC chan<- *session.FileTransferParams) func(stream *TerminalStream) {
+	return func(stream *TerminalStream) {
+		stream.fileTransferC = fileTransferC
+	}
+}
+
 // NewTerminalStream creates a stream that manages reading and writing
 // data over the provided [websocket.Conn]
 func NewTerminalStream(ws *websocket.Conn, opts ...func(*TerminalStream)) (*TerminalStream, error) {
@@ -879,6 +961,24 @@ func NewTerminalStream(ws *websocket.Conn, opts ...func(*TerminalStream)) (*Term
 	return t, nil
 }
 
+type FileTransferStreamNew struct {
+	stream    *TerminalStream
+	location  string
+	fileIndex string
+}
+
+func (t *FileTransferStreamNew) Write(data []byte) (n int, err error) {
+	envelope := append([]byte(defaults.WebsocketFileTransferRaw), append([]byte("0"), data...)...)
+	t.stream.mu.Lock()
+	err = t.stream.ws.WriteMessage(websocket.BinaryMessage, envelope)
+	t.stream.mu.Unlock()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return len(data), nil
+}
+
 // TerminalStream manages the [websocket.Conn] to the web UI
 // for a terminal session.
 type TerminalStream struct {
@@ -897,6 +997,7 @@ type TerminalStream struct {
 	// they happen out of band and don't block reads
 	resizeC chan<- *session.TerminalParams
 
+	fileTransferC chan<- *session.FileTransferParams
 	// mu protects writes to ws
 	mu sync.Mutex
 	// ws the connection to the UI
@@ -1050,6 +1151,21 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 			t.buffer = data[n:]
 		}
 		return n, nil
+	case defaults.WebsocketFileTransferDownload:
+		var e events.EventFields
+		err := json.Unmarshal(data, &e)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		params, err := session.UnmarshalFileTransferParams(e.GetString("event"), e.GetString("location"))
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		select {
+		case t.fileTransferC <- params:
+		default:
+		}
+		return 0, nil
 	case defaults.WebsocketResize:
 		if t.resizeC == nil {
 			return n, nil

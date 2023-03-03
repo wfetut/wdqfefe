@@ -229,7 +229,6 @@ func (f *FileTransferStream) download(req fileTransferRequest,
 
 	cmd, err := scp.CreateSocketDownload(scp.WebsocketFileRequest{
 		RemoteLocation: req.remoteLocation,
-		Response:       f,
 		Writer:         writer,
 		FileName:       req.filename,
 		User:           sctx.GetUser(),

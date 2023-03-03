@@ -80,6 +80,16 @@ class Tty extends EventEmitterWebAuthnSender {
     this.send(JSON.stringify(data));
   }
 
+  sendFileTransferRequest(location: string) {
+    var data = JSON.stringify({
+      event: EventType.FILE_TRANSFER_DOWNLOAD,
+      location,
+    });
+    var encoded = this._proto.encodeFileTransferMessage(data);
+    var bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
   // part of the flow control
   pauseFlow() {}
 
@@ -150,6 +160,9 @@ class Tty extends EventEmitterWebAuthnSender {
           break;
         case MessageTypeEnum.SESSION_END:
           this.emit(TermEvent.CLOSE, msg.payload);
+          break;
+        case MessageTypeEnum.FILE_DOWNLOAD_RAW:
+          this.emit(TermEvent.FILE_TRANSFER_RAW, msg.rawPayload);
           break;
         case MessageTypeEnum.RAW:
           if (this._buffered) {

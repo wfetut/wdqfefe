@@ -45,12 +45,9 @@ type WebsocketFileRequest struct {
 	// FileName is a file name
 	FileName string
 
-	Response io.Writer
-
-	Writer io.WriteCloser
-
-	// User is a username
-	User string
+	Writer   io.Writer
+	Progress io.Writer
+	User     string
 	// AuditLog is AuditLog log
 	AuditLog events.IAuditLog
 }
@@ -193,7 +190,7 @@ type httpFileSystem struct {
 }
 
 type wsFileSystem struct {
-	writer   io.WriteCloser
+	writer   io.Writer
 	reader   io.ReadCloser
 	fileName string
 	fileSize int64
@@ -277,11 +274,14 @@ func (w *wsFileSystem) CreateFile(filePath string, length uint64) (io.WriteClose
 	// _, filename := filepath.Split(filePath)
 	// filenameB := []byte(filename)
 	// contentLengthB := []byte(strconv.FormatUint(length, 10))
+	fmt.Println("----")
+	fmt.Printf("%+v\n", length)
+	fmt.Println("----")
 
 	// w.writer.Write(append([]byte("f"), filenameB...))
 	// w.writer.Write(append([]byte("s"), contentLengthB...))
 	//
-	return w.writer, nil
+	return &nopWriteCloser{Writer: w.writer}, nil
 }
 
 // GetFileInfo returns file information
@@ -358,5 +358,8 @@ type nopWriteCloser struct {
 }
 
 func (wr *nopWriteCloser) Close() error {
+	fmt.Println("-----")
+	fmt.Printf("%+v\n", "closing!!")
+	fmt.Println("-----")
 	return nil
 }

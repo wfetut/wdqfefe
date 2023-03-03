@@ -30,6 +30,9 @@ message Envelope {
 
   // Payload is the actual data to send.
   string Payload = 3;
+
+  string FileIndex = 4;
+  bytes RawPayload = 5;
 }
 
 message FileTransferEnvelope {

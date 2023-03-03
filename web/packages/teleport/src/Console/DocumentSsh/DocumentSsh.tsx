@@ -24,7 +24,6 @@ import {
   FileTransferContextProvider,
 } from 'shared/components/FileTransfer';
 
-import cfg from 'teleport/config';
 import * as stores from 'teleport/Console/stores';
 import { colors } from 'teleport/Console/colors';
 
@@ -35,13 +34,13 @@ import Document from '../Document';
 
 import Terminal from './Terminal';
 import useSshSession from './useSshSession';
-import useFileTransferClient from './useFileTransferClient';
+/* import useFileTransferClient from './useFileTransferClient'; */
 
 export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
-  const { tty, status, closeDocument } = useSshSession(doc);
+  const { tty, status, closeDocument, download } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
-  const { download, upload } = useFileTransferClient();
+  /* const { download, upload } = useFileTransferClient(); */
 
   function handleCloseFileTransfer() {
     refTerminal.current.terminal.term.focus();
@@ -56,6 +55,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
 
   return (
     <Document visible={visible} flexDirection="column">
+      <div onClick={download}>HERE1</div>
       <FileTransferContextProvider>
         <FileTransferActionBar isConnected={doc.status === 'connected'} />
         {status === 'loading' && (
@@ -79,16 +79,17 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
           backgroundColor={colors.primary.light}
           transferHandlers={{
             getDownloader: async (location, abortController) =>
-              download(
-                {
-                  location,
-                  clusterId: doc.clusterId,
-                  serverId: doc.serverId,
-                  login: doc.login,
-                  filename: location,
-                },
-                abortController
-              ),
+              new Promise(resolve => tty.sendFileTransferRequest(location)),
+            /* download( */
+            /*   { */
+            /*     location, */
+            /*     clusterId: doc.clusterId, */
+            /*     serverId: doc.serverId, */
+            /*     login: doc.login, */
+            /*     filename: location, */
+            /*   }, */
+            /*   abortController */
+            /* ), */
             /* getHttpFileTransferHandlers().download( */
             /*   { */
             /*     location, */
@@ -100,17 +101,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
             /*   abortController */
             /* ), */
             getUploader: async (location, file, abortController) =>
-              upload(
-                {
-                  location,
-                  clusterId: doc.clusterId,
-                  serverId: doc.serverId,
-                  login: doc.login,
-                  filename: location,
-                },
-                file,
-                abortController
-              ),
+              new Promise(resolve => console.log('uploading')),
           }}
         />
       </FileTransferContextProvider>

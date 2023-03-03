@@ -658,6 +658,10 @@ const (
 	WebsocketError = "e"
 
 	WebsocketFileMetadata = "f"
+
+	WebsocketFileTransferDownload = "d"
+
+	WebsocketFileTransferRaw = "t"
 )
 
 // The following are cryptographic primitives Teleport does not support in

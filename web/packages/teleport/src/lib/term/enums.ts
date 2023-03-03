@@ -20,6 +20,7 @@ export enum EventType {
   END = 'session.end',
   PRINT = 'print',
   RESIZE = 'resize',
+  FILE_TRANSFER_DOWNLOAD = 'download',
 }
 
 export enum TermEvent {
@@ -30,6 +31,7 @@ export enum TermEvent {
   DATA = 'terminal.data',
   CONN_CLOSE = 'connection.close',
   WEBAUTHN_CHALLENGE = 'terminal.webauthn',
+  FILE_TRANSFER_RAW = 'terminal.filetransfer',
 }
 
 // Websocket connection close codes.

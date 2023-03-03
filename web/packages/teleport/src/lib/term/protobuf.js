@@ -26,6 +26,8 @@ export const MessageTypeEnum = {
   AUDIT: 'a',
   SESSION_DATA: 's',
   SESSION_END: 'c',
+  FILE_DOWNLOAD: 'd',
+  FILE_DOWNLOAD_RAW: 't',
   RESIZE: 'w',
   WEBAUTHN_CHALLENGE: 'n',
 };
@@ -43,6 +45,11 @@ export const messageFields = {
     },
   },
 
+  typeRaw: {
+    length: 1,
+    code: 116,
+  },
+
   type: {
     length: 1,
     code: 0x12,
@@ -51,6 +58,7 @@ export const messageFields = {
       data: MessageTypeEnum.RAW.charCodeAt(0),
       event: MessageTypeEnum.AUDIT.charCodeAt(0),
       close: MessageTypeEnum.SESSION_END.charCodeAt(0),
+      download: MessageTypeEnum.FILE_DOWNLOAD.charCodeAt(0),
     },
   },
 };
@@ -66,6 +74,10 @@ export class Protobuf {
 
   encodeResizeMessage(message) {
     return this.encode(messageFields.type.values.resize, message);
+  }
+
+  encodeFileTransferMessage(message) {
+    return this.encode(messageFields.type.values.download, message);
   }
 
   encodeRawMessage(message) {
@@ -109,14 +121,28 @@ export class Protobuf {
   }
 
   decode(uintArray) {
-    var version = this.decodeVersion(uintArray);
     var type = this.decodeType(uintArray);
+    if (type === MessageTypeEnum.FILE_DOWNLOAD_RAW) {
+      let fileIndex = this.decodeFileIndex(uintArray);
+      let rawPayload = uintArray.slice(2);
+      return {
+        type,
+        fileIndex,
+        rawPayload,
+      };
+    }
+    /* if (type === MessageTypeEnum.FILE_DOWNLOAD_RAW) */
+    var version = this.decodeVersion(uintArray);
     var payload = this.decodePayload(uintArray);
     return {
       version,
       type,
       payload,
     };
+  }
+
+  decodeFileIndex(uintArray) {
+    return String.fromCharCode(uintArray[1]);
   }
 
   decodeFileTransfer(uintArray) {
@@ -140,8 +166,12 @@ export class Protobuf {
   }
 
   decodeType(uintArray) {
+    if (uintArray[0] === messageFields.typeRaw.code) {
+      return String.fromCharCode(uintArray[0]);
+    }
     if (
-      uintArray[3] === messageFields.type.code &&
+      (uintArray[3] === messageFields.type.code ||
+        uintArray[3] === messageFields.typeRaw.code) &&
       uintArray[4] === messageFields.type.length
     ) {
       return String.fromCharCode(uintArray[5]);
@@ -149,6 +179,18 @@ export class Protobuf {
     throw new Error('invalid type field');
   }
 
+  decodeRawPayload(uintArray) {
+    if (!uintArray[9]) {
+      return;
+    }
+    const rawPayloadField = uintArray.slice(10);
+    /* const [startsAt, payloadLength] = this.decodeVarint(rawPayloadField); */
+    /* const payloadBytes = rawPayloadField.slice( */
+    /*   startsAt, */
+    /*   startsAt + payloadLength */
+    /* ); */
+    return rawPayloadField;
+  }
   decodePayload(uintArray) {
     if (!uintArray[6]) {
       return '';

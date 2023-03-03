@@ -158,6 +158,20 @@ type TerminalParams struct {
 	H int `json:"h"`
 }
 
+type FileTransferParams struct {
+	// Event is either upload or download
+	Event string `json:"event"`
+	// location is location of file to download, or where to put an upload
+	Location string `json:"location"`
+}
+
+func UnmarshalFileTransferParams(event string, location string) (*FileTransferParams, error) {
+	return &FileTransferParams{
+		Event:    event,
+		Location: location,
+	}, nil
+}
+
 // UnmarshalTerminalParams takes a serialized string that contains the
 // terminal parameters and returns a *TerminalParams.
 func UnmarshalTerminalParams(s string) (*TerminalParams, error) {
