@@ -3277,7 +3277,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	}
 
 	// Lock the process memory to prevent rsa keys and certificates from being exposed in a swap.
-	if cf.AuthConnector == constants.HeadlessConnector {
+	if cf.AuthConnector == constants.HeadlessConnector && runtime.GOOS == "linux" {
 		if err := unix.Mlockall(unix.MCL_FUTURE | unix.MCL_CURRENT); err != nil {
 			return nil, trace.Wrap(err, "tried to lock system memory for headless login with failure")
 		}

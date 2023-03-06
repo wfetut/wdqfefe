@@ -195,7 +195,6 @@ const auth = {
     return auth
         .checkWebauthnSupport()
         .then(() => api.post(cfg.api.mfaAuthnChallengePath))
-        // .then(makeMfaAuthenticateChallenge)
         .then(res =>
             navigator.credentials.get({
               publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,

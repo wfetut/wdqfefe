@@ -38,21 +38,17 @@ export function HeadlessSSO() {
     }
 
     return <div>
-        <p>AAAAA</p>
         {state.status != "success" && (
             <AuthnDialog
-                // onContinue={webauthn.authenticate}
                 onContinue={() => {
-                    // submitWithWebauthn()
                     setState({...state, status: "in-progress"})
 
                     auth.headlessSSOAccept(requestId)
                         .then(abcSuccess)
                         .catch((e) => {
-                            setState({...state, status: "error", errorText: e})
+                            setState({...state, status: "error", errorText: e.toString()})
                         });
                 }}
-                // onCancel={closeDocument}
                 onCancel={() => {
                     window.close();
                 }}

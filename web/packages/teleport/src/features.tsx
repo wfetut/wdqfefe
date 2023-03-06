@@ -496,26 +496,6 @@ export class FeatureHelpAndSupport implements TeleportFeature {
   };
 }
 
-export class FeatureHeadless implements TeleportFeature {
-  route = {
-    title: 'Headless SSO',
-    path: cfg.routes.headlessSSO,
-    component: Account,
-  };
-
-  hasAccess() {
-    return true;
-  }
-
-  topMenuItem = {
-    title: 'Headless SSO',
-    icon: <UserSettingsIcon size={16} />,
-    getLink() {
-      return cfg.routes.headlessSSO;
-    },
-  };
-}
-
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
@@ -545,7 +525,5 @@ export function getOSSFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
-
-      new FeatureHeadless(),
   ];
 }

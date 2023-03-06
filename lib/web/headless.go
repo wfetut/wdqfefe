@@ -34,8 +34,7 @@ import (
 func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
 	headlessAuthenticationID := params.ByName("headless_authentication_id")
 	if headlessAuthenticationID == "" {
-		http.NotFound(w, r) // TODO
-		return nil, nil
+		return nil, trace.NotFound("failed to find Headless session") // TODO this or just failed?
 	}
 
 	var req client.HeadlessRequest
@@ -54,7 +53,7 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, params h
 
 	err = authClient.UpdateHeadlessAuthenticationState(r.Context(), headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err) // TODO replace with failed to authenticate always?
 	}
 
 	w.Write([]byte("{\"status\": \"OK\"}"))
