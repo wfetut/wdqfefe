@@ -20,8 +20,9 @@
 import React, {useState} from 'react';
 import AuthnDialog from "teleport/components/AuthnDialog";
 import auth from "teleport/services/auth";
-import Dialog, {DialogHeader, DialogTitle} from "design/Dialog";
 import {useParams} from "teleport/components/Router";
+import CardSuccess from 'design/CardSuccess';
+import HeadlessSsoDialog from "teleport/components/HeadlessSsoDialog/HeadlessSsoDialog";
 
 
 export function HeadlessSSO() {
@@ -33,18 +34,18 @@ export function HeadlessSSO() {
         publicKey: null as PublicKeyCredentialRequestOptions,
     });
 
-    const abcSuccess = () => {
+    const setSuccess = () => {
         setState({...state, status: "success"})
     }
 
     return <div>
         {state.status != "success" && (
-            <AuthnDialog
+            <HeadlessSsoDialog
                 onContinue={() => {
                     setState({...state, status: "in-progress"})
 
                     auth.headlessSSOAccept(requestId)
-                        .then(abcSuccess)
+                        .then(setSuccess)
                         .catch((e) => {
                             setState({...state, status: "error", errorText: e.toString()})
                         });
@@ -55,19 +56,9 @@ export function HeadlessSSO() {
                 errorText={state.errorText}
             />)}
         {state.status == "success" && (
-            <SuccessDialog/>
+            <CardSuccess title="Authentication complete">
+                Return to your terminal.
+            </CardSuccess>
         )}
     </div>
-}
-
-function SuccessDialog() {
-    return (
-        <Dialog dialogCss={() => ({width: '400px'})} open={true}>
-            <DialogHeader style={{flexDirection: 'column'}}>
-                <DialogTitle textAlign="center">
-                    Success
-                </DialogTitle>
-            </DialogHeader>
-        </Dialog>
-    );
 }
