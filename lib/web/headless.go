@@ -31,6 +31,29 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+func (h *Handler) getHeadless(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
+	headlessAuthenticationID := params.ByName("headless_authentication_id")
+	if headlessAuthenticationID == "" {
+		return nil, trace.NotFound("failed to find Headless session") // TODO this or just failed?
+	}
+
+	authClient, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	headlessAuthn, err := authClient.GetHeadlessAuthentication(r.Context(), headlessAuthenticationID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_ = headlessAuthn
+
+	w.Write([]byte("{\"status\": \"OK\"}"))
+
+	return nil, nil
+}
+
 func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
 	headlessAuthenticationID := params.ByName("headless_authentication_id")
 	if headlessAuthenticationID == "" {

@@ -177,6 +177,7 @@ const cfg = {
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
     mfaChangePasswordBegin: '/v1/webapi/mfa/authenticatechallenge/password',
 
+    headlessGet: `/v1/webapi/headless/:requestId`,
     headlessAccept: `/v1/webapi/headless/:requestId/accept`,
 
     mfaCreateRegistrationChallengePath:
@@ -421,6 +422,10 @@ const cfg = {
 
   getUserResetTokenContinueRoute(tokenId = '') {
     return generatePath(cfg.routes.userResetContinue, { tokenId });
+  },
+
+  getHeadlessRequest(requestId: string) {
+    return generatePath(cfg.api.headlessGet, { requestId })
   },
 
   getHeadlessAccept(requestId: string) {

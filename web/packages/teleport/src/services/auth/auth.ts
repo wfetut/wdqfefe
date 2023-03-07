@@ -194,6 +194,7 @@ const auth = {
   headlessSSOAccept(transactionId: string) {
     return auth
         .checkWebauthnSupport()
+        .then(() => api.get(cfg.getHeadlessRequest(transactionId)))
         .then(() => api.post(cfg.api.mfaAuthnChallengePath))
         .then(res =>
             navigator.credentials.get({

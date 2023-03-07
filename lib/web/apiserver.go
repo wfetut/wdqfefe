@@ -716,6 +716,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// create authenticated user events.
 	h.POST("/webapi/capture", h.WithAuth(h.createUserEventHandle))
 
+	h.GET("/webapi/headless/:headless_authentication_id", h.WithAuth(h.getHeadless))
 	h.POST("/webapi/headless/:headless_authentication_id/accept", h.WithAuth(h.headlessLogin))
 }
 
