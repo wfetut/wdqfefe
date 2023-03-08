@@ -47,11 +47,7 @@ func (h *Handler) getHeadless(w http.ResponseWriter, r *http.Request, params htt
 		return nil, trace.Wrap(err)
 	}
 
-	_ = headlessAuthn
-
-	w.Write([]byte("{\"status\": \"OK\"}"))
-
-	return nil, nil
+	return headlessAuthn, nil
 }
 
 func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
@@ -79,6 +75,7 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, params h
 		return nil, trace.Wrap(err) // TODO replace with failed to authenticate always?
 	}
 
+	// TODO(jakule): webui expects JSON on POST ¯\_(ツ)_/¯
 	w.Write([]byte("{\"status\": \"OK\"}"))
 
 	return nil, nil

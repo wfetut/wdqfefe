@@ -16,15 +16,16 @@ limitations under the License.
 
 import React from 'react';
 import Dialog, {
+  DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogContent,
 } from 'design/Dialog';
 import { Danger } from 'design/Alert';
-import { Text, ButtonPrimary, ButtonSecondary } from 'design';
+import { ButtonPrimary, ButtonSecondary, Text } from 'design';
 
 export default function HeadlessSsoDialog({
+  ipAddress,
   onContinue,
   onCancel,
   errorText,
@@ -33,7 +34,7 @@ export default function HeadlessSsoDialog({
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
       <DialogHeader style={{ flexDirection: 'column' }}>
         <DialogTitle textAlign="center">
-          Headless SSO Authentication
+          Host {ipAddress} wants to execute a command
         </DialogTitle>
       </DialogHeader>
       <DialogContent mb={6}>
@@ -43,12 +44,16 @@ export default function HeadlessSsoDialog({
           </Danger>
         )}
         <Text textAlign="center">
-          Complete login using your hardware key to continue. Contact your administrator if you didn't initiate this login attempt.
+          Someone has initiated a command from {ipAddress}. If it was not
+          you, click cancel and contact your administrator.
+          <br />
+          <br />
+          If it was you, please use your hardware key to approve.
         </Text>
       </DialogContent>
       <DialogFooter textAlign="center">
         <ButtonPrimary onClick={onContinue} autoFocus mr={3} width="130px">
-          {errorText ? 'Retry' : 'OK'}
+          {errorText ? 'Retry' : 'Approve'}
         </ButtonPrimary>
         <ButtonSecondary onClick={onCancel}>Cancel</ButtonSecondary>
       </DialogFooter>
@@ -57,6 +62,7 @@ export default function HeadlessSsoDialog({
 }
 
 export type Props = {
+  ipAddress: string;
   onContinue: () => void;
   onCancel: () => void;
   errorText: string;

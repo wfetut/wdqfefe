@@ -17,48 +17,81 @@
  *
  */
 
-import React, {useState} from 'react';
-import AuthnDialog from "teleport/components/AuthnDialog";
-import auth from "teleport/services/auth";
-import {useParams} from "teleport/components/Router";
+import React, { useEffect, useState } from 'react';
+import auth from 'teleport/services/auth';
+import { useParams } from 'teleport/components/Router';
 import CardSuccess from 'design/CardSuccess';
-import HeadlessSsoDialog from "teleport/components/HeadlessSsoDialog/HeadlessSsoDialog";
-
+import HeadlessSsoDialog from 'teleport/components/HeadlessSsoDialog/HeadlessSsoDialog';
 
 export function HeadlessSSO() {
-    const {requestId} = useParams<{ requestId: string }>();
+  const { requestId } = useParams<{ requestId: string }>();
 
-    const [state, setState] = useState({
-        status: "",
-        errorText: '',
-        publicKey: null as PublicKeyCredentialRequestOptions,
+  const [state, setState] = useState({
+    ipAddress: '',
+    status: '',
+    errorText: '',
+    publicKey: null as PublicKeyCredentialRequestOptions,
+  });
+
+  const setIpAddress = (response: { clientIpAddress: string }) => {
+    setState({
+      ...state,
+      status: 'loaded',
+      ipAddress: response.clientIpAddress,
     });
+  };
 
-    const setSuccess = () => {
-        setState({...state, status: "success"})
-    }
+  useEffect(() => {
+    auth
+      .headlessSSOGet(requestId)
+      .then(setIpAddress)
+      .catch(e => {
+        setState({
+          ...state,
+          status: 'error',
+          errorText: e.toString(),
+        });
+      });
+  }, []);
 
-    return <div>
-        {state.status != "success" && (
-            <HeadlessSsoDialog
-                onContinue={() => {
-                    setState({...state, status: "in-progress"})
+  const setSuccess = () => {
+    setState({ ...state, status: 'success' });
+  };
 
-                    auth.headlessSSOAccept(requestId)
-                        .then(setSuccess)
-                        .catch((e) => {
-                            setState({...state, status: "error", errorText: e.toString()})
-                        });
-                }}
-                onCancel={() => {
-                    window.close();
-                }}
-                errorText={state.errorText}
-            />)}
-        {state.status == "success" && (
-            <CardSuccess title="Authentication complete">
-                Return to your terminal.
-            </CardSuccess>
-        )}
+  if (state.status == '') {
+    return <></>;
+  }
+
+  return (
+    <div>
+      {state.status != 'success' && (
+        <HeadlessSsoDialog
+          ipAddress={state.ipAddress}
+          onContinue={() => {
+            setState({ ...state, status: 'in-progress' });
+
+            auth
+              .headlessSSOAccept(requestId)
+              .then(setSuccess)
+              .catch(e => {
+                setState({
+                  ...state,
+                  status: 'error',
+                  errorText: e.toString(),
+                });
+              });
+          }}
+          onCancel={() => {
+            window.close();
+          }}
+          errorText={state.errorText}
+        />
+      )}
+      {state.status == 'success' && (
+        <CardSuccess title="Command has been approved">
+          You can now return to your terminal.
+        </CardSuccess>
+      )}
     </div>
+  );
 }

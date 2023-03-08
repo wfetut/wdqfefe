@@ -26,7 +26,7 @@ import {
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
 } from './makeMfa';
-import { UserCredentials, NewCredentialRequest } from './types';
+import { NewCredentialRequest, UserCredentials } from './types';
 
 const auth = {
   checkWebauthnSupport() {
@@ -191,15 +191,28 @@ const auth = {
       });
   },
 
-  headlessSSOAccept(transactionId: string) {
+  headlessSSOGet(transactionId: string) {
     return auth
+      .checkWebauthnSupport()
+      .then(() => api.get(cfg.getHeadlessRequest(transactionId)))
+      .then((json: any) => {
+        json = json || {};
+
+        return {
+          clientIpAddress: json.client_ip_address,
+        }
+      });
+  },
+
+  headlessSSOAccept(transactionId: string) {
+    return (
+      auth
         .checkWebauthnSupport()
-        .then(() => api.get(cfg.getHeadlessRequest(transactionId)))
         .then(() => api.post(cfg.api.mfaAuthnChallengePath))
         .then(res =>
-            navigator.credentials.get({
-              publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
-            })
+          navigator.credentials.get({
+            publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
+          })
         )
         .then(res => {
           const request = {
@@ -207,7 +220,8 @@ const auth = {
           };
 
           return api.post(cfg.getHeadlessAccept(transactionId), request);
-        });
+        })
+    );
   },
 
   createPrivilegeTokenWithTotp(secondFactorToken: string) {
