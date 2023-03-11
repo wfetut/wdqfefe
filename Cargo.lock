@@ -2115,8 +2115,10 @@ version = "0.1.0"
 dependencies = [
  "bitflags",
  "byteorder",
+ "bytes",
  "cbindgen",
  "env_logger",
+ "futures-util",
  "ironrdp",
  "iso7816",
  "iso7816-tlv",
