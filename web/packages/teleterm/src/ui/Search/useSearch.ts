@@ -17,6 +17,7 @@
 import { useCallback } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { SearchResult } from 'teleterm/ui/services/resources';
 
 /**
  * useSearch returns a function which searches for the given list of space-separated keywords across
@@ -38,8 +39,91 @@ export function useSearch() {
         resourcesService.searchResources(cluster.uri, search)
       );
 
-      return (await Promise.all(searchPromises)).flat();
+      return {
+        results: (await Promise.all(searchPromises)).flat(),
+        search,
+      };
     },
     [clustersService, resourcesService]
   );
+}
+
+export function sortResults(
+  searchResults: SearchResult[],
+  search: string
+): SearchResult[] {
+  const terms = search
+    .split(' ')
+    .filter(Boolean)
+    .map(term => term.toLowerCase());
+
+  // Highest score first.
+  // TODO: Add displayed name as the tie breaker.
+  return searchResults
+    .map(searchResult => calculateScore(populateMatches(searchResult, terms)))
+    .sort((a, b) => b.score - a.score);
+}
+
+function populateMatches(
+  searchResult: SearchResult,
+  terms: string[]
+): SearchResult {
+  const labelMatches = [];
+
+  terms.forEach(term => {
+    searchResult.resource.labelsList.forEach(label => {
+      const nameIndex = label.name.toLowerCase().indexOf(term);
+      const valueIndex = label.value.toLowerCase().indexOf(term);
+
+      if (nameIndex >= 0) {
+        labelMatches.push({
+          matchedValue: { kind: 'label-name', labelName: label.name },
+          searchTerm: term,
+          index: nameIndex,
+        });
+      }
+
+      if (valueIndex >= 0) {
+        labelMatches.push({
+          matchedValue: { kind: 'label-value', labelName: label.name },
+          searchTerm: term,
+          index: valueIndex,
+        });
+      }
+    });
+  });
+
+  return { ...searchResult, labelMatches };
+}
+
+function calculateScore(searchResult: SearchResult): SearchResult {
+  let totalScore = 0;
+
+  for (const match of searchResult.labelMatches) {
+    const { matchedValue, searchTerm } = match;
+    switch (matchedValue.kind) {
+      case 'label-name': {
+        const label = searchResult.resource.labelsList.find(
+          label => label.name === matchedValue.labelName
+        );
+        const score = Math.floor((searchTerm.length / label.name.length) * 100);
+        console.log('score', score, match);
+        totalScore += score;
+        continue;
+      }
+      case 'label-value': {
+        const label = searchResult.resource.labelsList.find(
+          label => label.name === matchedValue.labelName
+        );
+        const score = Math.floor(
+          (searchTerm.length / label.value.length) * 100
+        );
+        console.log('score', score, match);
+        totalScore += score;
+        continue;
+      }
+    }
+  }
+
+  return { ...searchResult, score: totalScore };
 }

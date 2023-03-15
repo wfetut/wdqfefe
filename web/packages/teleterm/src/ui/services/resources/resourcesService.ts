@@ -74,13 +74,31 @@ export class ResourcesService {
     const params = { search, clusterUri, sort: null, limit: 100 };
 
     const servers = this.fetchServers(params).then(res =>
-      res.agentsList.map(resource => ({ kind: 'server' as const, resource }))
+      res.agentsList.map(resource => ({
+        kind: 'server' as const,
+        resource,
+        labelMatches: [],
+        resourceMatches: [],
+        score: 0,
+      }))
     );
     const databases = this.fetchDatabases(params).then(res =>
-      res.agentsList.map(resource => ({ kind: 'database' as const, resource }))
+      res.agentsList.map(resource => ({
+        kind: 'database' as const,
+        resource,
+        labelMatches: [],
+        resourceMatches: [],
+        score: 0,
+      }))
     );
     const kubes = this.fetchKubes(params).then(res =>
-      res.agentsList.map(resource => ({ kind: 'kube' as const, resource }))
+      res.agentsList.map(resource => ({
+        kind: 'kube' as const,
+        resource,
+        labelMatches: [],
+        resourceMatches: [],
+        score: 0,
+      }))
     );
 
     return (await Promise.all([servers, databases, kubes])).flat();
@@ -97,6 +115,9 @@ export class AmbiguousHostnameError extends Error {
 type SearchResultBase<Kind, Resource> = {
   kind: Kind;
   resource: Resource;
+  labelMatches: LabelMatch[];
+  resourceMatches: ResourceMatch<Resource>[];
+  score: number;
 };
 
 export type SearchResultServer = SearchResultBase<'server', types.Server>;
@@ -107,3 +128,20 @@ export type SearchResult =
   | SearchResultServer
   | SearchResultDatabase
   | SearchResultKube;
+
+export type LabelMatch = {
+  matchedValue:
+    | { kind: 'label-name'; labelName: string }
+    | { kind: 'label-value'; labelName: string };
+  searchTerm: string;
+  index: number;
+};
+
+// TODO: Limit <Resource> to only searchable resources.
+// type SearchableResources = types.Server | types.Database | types.Kube;
+export type ResourceMatch<Resource> = {
+  // TODO: Limit this to only searchable fields.
+  matchedValue: { kind: 'field'; field: keyof Resource };
+  searchTerm: string;
+  index: number;
+};
