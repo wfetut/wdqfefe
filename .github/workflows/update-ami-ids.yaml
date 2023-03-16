@@ -2,10 +2,55 @@ name: Update AMI IDs
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        required: true
+        type: string
+        description: Release version tag
+
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+        description: Release version tag
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
 
 jobs:
-  dummy:
+  update-ami-ids:
+    name: Update AMI IDs
     runs-on: ubuntu-latest
+
     steps:
-      - name: Greeting
-        run: echo "This is a dummy build to placate GitHub."
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ vars.GITHUB_REF }}
+
+      - name: Assume AWS Promotion Role
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region:  us-west-2
+          role-to-assume: "arn:aws:iam::126027368216:role/tf-teleport-ami-gha-role"
+          role-session-name: "gha-update-ami-ids-${{ github.run_number }}"
+
+      - name: Update AMI IDs
+        run: |
+          TELEPORT_VERSION=${{ inputs.version }} make -C assets/aws update-ami-ids-terraform
+
+      - name: Create pull request
+        if: steps.get_release.outputs.release == 'latest' || inputs.version != ''
+        uses: peter-evans/create-pull-request@v4
+        with:
+          token: ${{ github.token }}
+          commit-message: "[auto] Update AMI IDs for ${{ inputs.version }}"
+          title: "[auto] Update AMI IDs for ${{ inputs.version }}"
+          committer: GitHub <noreply@github.com>
+          branch: ami-auto-branch
+          branch-suffix: timestamp
+          delete-branch: true
+          labels: automated, terraform
