@@ -25,7 +25,21 @@ export default {
 };
 
 export const Story = () => {
-  const keywords = ['Aliquam', 'olor', 'psu', '👩', '👨‍👨‍👦‍👦', '🥑'];
+  const keywords = [
+    'Aliquam',
+    'olor',
+    // Overlapping matches: 'lor' and 'rem' both match 'lorem', so the whole word should get
+    // highlighted.
+    'lor',
+    'rem',
+    // https://www.contentful.com/blog/unicode-javascript-and-the-emoji-family/
+    // Unfortunately, the library we use for highlighting seems to match only the first emoji of
+    // such group, e.g. searching for the emoji of a son won't match a group in which the son is
+    // present.
+    '👩',
+    '👨‍👨‍👦‍👦',
+    '🥑',
+  ];
   return (
     <Flex
       flexDirection="column"
