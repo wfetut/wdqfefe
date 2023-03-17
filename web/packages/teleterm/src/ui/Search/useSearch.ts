@@ -19,9 +19,12 @@ import { useCallback } from 'react';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   LabelMatch,
+  ResourceMatch,
   SearchResult,
 } from 'teleterm/ui/services/resources';
 import { assertUnreachable } from 'teleterm/ui/utils';
+
+import type * as types from 'teleterm/services/tshd/types';
 
 /**
  * useSearch returns a function which searches for the given list of space-separated keywords across
@@ -73,6 +76,7 @@ function populateMatches(
   terms: string[]
 ): SearchResult {
   const labelMatches: LabelMatch[] = [];
+  const resourceMatches = [];
 
   terms.forEach(term => {
     searchResult.resource.labelsList.forEach(label => {
@@ -97,9 +101,65 @@ function populateMatches(
         });
       }
     });
+
+    switch (searchResult.kind) {
+      case 'server': {
+        // TODO(ravicious): Handle "tunnel" as address.
+        ['name' as const, 'hostname' as const, 'addr' as const].forEach(
+          field => {
+            const index = searchResult.resource[field]
+              .toLowerCase()
+              .indexOf(term);
+
+            if (index >= 0) {
+              (resourceMatches as ResourceMatch<types.Server>[]).push({
+                field,
+                searchTerm: term,
+              });
+            }
+          }
+        );
+        break;
+      }
+      case 'database': {
+        // TODO(ravicious): Handle "cloud" as type.
+        [
+          'name' as const,
+          'desc' as const,
+          'protocol' as const,
+          'type' as const,
+        ].forEach(field => {
+          const index = searchResult.resource[field]
+            .toLowerCase()
+            .indexOf(term);
+
+          if (index >= 0) {
+            (resourceMatches as ResourceMatch<types.Database>[]).push({
+              field,
+              searchTerm: term,
+            });
+          }
+        });
+        break;
+      }
+      case 'kube': {
+        const index = searchResult.resource.name.toLowerCase().indexOf(term);
+
+        if (index >= 0) {
+          (resourceMatches as ResourceMatch<types.Database>[]).push({
+            field: 'name',
+            searchTerm: term,
+          });
+        }
+        break;
+      }
+      default: {
+        assertUnreachable(searchResult);
+      }
+    }
   });
 
-  return { ...searchResult, labelMatches };
+  return { ...searchResult, labelMatches, resourceMatches };
 }
 
 function calculateScore(searchResult: SearchResult): SearchResult {
@@ -130,6 +190,14 @@ function calculateScore(searchResult: SearchResult): SearchResult {
         assertUnreachable(match.kind);
       }
     }
+  }
+
+  for (const match of searchResult.resourceMatches) {
+    const { searchTerm } = match;
+
+    const field = searchResult.resource[match.field];
+    const score = Math.floor((searchTerm.length / field.length) * 100 * 2);
+    totalScore += score;
   }
 
   return { ...searchResult, score: totalScore };
