@@ -72,6 +72,8 @@ function populateMatches(
 
   terms.forEach(term => {
     searchResult.resource.labelsList.forEach(label => {
+      // indexOf is faster on Chrome than includes or regex.
+      // https://jsbench.me/b7lf9kvrux/1
       const nameIndex = label.name.toLowerCase().indexOf(term);
       const valueIndex = label.value.toLowerCase().indexOf(term);
 
@@ -79,7 +81,6 @@ function populateMatches(
         labelMatches.push({
           matchedValue: { kind: 'label-name', labelName: label.name },
           searchTerm: term,
-          index: nameIndex,
         });
       }
 
@@ -87,7 +88,6 @@ function populateMatches(
         labelMatches.push({
           matchedValue: { kind: 'label-value', labelName: label.name },
           searchTerm: term,
-          index: valueIndex,
         });
       }
     });

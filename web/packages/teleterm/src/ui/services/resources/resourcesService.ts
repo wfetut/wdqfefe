@@ -134,7 +134,6 @@ export type LabelMatch = {
     | { kind: 'label-name'; labelName: string }
     | { kind: 'label-value'; labelName: string };
   searchTerm: string;
-  index: number;
 };
 
 // TODO: Limit <Resource> to only searchable resources.
@@ -143,5 +142,4 @@ export type ResourceMatch<Resource> = {
   // TODO: Limit this to only searchable fields.
   matchedValue: { kind: 'field'; field: keyof Resource };
   searchTerm: string;
-  index: number;
 };
