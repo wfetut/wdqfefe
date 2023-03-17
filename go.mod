@@ -22,6 +22,8 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription v1.1.0
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1
+	github.com/ClickHouse/ch-go v0.56.0
+	github.com/ClickHouse/clickhouse-go/v2 v2.6.5
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/ThalesIgnite/crypto11 v1.2.5
@@ -206,9 +208,11 @@ require (
 	github.com/BurntSushi/toml v1.1.0 // indirect
 	github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
+	github.com/alecthomas/assert v1.0.0 // indirect
+	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
-	github.com/andybalholm/brotli v1.0.4 // indirect
+	github.com/andybalholm/brotli v1.0.5 // indirect
 	github.com/apache/arrow/go/arrow v0.0.0-20200730104253-651201b0f516 // indirect
 	github.com/apache/arrow/go/v12 v12.0.0 // indirect
 	github.com/apache/thrift v0.16.0 // indirect
@@ -240,6 +244,7 @@ require (
 	github.com/daviddengcn/go-colortext v1.0.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dlclark/regexp2 v1.9.0 // indirect
+	github.com/dmarkham/enumer v1.5.8 // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/dvsekhvalnov/jose2go v1.5.0 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.2.0 // indirect
@@ -255,6 +260,8 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.4 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
+	github.com/go-faster/city v1.0.1 // indirect
+	github.com/go-faster/errors v0.6.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.2.4 // indirect
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
@@ -279,6 +286,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
+	github.com/gravitational/kingpin v2.1.10+incompatible
 	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.0.0-rc.2.0.20220308023801-e4a6915ea237 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.11.3 // indirect
@@ -331,7 +339,9 @@ require (
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
+	github.com/pascaldekloe/name v1.0.1 // indirect
 	github.com/patrickmn/go-cache v0.0.0-20180815053127-5633e0862627 // indirect
+	github.com/paulmach/orb v0.8.0 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/pingcap/errors v0.11.5-0.20201126102027-b0a155152ca3 // indirect
@@ -346,7 +356,10 @@ require (
 	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
+	github.com/sashabaranov/go-openai v1.9.4
+	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
+	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
@@ -367,8 +380,8 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.16.0 // indirect
 	go.opentelemetry.io/otel/metric v1.16.0 // indirect
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
-	go.uber.org/atomic v1.9.0 // indirect
-	go.uber.org/multierr v1.8.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/tools v0.9.1 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect

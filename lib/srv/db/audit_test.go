@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 )
@@ -207,6 +208,40 @@ func TestAuditSQLServer(t *testing.T) {
 
 		err = conn.Ping(context.Background())
 		require.NoError(t, err)
+		requireEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+
+		require.NoError(t, conn.Close())
+		requireEvent(t, testCtx, libevents.DatabaseSessionEndCode)
+	})
+}
+
+// TestAuditClickHouseHTTP verifies proper audit events are emitted for Clickhouse HTTP connections.
+func TestAuditClickHouseHTTP(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t, withClickhouseHTTP(defaults.ProtocolClickHouseHTTP))
+	go testCtx.startHandlingConnections()
+
+	testCtx.createUserAndRole(ctx, t, "admin", "admin", []string{"admin"}, []string{types.Wildcard})
+
+	t.Run("access denied", func(t *testing.T) {
+		_, _, err := testCtx.clickhouseHTTPClient(ctx, "admin", defaults.ProtocolClickHouseHTTP, "invalid", "")
+		require.Error(t, err)
+		waitForEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
+	})
+
+	t.Run("successful flow", func(t *testing.T) {
+		conn, proxy, err := testCtx.clickhouseHTTPClient(ctx, "admin", defaults.ProtocolClickHouseHTTP, "admin", "")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, proxy.Close())
+		})
+
+		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+		// Select timezone.
+		requireEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+		// Select version.
+		requireEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+		// Ping call.
 		requireEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
 
 		require.NoError(t, conn.Close())

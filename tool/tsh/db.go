@@ -276,8 +276,7 @@ func onDatabaseLogin(cf *CLIConf) error {
 		"name": dbInfo.ServiceName,
 	}
 
-	// DynamoDB does not support a connect command, so don't try to print one.
-	if database.GetProtocol() != defaults.ProtocolDynamoDB {
+	if protocolSupportsInteractiveMode(database.GetProtocol()) {
 		templateData["connectCommand"] = utils.Color(utils.Yellow, formatDatabaseConnectCommand(cf.SiteName, dbInfo.RouteToDatabase))
 	}
 
@@ -288,6 +287,18 @@ func onDatabaseLogin(cf *CLIConf) error {
 		templateData["configCommand"] = utils.Color(utils.Yellow, formatDatabaseConfigCommand(cf.SiteName, dbInfo.RouteToDatabase))
 	}
 	return trace.Wrap(dbConnectTemplate.Execute(cf.Stdout(), templateData))
+}
+
+// protocolSupportsInteractiveMode checks if DB Protocol integration support
+// client interactive mode that is needed for the tsh db connect flow.
+func protocolSupportsInteractiveMode(dbProtocol string) bool {
+	switch dbProtocol {
+	case defaults.ProtocolDynamoDB:
+		return false
+	case defaults.ProtocolClickHouseHTTP:
+		return false
+	}
+	return true
 }
 
 func databaseLogin(cf *CLIConf, tc *client.TeleportClient, dbInfo *databaseInfo) error {
@@ -1253,7 +1264,8 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route tlsca.RouteToDa
 		defaults.ProtocolDynamoDB,
 		defaults.ProtocolSQLServer,
 		defaults.ProtocolCassandra,
-		defaults.ProtocolOracle:
+		defaults.ProtocolOracle,
+		defaults.ProtocolClickHouse:
 
 		// Some protocols only work in the local tunnel mode.
 		out.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))

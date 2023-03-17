@@ -22,12 +22,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/ClickHouse/ch-go"
 	cqlclient "github.com/datastax/go-cassandra-native-protocol/client"
 	elastic "github.com/elastic/go-elasticsearch/v8"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
@@ -67,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
+	"github.com/gravitational/teleport/lib/srv/db/clickhouse"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
@@ -1276,6 +1279,9 @@ type testContext struct {
 	opensearch map[string]testOpenSearch
 	// dynamodb is a collection of DynamoDB databases the test uses.
 	dynamodb map[string]testDynamoDB
+	// clickHouse is a collection of ClickHouse databases the test uses.
+	clickHouse map[string]testClickHouse
+
 	// clock to override clock in tests.
 	clock clockwork.FakeClock
 }
@@ -1331,6 +1337,13 @@ type testSnowflake struct {
 type testCassandra struct {
 	// db is the test Cassandra database server.
 	db *cassandra.TestServer
+	// resource is the resource representing this Cassandra database.
+	resource types.Database
+}
+
+type testClickHouse struct {
+	// db is the test Clickhouse database server.
+	db *clickhouse.TestServer
 	// resource is the resource representing this Cassandra database.
 	resource types.Database
 }
@@ -1612,6 +1625,62 @@ func (c *testContext) sqlServerClient(ctx context.Context, teleportUser, dbServi
 		return nil, nil, trace.Wrap(err)
 	}
 
+	return client, proxy, nil
+}
+
+// clickhouseServerClient connects to the specified ClickHouse Server address.
+func (c *testContext) clickhouseNativeClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*ch.Client, *alpnproxy.LocalProxy, error) {
+	route := tlsca.RouteToDatabase{
+		ServiceName: dbService,
+		Protocol:    defaults.ProtocolClickHouse,
+		Username:    dbUser,
+		Database:    dbName,
+	}
+
+	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	client, err := clickhouse.MakeNativeTestClient(ctx, common.TestClientConfig{
+		AuthClient:      c.authClient,
+		AuthServer:      c.authServer,
+		Address:         proxy.GetAddr(),
+		Cluster:         c.clusterName,
+		Username:        teleportUser,
+		RouteToDatabase: route,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return client, proxy, nil
+}
+
+// clickhouseServerClient connects to the specified ClickHouse Server address.
+func (c *testContext) clickhouseHTTPClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*sql.DB, *alpnproxy.LocalProxy, error) {
+	route := tlsca.RouteToDatabase{
+		ServiceName: dbService,
+		Protocol:    defaults.ProtocolClickHouseHTTP,
+		Username:    dbUser,
+		Database:    dbName,
+	}
+
+	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	client, err := clickhouse.MakeDBTestClient(ctx, common.TestClientConfig{
+		AuthClient:      c.authClient,
+		AuthServer:      c.authServer,
+		Address:         proxy.GetAddr(),
+		Cluster:         c.clusterName,
+		Username:        teleportUser,
+		RouteToDatabase: route,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	return client, proxy, nil
 }
 
@@ -1901,6 +1970,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		opensearch:    make(map[string]testOpenSearch),
 		cassandra:     make(map[string]testCassandra),
 		dynamodb:      make(map[string]testDynamoDB),
+		clickHouse:    make(map[string]testClickHouse),
 		clock:         clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })
@@ -2193,6 +2263,94 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 	}
 
 	return server
+}
+
+// TestAccessClickHouse verifies access scenarios to a ClickHouse database.
+func TestAccessClickHouse(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t,
+		withClickhouseHTTP(defaults.ProtocolClickHouseHTTP),
+		withClickhouseNative(defaults.ProtocolClickHouse),
+	)
+	go testCtx.startHandlingConnections()
+
+	tests := []struct {
+		desc         string
+		teleportUser string
+		teleportRole string
+		allowDbUsers []string
+		dbUser       string
+		err          string
+	}{
+		{
+			desc:         "has access to all database users",
+			teleportUser: "alice",
+			teleportRole: "admin",
+			allowDbUsers: []string{types.Wildcard},
+			dbUser:       "root",
+		},
+		{
+			desc:         "has access to nothing",
+			teleportUser: "alice",
+			teleportRole: "admin",
+			allowDbUsers: []string{},
+			dbUser:       "root",
+			err:          "access to db denied",
+		},
+		{
+			desc:         "access allowed to specific user",
+			teleportUser: "alice",
+			teleportRole: "admin",
+			allowDbUsers: []string{"alice"},
+			dbUser:       "alice",
+		},
+		{
+			desc:         "access denied to specific user",
+			teleportUser: "alice",
+			teleportRole: "admin",
+			allowDbUsers: []string{"alice"},
+			dbUser:       "root",
+			err:          "access to db denied",
+		},
+	}
+
+	type connectFunc func(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (io.Closer, io.Closer, error)
+	clickhouseClientFn := func(protocol string) connectFunc {
+		if protocol == defaults.ProtocolClickHouseHTTP {
+			return func(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (io.Closer, io.Closer, error) {
+				return testCtx.clickhouseHTTPClient(ctx, teleportUser, protocol, dbUser, "master")
+			}
+		}
+		return func(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (io.Closer, io.Closer, error) {
+			return testCtx.clickhouseNativeClient(ctx, teleportUser, protocol, dbUser, "master")
+		}
+	}
+
+	for _, test := range tests {
+		for _, protocol := range []string{defaults.ProtocolClickHouse, defaults.ProtocolClickHouseHTTP} {
+			t.Run(fmt.Sprintf("%s-%s", protocol, test.desc), func(t *testing.T) {
+				// Create user/role with the requested permissions.
+				testCtx.createUserAndRole(ctx, t, test.teleportUser, test.teleportRole, test.allowDbUsers, []string{types.Wildcard})
+
+				conn, proxy, err := clickhouseClientFn(protocol)(ctx, test.teleportUser, protocol, test.dbUser, "master")
+				if test.err != "" {
+					require.Error(t, err)
+					// Error message propagation is only implemented for HTTP Clickhouse protocol.
+					if protocol != defaults.ProtocolClickHouse {
+						require.Contains(t, err.Error(), test.err)
+					}
+					return
+				}
+				require.NoError(t, err)
+
+				// Close connection and proxy.
+				t.Cleanup(func() {
+					require.NoError(t, conn.Close())
+					require.NoError(t, proxy.Close())
+				})
+			})
+		}
+	}
 }
 
 type withDatabaseOption func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database
@@ -2602,6 +2760,56 @@ func withSQLServer(name string) withDatabaseOption {
 		require.NoError(t, err)
 		testCtx.sqlServer[name] = testSQLServer{
 			db:       sqlServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withClickhouseNative(name string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		server, err := clickhouse.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		}, clickhouse.WithClickhouseNativeProtocol())
+		require.NoError(t, err)
+		go server.Serve()
+		t.Cleanup(func() {
+			server.Close()
+		})
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolClickHouse,
+			URI:      fmt.Sprintf("clickhouse://%s", net.JoinHostPort("localhost", server.Port())),
+		})
+		require.NoError(t, err)
+		testCtx.clickHouse[name] = testClickHouse{
+			db:       server,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withClickhouseHTTP(name string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		server, err := clickhouse.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		}, clickhouse.WithClickhouseHTTPProtocol())
+		require.NoError(t, err)
+		go server.Serve()
+		t.Cleanup(func() { server.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolClickHouseHTTP,
+			URI:      fmt.Sprintf("https://%s", net.JoinHostPort("localhost", server.Port())),
+		})
+		require.NoError(t, err)
+		testCtx.clickHouse[name] = testClickHouse{
+			db:       server,
 			resource: database,
 		}
 		return database

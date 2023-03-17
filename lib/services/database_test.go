@@ -284,6 +284,38 @@ func TestValidateDatabase(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			inputName: "valid-clickhouse-uri-http-protocol",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolClickHouseHTTP,
+				URI:      "https://localhost:1234",
+			},
+			expectError: false,
+		},
+		{
+			inputName: "inlaid-clickhouse-uri-http-protocol",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolClickHouseHTTP,
+				URI:      "clickhouse://localhost:1234",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "valid-clickhouse-uri-native-protocol",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolClickHouse,
+				URI:      "https://localhost:1234",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "inlaid-clickhouse-uri-native-protocol",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolClickHouse,
+				URI:      "clickhouse://localhost:1234",
+			},
+			expectError: false,
+		},
 	}
 
 	for _, test := range tests {
