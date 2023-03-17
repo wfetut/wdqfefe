@@ -130,9 +130,8 @@ export type SearchResult =
   | SearchResultKube;
 
 export type LabelMatch = {
-  matchedValue:
-    | { kind: 'label-name'; labelName: string }
-    | { kind: 'label-value'; labelName: string };
+  kind: 'label-name' | 'label-value';
+  labelName: string;
   searchTerm: string;
 };
 
@@ -140,6 +139,6 @@ export type LabelMatch = {
 // type SearchableResources = types.Server | types.Database | types.Kube;
 export type ResourceMatch<Resource> = {
   // TODO: Limit this to only searchable fields.
-  matchedValue: { kind: 'field'; field: keyof Resource };
+  field: keyof Resource;
   searchTerm: string;
 };

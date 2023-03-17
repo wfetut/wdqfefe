@@ -17,7 +17,11 @@
 import { useCallback } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { SearchResult } from 'teleterm/ui/services/resources';
+import {
+  LabelMatch,
+  SearchResult,
+} from 'teleterm/ui/services/resources';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 /**
  * useSearch returns a function which searches for the given list of space-separated keywords across
@@ -68,7 +72,7 @@ function populateMatches(
   searchResult: SearchResult,
   terms: string[]
 ): SearchResult {
-  const labelMatches = [];
+  const labelMatches: LabelMatch[] = [];
 
   terms.forEach(term => {
     searchResult.resource.labelsList.forEach(label => {
@@ -79,14 +83,16 @@ function populateMatches(
 
       if (nameIndex >= 0) {
         labelMatches.push({
-          matchedValue: { kind: 'label-name', labelName: label.name },
+          kind: 'label-name',
+          labelName: label.name,
           searchTerm: term,
         });
       }
 
       if (valueIndex >= 0) {
         labelMatches.push({
-          matchedValue: { kind: 'label-value', labelName: label.name },
+          kind: 'label-value',
+          labelName: label.name,
           searchTerm: term,
         });
       }
@@ -100,27 +106,28 @@ function calculateScore(searchResult: SearchResult): SearchResult {
   let totalScore = 0;
 
   for (const match of searchResult.labelMatches) {
-    const { matchedValue, searchTerm } = match;
-    switch (matchedValue.kind) {
+    const { searchTerm } = match;
+    switch (match.kind) {
       case 'label-name': {
         const label = searchResult.resource.labelsList.find(
-          label => label.name === matchedValue.labelName
+          label => label.name === match.labelName
         );
         const score = Math.floor((searchTerm.length / label.name.length) * 100);
-        console.log('score', score, match);
         totalScore += score;
-        continue;
+        break;
       }
       case 'label-value': {
         const label = searchResult.resource.labelsList.find(
-          label => label.name === matchedValue.labelName
+          label => label.name === match.labelName
         );
         const score = Math.floor(
           (searchTerm.length / label.value.length) * 100
         );
-        console.log('score', score, match);
         totalScore += score;
-        continue;
+        break;
+      }
+      default: {
+        assertUnreachable(match.kind);
       }
     }
   }
