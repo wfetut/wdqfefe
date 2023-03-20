@@ -62,7 +62,23 @@ export function sortResults(
   const terms = search
     .split(' ')
     .filter(Boolean)
-    .map(term => term.toLowerCase());
+    // We have to match the implementation of the search algorithm as closely as possible. It uses
+    // strings.ToLower from Go which unfortunately doesn't have a good equivalent in JavaScript.
+    //
+    // strings.ToLower uses some kind of a universal map for lowercasing non-ASCII characters such
+    // as the Turkish İ. JavaScript doesn't have such a function, possibly because it's not possible
+    // to have universal case mapping. [1]
+    //
+    // The closest thing that JS has is toLocaleLowerCase. Since we don't know what locale the
+    // search string uses, we let the runtime figure it out based on the system settings.
+    // The assumption is that if someone has a resource with e.g. Turkish characters, their system
+    // is set to the appropriate locale and the search results will be properly scored.
+    //
+    // Highlighting will have problems with some non-ASCII characters anyway because the library we
+    // use for highlighting uses a regex with the i flag underneath.
+    //
+    // [1] https://web.archive.org/web/20190113111936/https://blogs.msdn.microsoft.com/oldnewthing/20030905-00/?p=42643
+    .map(term => term.toLocaleLowerCase());
 
   // Highest score first.
   // TODO: Add displayed name as the tie breaker.
@@ -82,8 +98,8 @@ function populateMatches(
     searchResult.resource.labelsList.forEach(label => {
       // indexOf is faster on Chrome than includes or regex.
       // https://jsbench.me/b7lf9kvrux/1
-      const nameIndex = label.name.toLowerCase().indexOf(term);
-      const valueIndex = label.value.toLowerCase().indexOf(term);
+      const nameIndex = label.name.toLocaleLowerCase().indexOf(term);
+      const valueIndex = label.value.toLocaleLowerCase().indexOf(term);
 
       if (nameIndex >= 0) {
         labelMatches.push({
@@ -108,7 +124,7 @@ function populateMatches(
         ['name' as const, 'hostname' as const, 'addr' as const].forEach(
           field => {
             const index = searchResult.resource[field]
-              .toLowerCase()
+              .toLocaleLowerCase()
               .indexOf(term);
 
             if (index >= 0) {
@@ -130,7 +146,7 @@ function populateMatches(
           'type' as const,
         ].forEach(field => {
           const index = searchResult.resource[field]
-            .toLowerCase()
+            .toLocaleLowerCase()
             .indexOf(term);
 
           if (index >= 0) {
@@ -143,7 +159,9 @@ function populateMatches(
         break;
       }
       case 'kube': {
-        const index = searchResult.resource.name.toLowerCase().indexOf(term);
+        const index = searchResult.resource.name
+          .toLocaleLowerCase()
+          .indexOf(term);
 
         if (index >= 0) {
           (resourceMatches as ResourceMatch<types.Database>[]).push({

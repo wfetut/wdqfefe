@@ -22,6 +22,10 @@ import { findAll } from 'highlight-words-core';
  *
  * It is a simplified version of the component provided by the react-highlight-words package.
  * It can be extended with the features provided by highlight-words-core (e.g. case sensitivity).
+ *
+ * It doesn't handle Unicode super well because highlight-words-core uses a regex with the i flag
+ * underneath. This means that the component will not always ignore differences in case, for example
+ * when matching a string with the Turkish İ.
  */
 export function Highlight(props: { text: string; keywords: string[] }) {
   const chunks = findAll({
