@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-import { useCallback } from 'react';
-
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   LabelMatch,
   ResourceMatch,
@@ -33,26 +30,19 @@ import type * as types from 'teleterm/services/tshd/types';
  * It does so by issuing a separate request for each resource type to each cluster. It fails if any
  * of those requests fail.
  */
-export function useSearch() {
-  const { clustersService, resourcesService } = useAppContext();
-  clustersService.useState();
-
-  return useCallback(
-    async (search: string) => {
-      const connectedClusters = clustersService
-        .getClusters()
-        .filter(c => c.connected);
-      const searchPromises = connectedClusters.map(cluster =>
-        resourcesService.searchResources(cluster.uri, search)
-      );
-
-      return {
-        results: (await Promise.all(searchPromises)).flat(),
-        search,
-      };
-    },
-    [clustersService, resourcesService]
+export async function searchResources(
+  clustersService,
+  resourcesService,
+  search: string
+): Promise<SearchResult[]> {
+  const connectedClusters = clustersService
+    .getClusters()
+    .filter(c => c.connected);
+  const searchPromises = connectedClusters.map(cluster =>
+    resourcesService.searchResources(cluster.uri, search)
   );
+
+  return sortResults((await Promise.all(searchPromises)).flat(), search);
 }
 
 export function sortResults(

@@ -18,6 +18,7 @@ import { IAppContext } from 'teleterm/ui/types';
 import { ClusterUri, KubeUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { TrackedKubeConnection } from 'teleterm/ui/services/connectionTracker';
 import { Platform } from 'teleterm/mainProcess/types';
+import { SearchBarAction } from 'teleterm/ui/services/searchBar';
 
 const commands = {
   // For handling "tsh ssh" executed from the command bar.
@@ -194,6 +195,35 @@ export class CommandLauncher {
 
   executeCommand<T extends CommandName>(name: T, args: CommandArgs<T>) {
     commands[name].run(this.appContext, args as any);
+    return undefined;
+  }
+
+  // temporary
+  executeSearchAction(action: SearchBarAction) {
+    switch (action.kind) {
+      case 'action.kube-connect': {
+        this.executeCommand('kube-connect', {
+          kubeUri: action.searchResult.resource.uri,
+        });
+        break;
+      }
+      case 'action.ssh-connect': {
+        this.appContext.searchBarService.show(
+          this.appContext.searchBarService.getSshLoginPicker(
+            action.searchResult.resource
+          )
+        );
+        break;
+      }
+      case 'action.db-connect': {
+        this.appContext.searchBarService.show(
+          this.appContext.searchBarService.getDbUsernamePicker(
+            action.searchResult.resource
+          )
+        );
+        break;
+      }
+    }
   }
 
   getAutocompleteCommands() {

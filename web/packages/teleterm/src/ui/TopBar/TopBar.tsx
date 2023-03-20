@@ -18,7 +18,7 @@ import React from 'react';
 
 import styled from 'styled-components';
 
-import QuickInput from '../QuickInput';
+import { SearchBar } from '../SearchBar';
 
 import { Connections } from './Connections';
 import { Clusters } from './Clusters';
@@ -33,7 +33,7 @@ export function TopBar() {
       </JustifyLeft>
       <CentralContainer>
         <Clusters />
-        <QuickInput />
+        <SearchBar />
       </CentralContainer>
       <JustifyRight>
         <NavigationMenu />

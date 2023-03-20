@@ -30,6 +30,7 @@ import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ReloginService } from 'teleterm/services/relogin';
 import { TshdNotificationsService } from 'teleterm/services/tshdNotifications';
 import { UsageService } from 'teleterm/ui/services/usage';
+import { SearchBarService } from 'teleterm/ui/services/searchBar';
 
 export interface IAppContext {
   clustersService: ClustersService;
@@ -38,6 +39,7 @@ export interface IAppContext {
   terminalsService: TerminalsService;
   keyboardShortcutsService: KeyboardShortcutsService;
   quickInputService: QuickInputService;
+  searchBarService: SearchBarService;
   statePersistenceService: StatePersistenceService;
   workspacesService: WorkspacesService;
   mainProcessClient: MainProcessClient;
