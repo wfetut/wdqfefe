@@ -79,12 +79,34 @@ export function sortResults(
     //
     // [1] https://web.archive.org/web/20190113111936/https://blogs.msdn.microsoft.com/oldnewthing/20030905-00/?p=42643
     .map(term => term.toLocaleLowerCase());
+  const collator = new Intl.Collator();
 
-  // Highest score first.
-  // TODO: Add displayed name as the tie breaker.
   return searchResults
     .map(searchResult => calculateScore(populateMatches(searchResult, terms)))
-    .sort((a, b) => b.score - a.score);
+    .sort(
+      (a, b) =>
+        // Highest score first.
+        b.score - a.score ||
+        collator.compare(displayedResourceName(a), displayedResourceName(b))
+    );
+}
+
+/**
+ * displayedResourceName returns the main identifier for the given resource displayed in the UI.
+ */
+// TODO(ravicious): This function should probably live closer to SearchResult. Perhaps SearchResult
+// should be defined here and ResourcesService would only return individual resources?
+function displayedResourceName(searchResult: SearchResult): string {
+  switch (searchResult.kind) {
+    case 'server':
+      return searchResult.resource.hostname;
+    case 'database':
+    case 'kube':
+      return searchResult.resource.name;
+    default: {
+      assertUnreachable(searchResult);
+    }
+  }
 }
 
 function populateMatches(
