@@ -90,7 +90,7 @@ export function useSearchBar() {
     setActiveItemIndex,
     onInputValueChange,
     placeholder: picker.getPlaceholder(),
-    onHide: searchBarService.hide,
+    onHide: searchBarService.revertDefaultAndHide,
     onShow: searchBarService.show,
     keyboardShortcut: getAccelerator(OPEN_COMMAND_BAR_SHORTCUT_ACTION),
   };
