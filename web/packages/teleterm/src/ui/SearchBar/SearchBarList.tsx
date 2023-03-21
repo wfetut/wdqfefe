@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import { Box, Text, Flex, Label as DesignLabel } from 'design';
 import * as icons from 'design/Icon';
@@ -34,13 +34,22 @@ import type * as tsh from 'teleterm/services/tshd/types';
 export const SearchBarList = React.forwardRef<HTMLElement, Props>(
   (props, ref) => {
     const { items, activeItem } = props;
+    const activeItemRef = useRef<HTMLDivElement>();
+
+    useEffect(() => {
+      // `false` - bottom of the element will be aligned to the bottom of the visible area of the scrollable ancestor
+      activeItemRef.current?.scrollIntoView(false);
+    }, [activeItem]);
 
     const $items = items.map((r, index) => {
       const Cmpt = ComponentMap[r.kind] || UnknownItem;
+      const isActive = index === activeItem;
+
       return (
         <StyledItem
           data-attr={index}
-          $active={index === activeItem}
+          ref={isActive ? activeItemRef : null}
+          $active={isActive}
           key={`${index}`}
         >
           <Cmpt item={r} />

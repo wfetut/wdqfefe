@@ -34,9 +34,11 @@ export function useSearchBar() {
   const { picker, visible } = searchBarService.useState();
   const inputRef = useRef<HTMLInputElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
-  const [attempt, fetch] = useAsync(
-    async () => await picker.onFilter(inputRef.current?.value || '')
-  );
+  const [attempt, fetch] = useAsync(async () => {
+    const items = await picker.onFilter(inputRef.current?.value || '');
+    setActiveItemIndex(0);
+    return items;
+  });
   const { getAccelerator } = useKeyboardShortcutFormatters();
 
   // const debouncedFetch = useMemo(() => debounce(fetch, 150), [picker]);
