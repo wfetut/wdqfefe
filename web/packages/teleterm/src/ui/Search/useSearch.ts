@@ -78,7 +78,7 @@ export function sortResults(
       (a, b) =>
         // Highest score first.
         b.score - a.score ||
-        collator.compare(displayedResourceName(a), displayedResourceName(b))
+        collator.compare(mainResourceName(a), mainResourceName(b))
     );
 }
 
@@ -87,18 +87,17 @@ export function sortResults(
  */
 // TODO(ravicious): This function should probably live closer to SearchResult. Perhaps SearchResult
 // should be defined here and ResourcesService would only return individual resources?
-function displayedResourceName(searchResult: SearchResult): string {
-  switch (searchResult.kind) {
-    case 'server':
-      return searchResult.resource.hostname;
-    case 'database':
-    case 'kube':
-      return searchResult.resource.name;
-    default: {
-      assertUnreachable(searchResult);
-    }
-  }
+function mainResourceName(searchResult: SearchResult): string {
+  return searchResult.resource[mainResourceField[searchResult.kind]];
 }
+
+const mainResourceField: Readonly<{
+  [Kind in SearchResult['kind']]: keyof SearchResultResource<Kind>;
+}> = {
+  server: 'hostname',
+  database: 'name',
+  kube: 'name',
+};
 
 // The usage of Exclude here is a workaround to make sure that the fields in the array point only to
 // fields of string type.
@@ -195,9 +194,11 @@ function calculateScore(searchResult: SearchResult): SearchResult {
 
   for (const match of searchResult.resourceMatches) {
     const { searchTerm } = match;
-
     const field = searchResult.resource[match.field];
-    const score = Math.floor((searchTerm.length / field.length) * 100 * 2);
+    const isMainField = mainResourceField[searchResult.kind] === match.field;
+    const weight = isMainField ? 4 : 2;
+
+    const score = Math.floor((searchTerm.length / field.length) * 100 * weight);
     totalScore += score;
   }
 
