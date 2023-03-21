@@ -31,6 +31,7 @@ import { ReloginService } from 'teleterm/services/relogin';
 import { TshdNotificationsService } from 'teleterm/services/tshdNotifications';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { SearchBarService } from 'teleterm/ui/services/searchBar';
+import { ConfigService } from 'teleterm/services/config';
 
 export interface IAppContext {
   clustersService: ClustersService;
@@ -51,6 +52,7 @@ export interface IAppContext {
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
   usageService: UsageService;
+  configService: ConfigService;
 
   init(): Promise<void>;
 }
