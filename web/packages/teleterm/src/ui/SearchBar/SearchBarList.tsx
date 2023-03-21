@@ -52,7 +52,8 @@ export const SearchBarList = React.forwardRef<HTMLElement, Props>(
       const el = e.target;
       if (el instanceof Element) {
         const itemEl = el.closest('[data-attr]');
-        props.onPick(parseInt(itemEl.getAttribute('data-attr')));
+        const index = parseInt(itemEl.getAttribute('data-attr'));
+        props.onPick(items[index]);
       }
     }
 
@@ -122,7 +123,7 @@ const StyledGlobalSearchResults = styled.div(({ theme }) => {
 type Props = {
   items: types.SearchBarAction[];
   activeItem: number;
-  onPick(index: number): void;
+  onPick(item: types.SearchBarAction): void;
 };
 
 const ComponentMap: Record<

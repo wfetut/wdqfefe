@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useAsync } from 'shared/hooks/useAsync';
 
@@ -24,6 +24,7 @@ import {
   useKeyboardShortcuts,
 } from 'teleterm/ui/services/keyboardShortcuts';
 import { KeyboardShortcutAction } from 'teleterm/services/config';
+import { SearchBarAction } from 'teleterm/ui/services/searchBar';
 
 const OPEN_COMMAND_BAR_SHORTCUT_ACTION: KeyboardShortcutAction =
   'openCommandBar';
@@ -31,21 +32,24 @@ const OPEN_COMMAND_BAR_SHORTCUT_ACTION: KeyboardShortcutAction =
 export function useSearchBar() {
   const { searchBarService } = useAppContext();
   const { picker, visible } = searchBarService.useState();
-  const [inputValue, setInputValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
   const [attempt, fetch] = useAsync(
-    async () => await picker.onFilter(inputValue)
+    async () => await picker.onFilter(inputRef.current?.value || '')
   );
   const { getAccelerator } = useKeyboardShortcutFormatters();
 
-  useEffect(() => {
+  // const debouncedFetch = useMemo(() => debounce(fetch, 150), [picker]);
+
+  const onInputValueChange = () => {
     //TODO: add debounce
     fetch();
-  }, [inputValue, picker]);
+  };
 
   useEffect(() => {
     setActiveItemIndex(0);
-    setInputValue('');
+    clearInputValue();
+    fetch();
   }, [picker]);
 
   useKeyboardShortcuts({
@@ -60,16 +64,19 @@ export function useSearchBar() {
     }
   };
 
-  const onPickItem = (index: number) => {
+  const onPickItem = (item: SearchBarAction) => {
     searchBarService.revertDefaultAndHide();
-    const item = attempt.status === 'success' && attempt.data[index];
-    if (item) {
-      picker.onPick(item);
-    }
+    picker.onPick(item);
   };
 
   const onBack = () => {
     searchBarService.goBack();
+  };
+
+  const clearInputValue = () => {
+    if (inputRef.current) {
+      inputRef.current.value = '';
+    }
   };
 
   return {
@@ -78,10 +85,10 @@ export function useSearchBar() {
     attempt,
     onFocus,
     onBack,
+    inputRef,
     onPickItem,
     setActiveItemIndex,
-    inputValue,
-    setInputValue,
+    onInputValueChange,
     placeholder: picker.getPlaceholder(),
     onHide: searchBarService.hide,
     onShow: searchBarService.show,

@@ -31,21 +31,20 @@ export function SearchBar() {
     onPickItem,
     setActiveItemIndex,
     onFocus,
-    inputValue,
-    setInputValue,
+    onInputValueChange,
+    inputRef,
     onHide,
     onShow,
     placeholder,
     onBack,
     keyboardShortcut,
   } = useSearchBar();
-  const refInput = useRef<HTMLInputElement>();
   const refList = useRef<HTMLElement>();
   const refContainer = useRef<HTMLElement>();
 
   useEffect(() => {
     if (visible) {
-      refInput.current.focus();
+      inputRef.current.focus();
     }
   }, [visible]);
 
@@ -62,11 +61,11 @@ export function SearchBar() {
 
   function handleOnBlur(e: React.FocusEvent) {
     const inside =
-      e?.relatedTarget?.contains(refInput.current) ||
+      e?.relatedTarget?.contains(inputRef.current) ||
       e?.relatedTarget?.contains(refList.current);
 
     if (inside) {
-      refInput.current.focus();
+      inputRef.current.focus();
       return;
     }
 
@@ -82,11 +81,16 @@ export function SearchBar() {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     switch (e.key) {
-      case 'Enter':
-        e.stopPropagation();
-        e.preventDefault();
-        onPickItem(activeItemIndex);
+      case 'Enter': {
+        const item =
+          attempt.status === 'success' && attempt.data[activeItemIndex];
+        if (item) {
+          e.stopPropagation();
+          e.preventDefault();
+          onPickItem(item);
+        }
         break;
+      }
       case 'Escape':
         onBack();
         break;
@@ -116,10 +120,9 @@ export function SearchBar() {
       onBlur={handleOnBlur}
     >
       <Input
-        ref={refInput}
+        ref={inputRef}
         placeholder={placeholder}
-        onChange={e => setInputValue(e.target.value)}
-        value={inputValue}
+        onChange={onInputValueChange}
         onKeyDown={handleKeyDown}
       />
       {attempt.status === 'processing' && (

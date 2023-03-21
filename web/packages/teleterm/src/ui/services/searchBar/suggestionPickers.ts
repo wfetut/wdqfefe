@@ -58,7 +58,7 @@ export class SshLoginPicker implements SearchBarPicker {
     )?.loggedInUser.sshLoginsList;
 
     const filtered = loginsList
-      .filter(v => v.toLowerCase().includes(value.toLowerCase()))
+      .filter(v => v.toLocaleLowerCase().includes(value.toLocaleLowerCase()))
       .map(this.stringToAction);
 
     if (value) {
@@ -114,7 +114,7 @@ export class DbUsernamePicker implements SearchBarPicker {
     const dbUsers = await this.resourcesService.getDbUsers(this.database.uri);
 
     const filtered = dbUsers
-      .filter(v => v.toLowerCase().includes(value.toLowerCase()))
+      .filter(v => v.toLocaleLowerCase().includes(value.toLocaleLowerCase()))
       .map(this.stringToAction);
 
     if (value) {
