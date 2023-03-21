@@ -22,7 +22,7 @@ export { SearchResultResource };
 type SearchResultBase<Result extends resourcesServiceTypes.SearchResult> =
   Result & {
     labelMatches: LabelMatch[];
-    resourceMatches: ResourceMatch<Result['resource']>[];
+    resourceMatches: ResourceMatch<Result['kind']>[];
     score: number;
   };
 
@@ -43,8 +43,8 @@ export type LabelMatch = {
   searchTerm: string;
 };
 
-export type ResourceMatch<Resource extends SearchResult['resource']> = {
-  field: keyof Resource;
+export type ResourceMatch<Kind extends SearchResult['kind']> = {
+  field: typeof searchableFields[Kind][number];
   searchTerm: string;
 };
 

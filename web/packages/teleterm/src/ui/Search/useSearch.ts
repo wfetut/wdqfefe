@@ -90,7 +90,7 @@ function populateMatches(
   terms: string[]
 ): SearchResult {
   const labelMatches: LabelMatch[] = [];
-  const resourceMatches = [];
+  const resourceMatches: ResourceMatch<SearchResult['kind']>[] = [];
 
   terms.forEach(term => {
     searchResult.resource.labelsList.forEach(label => {
@@ -123,7 +123,7 @@ function populateMatches(
         .indexOf(term);
 
       if (index >= 0) {
-        (resourceMatches as ResourceMatch<types.Server>[]).push({
+        resourceMatches.push({
           field,
           searchTerm: term,
         });

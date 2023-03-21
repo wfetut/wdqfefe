@@ -27,7 +27,7 @@ import {
   ActionSshConnect,
   SearchBarAction,
 } from 'teleterm/ui/services/searchBar/types';
-import { SearchResult } from 'teleterm/ui/Search/searchResult';
+import { SearchResult, ResourceMatch } from 'teleterm/ui/Search/searchResult';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 
@@ -147,8 +147,6 @@ const ComponentMap: Record<
 };
 
 function ServerItem(props: { item: ActionSshConnect }) {
-  const { hostname } = props.item.searchResult.resource;
-
   return (
     <Flex alignItems="flex-start" p={1} minWidth="300px">
       <SquareIconBackground color="#4DB2F0">
@@ -156,7 +154,12 @@ function ServerItem(props: { item: ActionSshConnect }) {
       </SquareIconBackground>
       <Flex flexDirection="column" ml={1} flex={1}>
         <Flex justifyContent="space-between" alignItems="center">
-          <Box mr={2}>{hostname}</Box>
+          <Box mr={2}>
+            <HighlightField
+              field="hostname"
+              searchResult={props.item.searchResult}
+            />
+          </Box>
           <Box>
             <Text typography="body2" fontSize={0}>
               {props.item.searchResult.score}
@@ -179,7 +182,12 @@ function DatabaseItem(props: { item: ActionDbConnect }) {
       </SquareIconBackground>
       <Flex flexDirection="column" ml={1} flex={1}>
         <Flex justifyContent="space-between" alignItems="center">
-          <Box mr={2}>{db.name}</Box>
+          <Box mr={2}>
+            <HighlightField
+              field="name"
+              searchResult={props.item.searchResult}
+            />
+          </Box>
           <Box>
             <Text typography="body2" fontSize={0}>
               {db.type}/{db.protocol} {props.item.searchResult.score}
@@ -193,15 +201,15 @@ function DatabaseItem(props: { item: ActionDbConnect }) {
 }
 
 function KubeItem(props: { item: ActionKubeConnect }) {
-  const { name } = props.item.searchResult.resource;
-
   return (
     <Flex alignItems="flex-start" p={1} minWidth="300px">
       <SquareIconBackground color="#4DB2F0">
         <icons.Kubernetes fontSize="20px" />
       </SquareIconBackground>
       <Flex flexDirection="column" ml={1} flex={1}>
-        <Box mr={2}>{name}</Box>
+        <Box mr={2}>
+          <HighlightField field="name" searchResult={props.item.searchResult} />
+        </Box>
         <Labels item={props.item.searchResult} />
       </Flex>
     </Flex>
@@ -235,6 +243,26 @@ function Label(props: { item: SearchResult; label: tsh.Label }) {
       <Highlight text={label.name} keywords={nameMatches} />:{' '}
       <Highlight text={label.value} keywords={valueMatches} />
     </DesignLabel>
+  );
+}
+
+function HighlightField(props: {
+  searchResult: SearchResult;
+  field: ResourceMatch<SearchResult['kind']>['field'];
+}) {
+  // `as` used as a workaround for a TypeScript issue.
+  // https://github.com/microsoft/TypeScript/issues/33591
+  const keywords = (
+    props.searchResult.resourceMatches as ResourceMatch<SearchResult['kind']>[]
+  )
+    .filter(match => match.field === props.field)
+    .map(match => match.searchTerm);
+
+  return (
+    <Highlight
+      text={props.searchResult.resource[props.field]}
+      keywords={keywords}
+    />
   );
 }
 
