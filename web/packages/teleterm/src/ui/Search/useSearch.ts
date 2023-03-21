@@ -83,7 +83,7 @@ export function sortResults(
 }
 
 /**
- * displayedResourceName returns the main identifier for the given resource displayed in the UI.
+ * mainResourceName returns the main identifier for the given resource displayed in the UI.
  */
 // TODO(ravicious): This function should probably live closer to SearchResult. Perhaps SearchResult
 // should be defined here and ResourcesService would only return individual resources?
