@@ -61,6 +61,16 @@
       ]
     },
     {
+    	"icon": "magic-wand",
+    	"title": "Fast Path to Teleport",
+    	"entries": [
+	    {
+	    	"title": "Introduction",
+	    	"slug": "/fast-path/introduction/"
+	    }
+	]
+    },
+    {
       "icon": "success",
       "title": "Choose an Edition",
       "entries": [

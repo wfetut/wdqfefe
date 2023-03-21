@@ -1,0 +1,76 @@
+---
+title: Fast Path to Teleport
+description: Quickly deploy a Teleport cluster, register resources, and configure RBAC and single-sign.
+---
+
+The Fast Path to Teleport is a series of guides that demonstrate how to quickly
+protect your infrastructure with a self-hosted, open source Teleport deployment.
+
+At the end of this series, which takes less than an hour to complete, you will
+have:
+- A role-based access control system with three different levels of access to a
+  Kubernetes cluster. 
+- The ability for users to authenticate to your Kubernetes cluster via GitHub.
+- Automatic assignment of users to levels of access to your cluster based on
+  their GitHub teams.
+
+## Before you begin
+
+### Prerequisites
+
+- An Amazon Web Services account.
+- An Amazon Elastic Kubernetes Service cluster. If you do not have one, you can
+  follow the instructions later in this guide to set up a rough-and-ready
+  cluster that you can use to follow the remainder of this series. 
+- A GitHub repository with permissions to create teams and single sign-on
+  applications.
+
+{/* TODO: Make a Spacelift account a Prerequisite? Or set one up as part of this
+guide?*/}
+
+<Notice type="tip">
+
+We have designed this guide to work for most Teleport users. If it is not
+possible to follow this guide in your environment, however, you can use it as an
+example for setting up a full Teleport deployment.
+
+</Notice>
+
+### Architecture
+
+{/* TODO: Explain the architecture of the deployment we will set up, including
+with a Mermaid chart*/}
+
+### Principles
+
+In this series, we will demonstrate an approach that takes advantage of two
+principles that help you manage your infrastructure security more efficiently as
+well as more confidently:
+
+- **Infrastructure as code:** With Teleport, you can define configuration
+  documents that define role-based access controls, protect specific resources,
+  set up single sign-on, and more. 
+
+  By declaring these documents alongside code for deploying other resources in
+  your infrastructure, you can document your entire system, including its
+  security policies, in one place. In the Fast Path to Teleport, we will show
+  you how to deploy Teleport and apply configurations using Terraform.
+
+- **GitOPs:** Since you can manage Teleport deployments as code, you automate
+  them based on your source control repository. You can set up a continuous
+  deployment pipeline that modifies your infrastructure security policies when
+  you merge changes into your repo. In this series, we will show you how to set
+  up Spacelift to manage your Teleport Terraform configuration.
+
+### The track
+
+{/* TODO: outline of the rest of the track/*}
+
+## Step 1.1. [Optional] Spin up an EKS cluster
+
+{/* TODO: minimal, optional eksctl example*/}
+
+## Step 1.2 Set up Spacelift
+
+{/* TODO: Spacelift setup example, though explain that you can use other GitOps
+solutions*/}
