@@ -18,6 +18,7 @@ import {
   LabelMatch,
   ResourceMatch,
   SearchResult,
+  SearchResultResource,
 } from 'teleterm/ui/services/resources';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
@@ -99,6 +100,18 @@ function displayedResourceName(searchResult: SearchResult): string {
   }
 }
 
+// The usage of Exclude here is a workaround to make sure that the fields in the array point only to
+// fields of string type.
+const searchableFields: Readonly<{
+  [Kind in SearchResult['kind']]: Array<
+    Exclude<keyof SearchResultResource<Kind>, 'labelsList'>
+  >;
+}> = {
+  server: ['name', 'hostname', 'addr'],
+  database: ['name', 'desc', 'protocol', 'type'],
+  kube: ['name'],
+};
+
 function populateMatches(
   searchResult: SearchResult,
   terms: string[]
@@ -130,68 +143,26 @@ function populateMatches(
       }
     });
 
-    switch (searchResult.kind) {
-      case 'server': {
-        // TODO(ravicious): Handle "tunnel" as address.
-        ['name' as const, 'hostname' as const, 'addr' as const].forEach(
-          field => {
-            const index = searchResult.resource[field]
-              .toLocaleLowerCase()
-              .indexOf(term);
+    searchableFields[searchResult.kind].forEach(field => {
+      // `String` here is just to satisfy the compiler.
+      const index = searchResult.resource[field]
+        .toLocaleLowerCase()
+        .indexOf(term);
 
-            if (index >= 0) {
-              (resourceMatches as ResourceMatch<types.Server>[]).push({
-                field,
-                searchTerm: term,
-              });
-            }
-          }
-        );
-        break;
-      }
-      case 'database': {
-        // TODO(ravicious): Handle "cloud" as type.
-        [
-          'name' as const,
-          'desc' as const,
-          'protocol' as const,
-          'type' as const,
-        ].forEach(field => {
-          const index = searchResult.resource[field]
-            .toLocaleLowerCase()
-            .indexOf(term);
-
-          if (index >= 0) {
-            (resourceMatches as ResourceMatch<types.Database>[]).push({
-              field,
-              searchTerm: term,
-            });
-          }
+      if (index >= 0) {
+        (resourceMatches as ResourceMatch<types.Server>[]).push({
+          field,
+          searchTerm: term,
         });
-        break;
       }
-      case 'kube': {
-        const index = searchResult.resource.name
-          .toLocaleLowerCase()
-          .indexOf(term);
-
-        if (index >= 0) {
-          (resourceMatches as ResourceMatch<types.Database>[]).push({
-            field: 'name',
-            searchTerm: term,
-          });
-        }
-        break;
-      }
-      default: {
-        assertUnreachable(searchResult);
-      }
-    }
+    });
   });
 
   return { ...searchResult, labelMatches, resourceMatches };
 }
 
+// TODO(ravicious): Extract the scoring logic to a function to better illustrate different weight
+// for different matches.
 function calculateScore(searchResult: SearchResult): SearchResult {
   let totalScore = 0;
 

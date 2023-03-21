@@ -129,6 +129,15 @@ export type SearchResult =
   | SearchResultDatabase
   | SearchResultKube;
 
+export type SearchResultResource<Kind extends SearchResult['kind']> =
+  Kind extends 'server'
+    ? SearchResultServer['resource']
+    : Kind extends 'database'
+    ? SearchResultDatabase['resource']
+    : Kind extends 'kube'
+    ? SearchResultKube['resource']
+    : never;
+
 export type LabelMatch = {
   kind: 'label-name' | 'label-value';
   labelName: string;
