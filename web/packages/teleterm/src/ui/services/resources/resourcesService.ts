@@ -112,17 +112,12 @@ export class AmbiguousHostnameError extends Error {
   }
 }
 
-type SearchResultBase<Kind, Resource> = {
-  kind: Kind;
-  resource: Resource;
-  labelMatches: LabelMatch[];
-  resourceMatches: ResourceMatch<Resource>[];
-  score: number;
+export type SearchResultServer = { kind: 'server'; resource: types.Server };
+export type SearchResultDatabase = {
+  kind: 'database';
+  resource: types.Database;
 };
-
-export type SearchResultServer = SearchResultBase<'server', types.Server>;
-export type SearchResultDatabase = SearchResultBase<'database', types.Database>;
-export type SearchResultKube = SearchResultBase<'kube', types.Kube>;
+export type SearchResultKube = { kind: 'kube'; resource: types.Kube };
 
 export type SearchResult =
   | SearchResultServer
@@ -137,17 +132,3 @@ export type SearchResultResource<Kind extends SearchResult['kind']> =
     : Kind extends 'kube'
     ? SearchResultKube['resource']
     : never;
-
-export type LabelMatch = {
-  kind: 'label-name' | 'label-value';
-  labelName: string;
-  searchTerm: string;
-};
-
-// TODO: Limit <Resource> to only searchable resources.
-// type SearchableResources = types.Server | types.Database | types.Kube;
-export type ResourceMatch<Resource> = {
-  // TODO: Limit this to only searchable fields.
-  field: keyof Resource;
-  searchTerm: string;
-};

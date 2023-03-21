@@ -27,7 +27,7 @@ import {
   ActionSshConnect,
   SearchBarAction,
 } from 'teleterm/ui/services/searchBar/types';
-import { SearchResult } from 'teleterm/ui/services/resources';
+import { SearchResult } from 'teleterm/ui/Search/searchResult';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 

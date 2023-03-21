@@ -18,7 +18,7 @@ import {
   SearchResultDatabase,
   SearchResultKube,
   SearchResultServer,
-} from 'teleterm/ui/services/resources';
+} from 'teleterm/ui/Search/searchResult';
 
 type Base<T, R> = {
   kind: T;

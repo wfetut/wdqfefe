@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
+import { assertUnreachable } from 'teleterm/ui/utils';
+
 import {
   LabelMatch,
   ResourceMatch,
   SearchResult,
-  SearchResultResource,
-} from 'teleterm/ui/services/resources';
-import { assertUnreachable } from 'teleterm/ui/utils';
+  mainResourceName,
+  mainResourceField,
+  searchableFields,
+} from './searchResult';
 
 import type * as types from 'teleterm/services/tshd/types';
 
@@ -81,35 +84,6 @@ export function sortResults(
         collator.compare(mainResourceName(a), mainResourceName(b))
     );
 }
-
-/**
- * mainResourceName returns the main identifier for the given resource displayed in the UI.
- */
-// TODO(ravicious): This function should probably live closer to SearchResult. Perhaps SearchResult
-// should be defined here and ResourcesService would only return individual resources?
-function mainResourceName(searchResult: SearchResult): string {
-  return searchResult.resource[mainResourceField[searchResult.kind]];
-}
-
-const mainResourceField: Readonly<{
-  [Kind in SearchResult['kind']]: keyof SearchResultResource<Kind>;
-}> = {
-  server: 'hostname',
-  database: 'name',
-  kube: 'name',
-};
-
-// The usage of Exclude here is a workaround to make sure that the fields in the array point only to
-// fields of string type.
-const searchableFields: Readonly<{
-  [Kind in SearchResult['kind']]: Array<
-    Exclude<keyof SearchResultResource<Kind>, 'labelsList'>
-  >;
-}> = {
-  server: ['name', 'hostname', 'addr'],
-  database: ['name', 'desc', 'protocol', 'type'],
-  kube: ['name'],
-};
 
 function populateMatches(
   searchResult: SearchResult,

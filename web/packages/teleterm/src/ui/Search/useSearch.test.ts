@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-import { SearchResult } from 'teleterm/ui/services/resources';
-
+import { SearchResult } from './searchResult';
 import { sortResults } from './useSearch';
 
 import type * as tsh from 'teleterm/services/tshd/types';
