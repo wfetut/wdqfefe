@@ -19,13 +19,14 @@ import React from 'react';
 import styled from 'styled-components';
 
 import QuickInput from '../QuickInput';
-import { SearchBar } from '../SearchBar';
+import { SearchBar } from '../Search';
 import { useAppContext } from '../appContextProvider';
 
 import { Connections } from './Connections';
 import { Clusters } from './Clusters';
 import { Identity } from './Identity';
 import { NavigationMenu } from './NavigationMenu';
+import { SearchBarConnected } from 'teleterm/ui/Search/SearchBar';
 
 export function TopBar() {
   const { configService } = useAppContext();
@@ -38,7 +39,7 @@ export function TopBar() {
       </JustifyLeft>
       <CentralContainer>
         <Clusters />
-        {isSearchBarEnabled ? <SearchBar /> : <QuickInput />}
+        {isSearchBarEnabled ? <SearchBarConnected /> : <QuickInput />}
       </CentralContainer>
       <JustifyRight>
         <NavigationMenu />

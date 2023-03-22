@@ -25,7 +25,8 @@ import {
   searchableFields,
 } from './searchResult';
 
-import type * as types from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useCallback } from 'react';
 
 /**
  * useSearch returns a function which searches for the given list of space-separated keywords across
@@ -34,19 +35,25 @@ import type * as types from 'teleterm/services/tshd/types';
  * It does so by issuing a separate request for each resource type to each cluster. It fails if any
  * of those requests fail.
  */
-export async function searchResources(
-  clustersService,
-  resourcesService,
-  search: string
-): Promise<SearchResult[]> {
-  const connectedClusters = clustersService
-    .getClusters()
-    .filter(c => c.connected);
-  const searchPromises = connectedClusters.map(cluster =>
-    resourcesService.searchResources(cluster.uri, search)
-  );
+export function useSearch() {
+  const { clustersService, resourcesService } = useAppContext();
+  clustersService.useState();
 
-  return sortResults((await Promise.all(searchPromises)).flat(), search);
+  return useCallback(
+    async (search: string) => {
+      const connectedClusters = clustersService
+        .getClusters()
+        .filter(c => c.connected);
+      const searchPromises = connectedClusters.map(cluster =>
+        resourcesService.searchResources(cluster.uri, search)
+      );
+      const results = (await Promise.all(searchPromises)).flat();
+
+      // @ts-ignore
+      return sortResults(results, search);
+    },
+    [clustersService, resourcesService]
+  );
 }
 
 export function sortResults(

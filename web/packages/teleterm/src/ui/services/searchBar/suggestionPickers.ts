@@ -23,7 +23,7 @@ import {
   GatewayProtocol,
   Server,
 } from 'teleterm/services/tshd/types';
-import { searchResources } from 'teleterm/ui/Search/useSearch';
+import { useSearch } from 'teleterm/ui/Search/useSearch';
 
 import { routing } from 'teleterm/ui/uri';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
@@ -166,11 +166,7 @@ export class AllResultsPicker implements SearchBarPicker {
     if (!value) {
       return [];
     }
-    const res = await searchResources(
-      this.clustersService,
-      this.resourceService,
-      value
-    );
+    const res = await useSearch()(value);
     // mapping search results to actions, but I'm not sure about it
     // maye we can just have search results?
     return res.map(searchResult => {
