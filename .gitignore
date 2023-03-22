@@ -58,3 +58,7 @@ terraform.tfstate
 # ansible stuff
 ssh.config
 *.retry
+
+# submodules
+e/
+webassets/
