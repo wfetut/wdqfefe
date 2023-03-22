@@ -18,7 +18,7 @@ import React, { useState, useRef } from 'react';
 import styled from 'styled-components';
 
 import Popover from 'design/Popover';
-import { MoreVert, OpenBox, Add, Config } from 'design/Icon';
+import * as icons from 'design/Icon';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
@@ -36,57 +36,82 @@ function useNavigationItems(): (
   | 'separator'
 )[] {
   const ctx = useAppContext();
-  ctx.workspacesService.useState();
+  const {
+    workspacesService,
+    mainProcessClient,
+    configService,
+    notificationsService,
+  } = ctx;
+  workspacesService.useState();
   ctx.clustersService.useState();
-
   const documentsService =
-    ctx.workspacesService.getActiveWorkspaceDocumentService();
+    workspacesService.getActiveWorkspaceDocumentService();
   const activeRootCluster = getActiveRootCluster(ctx);
+
   const areAccessRequestsSupported =
     !!activeRootCluster?.features?.advancedAccessWorkflows;
+
+  const { platform } = mainProcessClient.getRuntimeSettings();
+  const isDarwin = platform === 'darwin';
+  const isSearchBarEnabled = configService.get('feature.searchBar').value;
 
   return [
     {
       title: 'Open Config File',
-      Icon: Config,
+      Icon: icons.Config,
       onNavigate: async () => {
-        const path = await ctx.mainProcessClient.openConfigFile();
-        ctx.notificationsService.notifyInfo(
-          `Opened the config file at ${path}.`
-        );
+        const path = await mainProcessClient.openConfigFile();
+        notificationsService.notifyInfo(`Opened the config file at ${path}.`);
       },
     },
-    ...(areAccessRequestsSupported
-      ? [
-          'separator' as const,
-          {
+    isSearchBarEnabled &&
+      isDarwin && [
+        {
+          title: 'Install tsh in PATH',
+          Icon: icons.Terminal,
+          onNavigate: () => {
+            ctx.commandLauncher.executeCommand('tsh-install', undefined);
+          },
+        },
+        {
+          title: 'Remove tsh from PATH',
+          Icon: icons.Trash,
+          onNavigate: () => {
+            ctx.commandLauncher.executeCommand('tsh-uninstall', undefined);
+          },
+        },
+      ],
+    areAccessRequestsSupported && [
+      'separator' as const,
+      {
+        title: 'New Access Request',
+        Icon: icons.Add,
+        onNavigate: () => {
+          const doc = documentsService.createAccessRequestDocument({
+            clusterUri: activeRootCluster.uri,
+            state: 'creating',
             title: 'New Access Request',
-            Icon: Add,
-            onNavigate: () => {
-              const doc = documentsService.createAccessRequestDocument({
-                clusterUri: activeRootCluster.uri,
-                state: 'creating',
-                title: 'New Access Request',
-              });
-              documentsService.add(doc);
-              documentsService.open(doc.uri);
-            },
-          },
-          {
-            title: 'Review Access Requests',
-            Icon: OpenBox,
-            onNavigate: () => {
-              const doc = documentsService.createAccessRequestDocument({
-                clusterUri: activeRootCluster.uri,
-                state: 'browsing',
-              });
-              documentsService.add(doc);
-              documentsService.open(doc.uri);
-            },
-          },
-        ]
-      : []),
-  ].filter(Boolean);
+          });
+          documentsService.add(doc);
+          documentsService.open(doc.uri);
+        },
+      },
+      {
+        title: 'Review Access Requests',
+        Icon: icons.OpenBox,
+        onNavigate: () => {
+          const doc = documentsService.createAccessRequestDocument({
+            clusterUri: activeRootCluster.uri,
+            state: 'browsing',
+          });
+          documentsService.add(doc);
+          documentsService.open(doc.uri);
+        },
+      },
+    ],
+  ]
+    .filter(Boolean)
+    .flat();
 }
 
 function getActiveRootCluster(ctx: IAppContext): Cluster | undefined {
@@ -122,7 +147,7 @@ export function NavigationMenu() {
         title="More Options"
         onClick={() => setIsPopoverOpened(true)}
       >
-        <MoreVert fontSize={6} />
+        <icons.MoreVert fontSize={6} />
       </TopBarButton>
       <Popover
         open={isPopoverOpened}
