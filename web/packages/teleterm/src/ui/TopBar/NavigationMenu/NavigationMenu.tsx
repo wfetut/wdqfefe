@@ -57,7 +57,7 @@ function useNavigationItems(): (
 
   return [
     {
-      title: 'Open Config File',
+      title: 'Open config file',
       Icon: icons.Config,
       onNavigate: async () => {
         const path = await mainProcessClient.openConfigFile();
@@ -84,7 +84,7 @@ function useNavigationItems(): (
     areAccessRequestsSupported && [
       'separator' as const,
       {
-        title: 'New Access Request',
+        title: 'New access request',
         Icon: icons.Add,
         onNavigate: () => {
           const doc = documentsService.createAccessRequestDocument({
@@ -97,7 +97,7 @@ function useNavigationItems(): (
         },
       },
       {
-        title: 'Review Access Requests',
+        title: 'Review access requests',
         Icon: icons.OpenBox,
         onNavigate: () => {
           const doc = documentsService.createAccessRequestDocument({
