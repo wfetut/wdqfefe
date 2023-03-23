@@ -14,14 +14,31 @@ have:
 - Automatic assignment of users to levels of access to your cluster based on
   their GitHub teams.
 
-## Before you begin
-
-### Prerequisites
+## Prerequisites
 
 - An Amazon Web Services account.
 - A [Spacelift](https://spacelift.io/) account.
 - A GitHub repository with permissions to create teams and single sign-on
   applications.
+- An Amazon Elastic Kubernetes Service cluster where you will run the Teleport
+  Auth Service, Proxy Service, and Kubernetes Service. 
+
+  <Details title="Set up an EKS cluster to follow this guide">
+
+  If you do not have an EKS cluster, but do have an AWS account, you can use the
+  `eksctl` tool to set up a cluster quickly in a demo environment. 
+
+  <Notice type="warning">
+
+  For production, you will want to consult with your organization and determine
+  how best to set up an EKS cluster. (Setting up EKS for production is outside
+  the scope of this guide.)
+
+  </Notice>
+
+  {/* TODO: Using eksctl*/}
+
+  </Details>
 
 <Notice type="tip">
 
@@ -32,12 +49,12 @@ documentation to find an approach that works for you.
 
 </Notice>
 
-### Architecture
+## Architecture
 
 {/* TODO: Explain the architecture of the deployment we will set up, including
 with a Mermaid chart*/}
 
-### Principles
+## Principles
 
 In this series, we will demonstrate an approach that takes advantage of two
 principles that help you manage your infrastructure security more efficiently as
@@ -58,11 +75,13 @@ well as more confidently:
   you merge changes into your repo. In this series, we will show you how to set
   up Spacelift to manage your Teleport Terraform configuration.
 
-### The track
+## The track
 
 1. [Set up Spacelift and your AWS account](./prepare-your-environment):
    Preparatory steps to ensure that your GitOps solution and EKS cluster support
    Teleport.
+
+
 
 {/* TODO: outline of the rest of the track*/}
 
