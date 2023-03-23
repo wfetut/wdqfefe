@@ -19,20 +19,16 @@ have:
 ### Prerequisites
 
 - An Amazon Web Services account.
-- An Amazon Elastic Kubernetes Service cluster. If you do not have one, you can
-  follow the instructions later in this guide to set up a rough-and-ready
-  cluster that you can use to follow the remainder of this series. 
+- A [Spacelift](https://spacelift.io/) account.
 - A GitHub repository with permissions to create teams and single sign-on
   applications.
-
-{/* TODO: Make a Spacelift account a Prerequisite? Or set one up as part of this
-guide?*/}
 
 <Notice type="tip">
 
 We have designed this guide to work for most Teleport users. If it is not
-possible to follow this guide in your environment, however, you can use it as an
-example for setting up a full Teleport deployment.
+possible to follow this guide in your environment, you can use it as an example
+for setting up a full Teleport deployment, then consult the rest of our
+documentation to find an approach that works for you. 
 
 </Notice>
 
@@ -64,19 +60,9 @@ well as more confidently:
 
 ### The track
 
+1. [Set up Spacelift and your AWS account](./prepare-your-environment):
+   Preparatory steps to ensure that your GitOps solution and EKS cluster support
+   Teleport.
+
 {/* TODO: outline of the rest of the track*/}
 
-## Step 1.1. Spin up an EKS cluster
-
-<Notice type="tip">
-
-You can skip this step if you already have an EKS cluster.
-
-</Notice>
-
-{/* TODO: minimal, optional eksctl example*/}
-
-## Step 1.2 Set up Spacelift
-
-{/* TODO: Spacelift setup example, though explain that you can use other GitOps
-solutions*/}
