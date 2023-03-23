@@ -86,22 +86,33 @@ func (r *remoteSubsystem) Start(ctx context.Context, channel ssh.Channel) error 
 
 	// copy back and forth between stdin, stdout, and stderr and the SSH channel.
 	go func() {
-		defer session.Close()
+		//defer channel.Close()
 
 		_, err := io.Copy(channel, stdout)
 		r.errorCh <- err
 	}()
 	go func() {
-		defer session.Close()
+		//defer channel.Close()
 
 		_, err := io.Copy(channel.Stderr(), stderr)
 		r.errorCh <- err
 	}()
 	go func() {
-		defer session.Close()
+		//defer session.Close() // here
+		defer stdin.Close()
+		//defer channel.CloseWrite()
 
 		_, err := io.Copy(stdin, channel)
 		r.errorCh <- err
+
+		//type exitStatusMsg struct {
+		//	Status uint32
+		//}
+		//ex := exitStatusMsg{
+		//	Status: 0,
+		//}
+		//_, err = channel.SendRequest("exit-status", false, ssh.Marshal(&ex))
+		//_ = err
 	}()
 
 	return nil

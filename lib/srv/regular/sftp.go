@@ -40,10 +40,11 @@ import (
 const copyingGoroutines = 2
 
 type sftpSubsys struct {
-	sftpCmd *exec.Cmd
-	ch      ssh.Channel
-	errCh   chan error
-	log     *logrus.Entry
+	sftpCmd   *exec.Cmd
+	ch        ssh.Channel
+	serverCtx *srv.ServerContext
+	errCh     chan error
+	log       *logrus.Entry
 }
 
 func newSFTPSubsys() (*sftpSubsys, error) {
@@ -64,6 +65,7 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 	}
 
 	s.ch = ch
+	s.serverCtx = serverCtx
 
 	// Create two sets of anonymous pipes to give the child process
 	// access to the SSH channel
@@ -86,22 +88,23 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 	defer auditPipeIn.Close()
 
 	// Create child process to handle SFTP connection
-	executable, err := os.Executable()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	execRequest, err := srv.NewExecRequest(serverCtx, executable+" sftp")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := serverCtx.SetExecRequest(execRequest); err != nil {
-		return trace.Wrap(err)
-	}
+	//executable, err := os.Executable()
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+	//execRequest, err := srv.NewExecRequest(serverCtx, executable+" sftp")
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+	//if err := serverCtx.SetExecRequest(execRequest); err != nil {
+	//	return trace.Wrap(err)
+	//}
 
-	s.sftpCmd, err = srv.ConfigureCommand(serverCtx, chReadPipeOut, chWritePipeIn, auditPipeIn)
+	s.sftpCmd, err = srv.ConfigureSFTPCommand(serverCtx, chReadPipeOut, chWritePipeIn, auditPipeIn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	s.sftpCmd.Stdin = os.Stdin
 	s.sftpCmd.Stdout = os.Stdout
 	s.sftpCmd.Stderr = os.Stderr
 
@@ -111,7 +114,7 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 		return trace.Wrap(err)
 	}
 	// TODO: put in cgroup?
-	execRequest.Continue()
+	//execRequest.Continue()
 
 	// Copy the SSH channel to and from the anonymous pipes
 	s.errCh = make(chan error, copyingGoroutines)
@@ -122,7 +125,8 @@ func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch s
 		s.errCh <- err
 	}()
 	go func() {
-		defer chWritePipeOut.Close()
+		//defer s.ch.Close()
+		//defer s.ch.CloseWrite()
 
 		_, err := io.Copy(s.ch, chWritePipeOut)
 		s.errCh <- err
@@ -186,6 +190,19 @@ func (s *sftpSubsys) Wait() error {
 	waitErr := s.sftpCmd.Wait()
 	s.log.Debug("SFTP process finished")
 
+	s.serverCtx.SendExecResult(srv.ExecResult{
+		Command: "teleport sftp",
+		Code:    0,
+	})
+
+	//type exitStatusMsg struct {
+	//	Status uint32
+	//}
+	//ex := exitStatusMsg{
+	//	Status: 0,
+	//}
+	//_, err := s.ch.SendRequest("exit-status", false, ssh.Marshal(&ex))
+
 	errs := []error{waitErr}
 	for i := 0; i < copyingGoroutines; i++ {
 		err := <-s.errCh
@@ -194,7 +211,10 @@ func (s *sftpSubsys) Wait() error {
 			errs = append(errs, err)
 		}
 	}
-	errs = append(errs, s.ch.Close())
+
+	//errs = append(errs, err)
+
+	//errs = append(errs, s.ch.Close())
 
 	return trace.NewAggregate(errs...)
 }

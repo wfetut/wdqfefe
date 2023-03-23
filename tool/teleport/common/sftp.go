@@ -19,20 +19,20 @@ package common
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type compositeCh struct {
@@ -53,6 +53,33 @@ func (c compositeCh) Close() error {
 }
 
 func onSFTP() error {
+	// open a file
+	f, err := os.OpenFile("/tmp/testlogrus.log", os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		fmt.Printf("error opening file: %v", err)
+		os.Exit(11)
+	}
+
+	// don't forget to close it
+	defer f.Close()
+
+	// Log as JSON instead of the default ASCII formatter.
+	//log.SetFormatter(&log.JSONFormatter{})
+
+	// Output to stderr instead of stdout could also be a file.
+	log.SetOutput(f)
+
+	// Only log the warning severity or above.
+
+	// Only log the warning severity or above.
+	log.SetLevel(log.DebugLevel)
+
+	log.Debug("stfp started")
+
+	defer func() {
+		log.Debugf("sftp done %v", err)
+	}()
+
 	chr, err := openFD(3, "chr")
 	if err != nil {
 		return err
@@ -69,9 +96,16 @@ func onSFTP() error {
 		return err
 	}
 	defer auditFile.Close()
+	//defer os.Stdin.Close()
 
 	// Ensure the parent process will receive log messages from us
-	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
+	//utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
+
+	go func() {
+		a := make([]byte, 1024)
+		os.Stdin.Read(a)
+		chr.Close()
+	}()
 
 	sftpEvents := make(chan *apievents.SFTP, 1)
 	sftpSrv, err := sftp.NewServer(ch, sftp.WithRequestCallback(func(reqPacket sftp.RequestPacket) {
@@ -111,12 +145,14 @@ func onSFTP() error {
 		close(done)
 	}()
 
+	log.Debugf("before serve")
 	serveErr := sftpSrv.Serve()
 	if errors.Is(serveErr, io.EOF) {
 		serveErr = nil
 	} else {
 		serveErr = trace.Wrap(serveErr)
 	}
+	log.Debugf("after serve")
 
 	// Wait until event marshaling goroutine is finished
 	close(sftpEvents)

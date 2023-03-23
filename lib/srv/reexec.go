@@ -924,6 +924,73 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 	return cmd, nil
 }
 
+// ConfigureCommand creates a command fully configured to execute. This
+// function is used by Teleport to re-execute itself and pass whatever data
+// is need to the child to actually execute the shell.
+func ConfigureSFTPCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, error) {
+	// Create a os.Pipe and start copying over the payload to execute. While the
+	// pipe buffer is quite large (64k) some users have run into the pipe
+	// blocking writes on much smaller buffers (7k) leading to Teleport being
+	// unable to run some exec commands.
+	//
+	// To not depend on the OS implementation of a pipe, instead the copy should
+	// be non-blocking. The io.Copy will be closed when either when the child
+	// process has fully read in the payload or the process exits with an error
+	// (and closes all child file descriptors).
+	//
+	// See the below for details.
+	//
+	//   https://man7.org/linux/man-pages/man7/pipe.7.html
+	//cmdmsg, err := ctx.ExecCommand()
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//if !cmdmsg.Terminal {
+	//	cmdmsg.ExtraFilesLen = len(extraFiles)
+	//}
+	//
+	//cmdbytes, err := json.Marshal(cmdmsg)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//go copyCommand(ctx, cmdbytes)
+
+	// Find the Teleport executable and its directory on disk.
+	executable, err := os.Executable()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	executableDir, _ := filepath.Split(executable)
+
+	subCommand := teleport.SFTPSubCommand
+
+	// Build the list of arguments to have Teleport re-exec itself. The "-d" flag
+	// is appended if Teleport is running in debug mode.
+	args := []string{executable, subCommand}
+
+	// Build the "teleport exec" command.
+	cmd := &exec.Cmd{
+		Path:       executable,
+		Args:       args,
+		Dir:        executableDir,
+		ExtraFiles: []*os.File{
+			//ctx.cmdr,
+			//ctx.contr,
+			//ctx.killShellr,
+			//ctx.x11rdyw,
+		},
+	}
+	// Add extra files if applicable.
+	if len(extraFiles) > 0 {
+		cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
+	}
+
+	// Perform OS-specific tweaks to the command.
+	reexecCommandOSTweaks(cmd)
+
+	return cmd, nil
+}
+
 // copyCommand will copy the provided command to the child process over the
 // pipe attached to the context.
 func copyCommand(ctx *ServerContext, cmdbytes []byte) {
