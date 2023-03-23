@@ -31,12 +31,31 @@ have:
   <Notice type="warning">
 
   For production, you will want to consult with your organization and determine
-  how best to set up an EKS cluster. (Setting up EKS for production is outside
-  the scope of this guide.)
+  how best to set up an EKS cluster. Setting up EKS for production is outside
+  the scope of this guide.
 
   </Notice>
 
-  {/* TODO: Using eksctl*/}
+  In order to use `eksctl`, you must have permissions to create an EKS cluster
+  and its associated resources (e.g., IAM roles and a virtual private cloud) via
+  AWS CloudFormation.
+
+  Install `eksctl` for your environment by following the [AWS
+  documentation](https://docs.aws.amazon.com/eks/latest/userguide/eksctl.html).
+
+  Ensure that you have configured [AWS credentials for your
+  environment](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-files.html),
+  e.g., by setting the `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and
+  `AWS_SESSION_TOKEN` environment variables.
+
+  Run the following command to generate an EKS cluster:
+
+  ```code
+  $ eksctl create cluster --name <Var name="cluster-name" /> --region <Var name="aws-region" />
+  ```
+
+  Note that it will take 10 minutes or so {/* TODO: Make the time more
+  accurate*/} for the cluster to spin up.
 
   </Details>
 
