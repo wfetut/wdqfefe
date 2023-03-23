@@ -1,0 +1,48 @@
+---
+title: Deploy a Teleport Cluster
+description: Use infrastructure as code and GitOps to deploy the Auth Service
+and Proxy Service.
+---
+
+{/* TODO: intro paragraph with a link to the intro page for new readers*/}
+
+## Step / Link your GitHub repository
+
+{/* TODO*/}
+
+## Step / Upload Kubernetes cluster credentials
+
+{/* TODO*/}
+
+## Step / Set up AWS IAM permissions
+
+{/* TODO: Based on the section:
+
+https://goteleport.com/docs/deploy-a-cluster/helm-deployments/aws/#step-37-set-up-aws-iam-configuration
+
+Need to convert this to HCL.
+
+-*/}
+
+## Step / Provision TLS credentials for Teleport
+
+{/* TODO: Figure out how to enable cert-manager via Helm. If cert-manager is
+part of the teleport-cluster chart, remove this H2. If you need to install
+cert-manager separately:
+
+- Follow the instructions here to do IAM stuff:
+
+https://goteleport.com/docs/deploy-a-cluster/helm-deployments/aws/#route53-iam-policy
+
+- Add a link to a file with the cert-manager Helm release HCL, then walk the
+  reader through the HCL.
+
+-*/}
+
+## Step / Add a `teleport-cluster` chart release
+
+{/* TODO: Link to what the final release looks like, but walk the reader through
+each resource/attribute of each resource*/}
+
+{/* TODO: Helm provider with teleport-cluster deployment, including a values
+file*/}
