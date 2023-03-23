@@ -4,3 +4,39 @@ description: Use infrastructure as code and GitOps to manage the access that Tel
 ---
 
 {/* TODO: Write out the H2s and possibly H3s to use*/}
+
+## Step / Create Kubernetes roles
+
+{/* TODO: HCL for Role resources in your EKS cluster. I guess this requires a
+data object for the cluster since it's being managed outside Terraform.*/}
+
+## Step / Create GitHub teams
+
+{/* TODO: Create GitHub teams using the Terraform provider:
+
+https://registry.terraform.io/providers/integrations/github/latest/docs
+
+-*/}
+
+## Step / Provide credentials for the Teleport Terraform provider
+
+### Create a Teleport user for the Teleport Terraform provider
+
+{/* TODO*/}
+
+### Enable impersonation of the Teleport Terraform provider user
+
+{/* TODO*/}
+
+### Generate credentials for the Terraform provider
+
+{/* TODO*/}
+
+### Upload credentials for the Terraform provider
+
+{/* TODO: Upload credentials to Spacelift*/}
+
+## Step / Create Teleport roles
+
+{/* TODO: show the HCL for this, including how to use the credentials file
+mounted in Spacelift*/}
