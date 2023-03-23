@@ -64,10 +64,26 @@
     	"icon": "wand",
     	"title": "Fast Path to Teleport",
     	"entries": [
-	    {
-	    	"title": "Introduction",
-	    	"slug": "/fast-path/introduction/"
-	    }
+          {
+              "title": "1. Introduction",
+              "slug": "/fast-path/1-introduction/"
+          },
+          {
+              "title": "2. Deploy a Teleport Cluster",
+              "slug": "/fast-path/2-deploy-teleport/"
+          },
+          {
+              "title": "3. Connect your Kubernetes Cluster",
+              "slug": "/fast-path/3-connect-kubernetes/"
+          },
+          {
+              "title": "4. Set up RBAC",
+              "slug": "/fast-path/4-rbac/"
+          },
+          {
+              "title": "5. Set up Single Sign-On",
+              "slug": "/fast-path/5-sso/"
+          }
 	]
     },
     {
