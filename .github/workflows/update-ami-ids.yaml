@@ -6,14 +6,14 @@ on:
       version:
         required: true
         type: string
-        description: Release version tag
+        description: Release version tag (ex. 12.1.0)
 
   workflow_call:
     inputs:
       version:
         required: true
         type: string
-        description: Release version tag
+        description: Release version tag (ex. 12.1.0)
 
 permissions:
   contents: read
@@ -31,26 +31,26 @@ jobs:
         with:
           ref: ${{ vars.GITHUB_REF }}
 
-      - name: Assume AWS Promotion Role
+      - name: Assume AWS role
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-region:  us-west-2
           role-to-assume: "arn:aws:iam::126027368216:role/tf-teleport-ami-gha-role"
           role-session-name: "gha-update-ami-ids-${{ github.run_number }}"
 
-      - name: Update AMI IDs
+      - name: Update AMI IDs and create PR
         run: |
-          TELEPORT_VERSION=${{ inputs.version }} make -C assets/aws update-ami-ids-terraform
+          TELEPORT_VERSION=${{ inputs.version }} make -C assets/aws create-update-pr
 
-      - name: Create pull request
-        if: steps.get_release.outputs.release == 'latest' || inputs.version != ''
-        uses: peter-evans/create-pull-request@v4
-        with:
-          token: ${{ github.token }}
-          commit-message: "[auto] Update AMI IDs for ${{ inputs.version }}"
-          title: "[auto] Update AMI IDs for ${{ inputs.version }}"
-          committer: GitHub <noreply@github.com>
-          branch: ami-auto-branch
-          branch-suffix: timestamp
-          delete-branch: true
-          labels: automated, terraform
+      # - name: Create pull request
+      #   if: steps.get_release.outputs.release == 'latest' || inputs.version != ''
+      #   uses: peter-evans/create-pull-request@v4
+      #   with:
+      #     token: ${{ github.token }}
+      #     commit-message: "[auto] Update AMI IDs for ${{ inputs.version }}"
+      #     title: "[auto] Update AMI IDs for ${{ inputs.version }}"
+      #     committer: GitHub <noreply@github.com>
+      #     branch: ami-auto-branch
+      #     branch-suffix: timestamp
+      #     delete-branch: true
+      #     labels: automated, terraform
