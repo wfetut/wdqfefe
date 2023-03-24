@@ -28,8 +28,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-        with:
-          ref: ${{ vars.GITHUB_REF }}
+        # with:
+        #   ref: ${{ vars.GITHUB_REF }}
 
       - name: Assume AWS role
         uses: aws-actions/configure-aws-credentials@v1
@@ -40,6 +40,8 @@ jobs:
 
       - name: Update AMI IDs and create PR
         run: |
+          git config --global user.email "noreply@github.com"
+          git config --global user.name "GitHub"
           TELEPORT_VERSION=${{ inputs.version }} make -C assets/aws create-update-pr
 
       # - name: Create pull request
