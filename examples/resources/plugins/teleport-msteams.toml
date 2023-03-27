@@ -9,7 +9,7 @@ preload = true
 
 [teleport]
 # Teleport Auth/Proxy Server address.
-# addr = "example.com:3025"
+addr = "example.com:3025"
 #
 # Should be port 3025 for Auth Server and 3080 or 443 for Proxy.
 # For Teleport Cloud, should be in the form "your-account.teleport.sh:443".
@@ -23,7 +23,6 @@ preload = true
 # client_key = "/var/lib/teleport/plugins/msteams/auth.key" # Teleport TLS secret key
 # client_crt = "/var/lib/teleport/plugins/msteams/auth.crt" # Teleport TLS certificate
 # root_cas = "/var/lib/teleport/plugins/msteams/auth.cas"   # Teleport CA certs
-addr = "localhost:3025"
 identity = "identity"
 
 [msapi]
