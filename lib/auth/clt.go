@@ -333,7 +333,7 @@ func (c *Client) DeleteAllReverseTunnels() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllCertNamespaces not implemented: can only be called locally.
+// DeleteAllNamespaces not implemented: can only be called locally.
 func (c *Client) DeleteAllNamespaces() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
@@ -849,4 +849,6 @@ type ClientI interface {
 
 	// GetResources returns a paginated list of resources.
 	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+
+	UpsertCommand(ctx context.Context, command types.Command) (*types.KeepAlive, error)
 }

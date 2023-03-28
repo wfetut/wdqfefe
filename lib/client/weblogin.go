@@ -201,6 +201,15 @@ type HeadlessRequest struct {
 	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
 
+type CommandComplete struct {
+	Query string `json:"query"`
+}
+
+type CreateCommand struct {
+	Name    string `json:"name"`
+	Command string `json:"command"`
+}
+
 // SSHLogin contains common SSH login parameters.
 type SSHLogin struct {
 	// ProxyAddr is the target proxy address

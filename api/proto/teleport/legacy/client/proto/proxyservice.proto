@@ -63,3 +63,20 @@ message Data {
 
 // ConnectionEstablished signals to the client a connection to the node has been established.
 message ConnectionEstablished {}
+
+//message CommandRunRequest {
+//  string CommandID = 1;
+//  map<string, string> Labels = 2;
+//}
+//
+//message CommandLogResponse {
+//  int64 Count = 1;
+//  string StreamID = 2;
+//  bytes Data = 3;
+//}
+//
+//// CommandService ....
+//service CommandService {
+//  // Execute ....
+//  rpc Execute(CommandRunRequest) returns (stream CommandLogResponse);
+//}

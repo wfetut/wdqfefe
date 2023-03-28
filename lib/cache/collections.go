@@ -346,6 +346,14 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.nodes
+		case types.KindCommand:
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter Presence")
+			}
+			collections.byKing[resourceKind] = &genericCollection[types.Command, commandExecutor]{
+				cache: c,
+				watch: watch,
+			}
 		case types.KindProxy:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -869,6 +877,32 @@ type nodeGetter interface {
 }
 
 var _ executor[types.Server, nodeGetter] = nodeExecutor{}
+
+var _ executor[types.Command] = commandExecutor{}
+
+type commandExecutor struct{}
+
+func (commandExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Command, error) {
+	return cache.Presence.GetCommands(ctx, apidefaults.Namespace)
+}
+
+func (commandExecutor) upsert(ctx context.Context, cache *Cache, resource types.Command) error {
+	_, err := cache.presenceCache.UpsertCommand(ctx, resource)
+	return trace.Wrap(err)
+}
+
+func (commandExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return nil
+	panic("bbb")
+	return cache.presenceCache.DeleteAllNodes(ctx, apidefaults.Namespace)
+}
+
+func (commandExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	panic("sjashdkja")
+	return cache.presenceCache.DeleteNode(ctx, resource.GetMetadata().Namespace, resource.GetName())
+}
+
+func (commandExecutor) isSingleton() bool { return false }
 
 type namespaceExecutor struct{}
 

@@ -127,6 +127,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindDevice:                   rc.createDevice,
 		types.KindOktaImportRule:           rc.createOktaImportRule,
 		types.KindIntegration:              rc.createIntegration,
+		types.KindCommand:                 	rc.createCommand,
 	}
 	rc.config = config
 
@@ -922,6 +923,16 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client auth.Cl
 	return nil
 }
 
+func (rc *ResourceCommand) createCommand(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	command, err := services.UnmarshalCommand(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = client.UpsertCommand(ctx, command)
+	return trace.Wrap(err)
+}
+
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err error) {
 	singletonResources := []string{
@@ -1428,6 +1439,20 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			}
 		}
 		return nil, trace.NotFound("node with ID %q not found", rc.ref.Name)
+	case types.KindCommand:
+		commands, err := client.GetCommands(ctx, rc.namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if rc.ref.Name == "" {
+			return &commandCollection{commands: commands}, nil
+		}
+		for _, node := range commands {
+			if node.GetName() == rc.ref.Name {
+				return &commandCollection{commands: []types.Command{node}}, nil
+			}
+		}
+		return nil, trace.NotFound("command with ID %q not found", rc.ref.Name)
 	case types.KindAuthServer:
 		servers, err := client.GetAuthServers()
 		if err != nil {

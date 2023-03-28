@@ -26,6 +26,7 @@ import (
 	apiproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	proto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	protossh "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
@@ -42,6 +43,7 @@ var errDone = errors.New("done iterating")
 // Server implements KubeService gRPC server.
 type Server struct {
 	proto.UnimplementedKubeServiceServer
+	protossh.UnimplementedCommandServiceServer
 	cfg          Config
 	proxyAddress string
 	kubeProxySNI string
@@ -116,6 +118,22 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	c.Log = c.Log.WithFields(logrus.Fields{trace.Component: c.Component})
 	return nil
+}
+
+func (s *Server) Execute(req *protossh.ExecuteRequest, srv protossh.CommandService_ExecuteServer) error {
+	userContext, err := s.authorize(srv.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	_ = userContext
+
+	//s.cfg.Authz.
+
+	return srv.Send(&protossh.CommandLogResponse{
+		Count:    1,
+		StreamId: "123",
+		Data:     []byte(("ok")),
+	})
 }
 
 // ListKubernetesResources returns the list of pods available for the user for

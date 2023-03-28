@@ -219,7 +219,8 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		types.KindDatabaseService,
 		types.KindKubernetesCluster, types.KindKubePod,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
-		types.KindUserGroup:
+		types.KindUserGroup,
+		types.KindCommand:
 		specResource = resource
 		resourceKey.name = specResource.GetName()
 

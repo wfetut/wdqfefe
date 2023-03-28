@@ -162,6 +162,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newOktaAssignmentParser()
 		case types.KindIntegration:
 			parser = newIntegrationParser()
+		case types.KindCommand:
+			parser = newCommandParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -788,6 +790,20 @@ func (p *nodeParser) parse(event backend.Event) (types.Resource, error) {
 	return parseServer(event, types.KindNode)
 }
 
+func newCommandParser() *commandParser {
+	return &commandParser{
+		baseParser: newBaseParser(backend.Key(commandsPrefix, apidefaults.Namespace)),
+	}
+}
+
+type commandParser struct {
+	baseParser
+}
+
+func (p *commandParser) parse(event backend.Event) (types.Resource, error) {
+	return parseServer(event, types.KindCommand)
+}
+
 func newProxyParser() *proxyParser {
 	return &proxyParser{
 		baseParser: newBaseParser(backend.Key(proxiesPrefix)),
@@ -1197,6 +1213,25 @@ func parseServer(event backend.Event, kind string) (types.Resource, error) {
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func parseCommand(event backend.Event, kind string) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		panic("ksjdhfsjkdhkg")
+		return resourceHeader(event, kind, types.V2, 0)
+	case types.OpPut:
+		resource, err := services.UnmarshalCommand(event.Item.Value) //kind,
+		//services.WithResourceID(event.Item.ID),
+		//services.WithExpires(event.Item.Expires),
+
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

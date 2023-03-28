@@ -111,7 +111,7 @@ func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
 	}
 	if c.format == teleport.Text {
 		if len(users) == 0 {
-			fmt.Println("No users found")
+			fmt.Println("No commands found")
 			return nil
 		}
 		t := asciitable.MakeTable([]string{"Bot", "User", "Roles"})
@@ -133,7 +133,7 @@ func (c *BotsCommand) ListBots(ctx context.Context, client auth.ClientI) error {
 	} else {
 		out, err := json.MarshalIndent(users, "", "  ")
 		if err != nil {
-			return trace.Wrap(err, "failed to marshal users")
+			return trace.Wrap(err, "failed to marshal commands")
 		}
 		fmt.Print(string(out))
 	}

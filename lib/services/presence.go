@@ -35,6 +35,11 @@ type NodesGetter interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 }
 
+type CommandsGetter interface {
+	// GetCommands returns a list of registered servers.
+	GetCommands(ctx context.Context, namespace string) ([]types.Command, error)
+}
+
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
@@ -48,8 +53,12 @@ type Presence interface {
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
+	GetCommand(ctx context.Context, namespace, name string) (types.Command, error)
+
 	// NodesGetter gets nodes
 	NodesGetter
+
+	CommandsGetter
 
 	// DeleteAllNodes deletes all nodes in a namespace.
 	DeleteAllNodes(ctx context.Context, namespace string) error
@@ -60,6 +69,8 @@ type Presence interface {
 	// UpsertNode registers node presence, permanently if TTL is 0 or for the
 	// specified duration with second resolution if it's >= 1 second.
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
+
+	UpsertCommand(ctx context.Context, server types.Command) (*types.KeepAlive, error)
 
 	// GetAuthServers returns a list of registered servers
 	GetAuthServers() ([]types.Server, error)

@@ -1949,6 +1949,34 @@ func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Ser
 	return resp, nil
 }
 
+func (c *Client) GetCommand(ctx context.Context, namespace, name string) (types.Command, error) {
+	resp, err := c.grpc.GetCommand(ctx, &types.ResourceInNamespaceRequest{
+		Name:      name,
+		Namespace: namespace,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+func (c *Client) GetCommands(ctx context.Context, namespace string) ([]types.Command, error) {
+	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
+		ResourceType: types.KindCommand,
+		Namespace:    namespace,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resources).AsCommands()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
+}
+
 // GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
 	servers, err := GetAllResources[types.Server](ctx, c, &proto.ListResourcesRequest{
@@ -1957,6 +1985,21 @@ func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server
 	})
 
 	return servers, trace.Wrap(err)
+}
+
+func (c *Client) UpsertCommand(ctx context.Context, node types.Command) (*types.KeepAlive, error) {
+	//if node.GetNamespace() == "" {
+	//	return nil, trace.BadParameter("missing node namespace")
+	//}
+	commandV1, ok := node.(*types.CommandV1)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", node)
+	}
+	keepAlive, err := c.grpc.UpsertCommand(ctx, commandV1, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return keepAlive, nil
 }
 
 // UpsertNode is used by SSH servers to report their presence
@@ -2798,6 +2841,8 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetKubernetesServer()
 		case types.KindUserGroup:
 			resources[i] = respResource.GetUserGroup()
+		case types.KindCommand:
+			resources[i] = respResource.GetCommand()
 		default:
 			return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
 		}

@@ -37,6 +37,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	protossh "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
@@ -2219,6 +2220,29 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 
 	servers, err := client.GetAllResources[types.Server](ctx, clt.AuthClient, req)
 	return servers, trace.Wrap(err)
+}
+
+func (tc *TeleportClient) ListCommandsWithFilters(ctx context.Context) ([]types.Command, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/ListNodesWithFilters",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	// connect to the proxy and ask it to return a full list of commands
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	commands, err := proxyClient.FindCommandsByFilters(ctx, *tc.DefaultResourceFilter())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return commands, nil
 }
 
 // GetClusterAlerts returns a list of matching alerts from the current cluster.
@@ -4760,6 +4784,31 @@ func (tc *TeleportClient) IsALPNConnUpgradeRequiredForWebProxy(proxyAddr string)
 	}
 	// Do a test for other proxy addresses.
 	return client.IsALPNConnUpgradeRequired(proxyAddr, tc.InsecureSkipVerify)
+}
+
+func (tc *TeleportClient) NewCommandServiceClient(ctx context.Context) (protossh.CommandServiceClient, error) {
+	if !tc.TLSRoutingEnabled {
+		return nil, trace.BadParameter("kube service is not supported if TLS routing is not enabled")
+	}
+	// get tlsConfig to dial to proxy.
+	tlsConfig, err := tc.LoadTLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Set the ALPN protocols to use when dialing the proxy gRPC mTLS endpoint.
+	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxyGRPCSecure), http2.NextProtoTLS}
+
+	clt, err := client.New(ctx, client.Config{
+		Addrs:            []string{tc.Config.WebProxyAddr},
+		DialInBackground: false,
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return protossh.NewCommandServiceClient(clt.GetConnection()), nil
 }
 
 // RootClusterCACertPool returns a *x509.CertPool with the root cluster CA.

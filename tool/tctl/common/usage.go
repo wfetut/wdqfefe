@@ -30,7 +30,7 @@ const (
 
 Examples:
 
-  > tctl users add --roles=editor,dba joe
+  > tctl commands add --roles=editor,dba joe
 
   This creates a Teleport account 'joe' who will assume the roles 'editor' and 'dba'
   To see the permissions of 'editor' role, execute 'tctl get role/editor'

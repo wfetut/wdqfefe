@@ -113,6 +113,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
 		{Kind: types.KindIntegration},
+		{Kind: types.KindCommand},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -159,6 +160,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindIntegration},
+		{Kind: types.KindCommand},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -261,6 +263,7 @@ func ForNode(cfg Config) Config {
 		// data about other namespaces or node events
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNetworkRestrictions},
+		{Kind: types.KindCommand},
 	}
 
 	cfg.QueueSize = defaults.NodeQueueSize

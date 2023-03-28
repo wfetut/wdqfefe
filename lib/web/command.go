@@ -539,3 +539,92 @@ func (t *commandHandler) writeError(err error) {
 		t.log.WithError(writeErr).Warnf("Unable to send error to terminal: %v", err)
 	}
 }
+
+func (h *Handler) postCommandComplete(_ http.ResponseWriter, r *http.Request, params httprouter.Params /*, sctx *SessionContext*/) (any, error) {
+	var req client.CommandComplete
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	apiKey, err := os.ReadFile("/Users/jnyckowski/PycharmProjects/openai_test/apikey")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	client := openai.NewClient(string(apiKey))
+	resp, err := client.CreateChatCompletion(
+		context.Background(),
+		openai.ChatCompletionRequest{
+			Model: openai.GPT4,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role:    openai.ChatMessageRoleUser,
+					Content: "You will be asked to connect to servers and for you to run commands on the servers. You will take the human input and translate it as follows. To connect to a server, you will return the command \"connect:{server_name}\". For other queries, you will return the Linux command in the format \"exec:{command}\". If the user does not say to run a command on a server, respond as usual.",
+				},
+				{
+					Role:    openai.ChatMessageRoleUser,
+					Content: req.Query,
+				},
+			},
+		},
+	)
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	lines := strings.Split(resp.Choices[0].Message.Content, "\n")
+	var exec, production string
+	for _, line := range lines {
+		switch {
+		case strings.HasPrefix(line, "exec"):
+			exec = strings.TrimPrefix(line, "exec:")
+		case strings.HasPrefix(line, "production"):
+			production = strings.TrimPrefix(line, "production:")
+		}
+	}
+
+	return struct {
+		Response struct {
+			Exec       string `json:"exec"`
+			Production string `json:"production"`
+		} `json:"response"`
+	}{
+		Response: struct {
+			Exec       string `json:"exec"`
+			Production string `json:"production"`
+		}{
+			Exec:       exec,
+			Production: production,
+		},
+	}, nil
+}
+
+func (h *Handler) postCommand(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
+	var req client.CreateCommand
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cl, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = cl.UpsertCommand(r.Context(), &types.CommandV1{
+		Kind: "command",
+		Metadata: types.Metadata{
+			Name:      req.Name,
+			Namespace: "default",
+		},
+		Spec: types.CommandSpecV1{
+			Interpreter:   "/bin/bash",
+			Command:       req.Command,
+			LabelSelector: nil,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
+}

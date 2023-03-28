@@ -147,6 +147,8 @@ const (
 	// SubsystemRequest is a request to run a subsystem.
 	SubsystemRequest = "subsystem"
 
+	CommandSubsystem = "command-subsystem"
+
 	// WindowChangeRequest is a request to change window.
 	WindowChangeRequest = "window-change"
 

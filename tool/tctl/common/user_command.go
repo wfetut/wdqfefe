@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/gcp"
 )
 
-// UserCommand implements `tctl users` set of commands
+// UserCommand implements `tctl commands` set of commands
 // It implements CLICommand interface
 type UserCommand struct {
 	config                    *servicecfg.Config
@@ -69,19 +69,19 @@ type UserCommand struct {
 
 // Initialize allows UserCommand to plug itself into the CLI parser
 func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
-	const helpPrefix string = "[Teleport DB users only]"
+	const helpPrefix string = "[Teleport DB commands only]"
 
 	u.config = config
-	users := app.Command("users", "Manage user accounts")
+	users := app.Command("commands", "Manage user accounts")
 
 	u.userAdd = users.Command("add", "Generate a user invitation token "+helpPrefix)
 	u.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 
 	u.userAdd.Flag("logins", "List of allowed SSH logins for the new user").StringsVar(&u.allowedLogins)
 	u.userAdd.Flag("windows-logins", "List of allowed Windows logins for the new user").StringsVar(&u.allowedWindowsLogins)
-	u.userAdd.Flag("kubernetes-users", "List of allowed Kubernetes users for the new user").StringsVar(&u.allowedKubeUsers)
+	u.userAdd.Flag("kubernetes-commands", "List of allowed Kubernetes commands for the new user").StringsVar(&u.allowedKubeUsers)
 	u.userAdd.Flag("kubernetes-groups", "List of allowed Kubernetes groups for the new user").StringsVar(&u.allowedKubeGroups)
-	u.userAdd.Flag("db-users", "List of allowed database users for the new user").StringsVar(&u.allowedDatabaseUsers)
+	u.userAdd.Flag("db-commands", "List of allowed database commands for the new user").StringsVar(&u.allowedDatabaseUsers)
 	u.userAdd.Flag("db-names", "List of allowed database names for the new user").StringsVar(&u.allowedDatabaseNames)
 	u.userAdd.Flag("aws-role-arns", "List of allowed AWS role ARNs for the new user").StringsVar(&u.allowedAWSRoleARNs)
 	u.userAdd.Flag("azure-identities", "List of allowed Azure identities for the new user").StringsVar(&u.allowedAzureIdentities)
@@ -103,11 +103,11 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 		StringsVar(&u.allowedLogins)
 	u.userUpdate.Flag("set-windows-logins", "List of allowed Windows logins for the user, replaces current Windows logins").
 		StringsVar(&u.allowedWindowsLogins)
-	u.userUpdate.Flag("set-kubernetes-users", "List of allowed Kubernetes users for the user, replaces current Kubernetes users").
+	u.userUpdate.Flag("set-kubernetes-commands", "List of allowed Kubernetes commands for the user, replaces current Kubernetes commands").
 		StringsVar(&u.allowedKubeUsers)
 	u.userUpdate.Flag("set-kubernetes-groups", "List of allowed Kubernetes groups for the user, replaces current Kubernetes groups").
 		StringsVar(&u.allowedKubeGroups)
-	u.userUpdate.Flag("set-db-users", "List of allowed database users for the user, replaces current database users").
+	u.userUpdate.Flag("set-db-commands", "List of allowed database commands for the user, replaces current database commands").
 		StringsVar(&u.allowedDatabaseUsers)
 	u.userUpdate.Flag("set-db-names", "List of allowed database names for the user, replaces current database names").
 		StringsVar(&u.allowedDatabaseNames)
@@ -133,7 +133,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	u.userResetPassword.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 }
 
-// TryRun takes the CLI command as an argument (like "users add") and executes it.
+// TryRun takes the CLI command as an argument (like "commands add") and executes it.
 func (u *UserCommand) TryRun(ctx context.Context, cmd string, client auth.ClientI) (match bool, err error) {
 	switch cmd {
 	case u.userAdd.FullCommand():
@@ -215,7 +215,7 @@ func (u *UserCommand) printResetPasswordToken(token types.UserToken, format stri
 	return nil
 }
 
-// Add implements `tctl users add` for the enterprise edition. Unlike the OSS
+// Add implements `tctl commands add` for the enterprise edition. Unlike the OSS
 // version, this one requires --roles flag to be set
 func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 	u.allowedRoles = flattenSlice(u.allowedRoles)
@@ -314,7 +314,7 @@ func printTokenAsText(token types.UserToken, messageFormat string) error {
 
 	ttl := trimDurationZeroSuffix(token.Expiry().Sub(time.Now().UTC()))
 	fmt.Printf(messageFormat, token.GetUser(), ttl, url)
-	fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which users can access.\n", url.Host)
+	fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which commands can access.\n", url.Host)
 	return nil
 }
 
@@ -349,7 +349,7 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 	if len(u.allowedKubeUsers) > 0 {
 		kubeUsers := flattenSlice(u.allowedKubeUsers)
 		user.SetKubeUsers(kubeUsers)
-		updateMessages["Kubernetes users"] = kubeUsers
+		updateMessages["Kubernetes commands"] = kubeUsers
 	}
 	if len(u.allowedKubeGroups) > 0 {
 		kubeGroups := flattenSlice(u.allowedKubeGroups)
@@ -359,7 +359,7 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 	if len(u.allowedDatabaseUsers) > 0 {
 		dbUsers := flattenSlice(u.allowedDatabaseUsers)
 		user.SetDatabaseUsers(dbUsers)
-		updateMessages["database users"] = dbUsers
+		updateMessages["database commands"] = dbUsers
 	}
 	if len(u.allowedDatabaseNames) > 0 {
 		dbNames := flattenSlice(u.allowedDatabaseNames)
@@ -422,7 +422,7 @@ func (u *UserCommand) List(ctx context.Context, client auth.ClientI) error {
 	}
 	if u.format == teleport.Text {
 		if len(users) == 0 {
-			fmt.Println("No users found")
+			fmt.Println("No commands found")
 			return nil
 		}
 		t := asciitable.MakeTable([]string{"User", "Roles"})
@@ -435,7 +435,7 @@ func (u *UserCommand) List(ctx context.Context, client auth.ClientI) error {
 	} else {
 		out, err := json.MarshalIndent(users, "", "  ")
 		if err != nil {
-			return trace.Wrap(err, "failed to marshal users")
+			return trace.Wrap(err, "failed to marshal commands")
 		}
 		fmt.Print(string(out))
 	}

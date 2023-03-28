@@ -182,6 +182,8 @@ const (
 	// KindClusterAuthPreference is the type of authentication for this cluster.
 	KindClusterAuthPreference = "cluster_auth_preference"
 
+	KindCommand = "command"
+
 	// MetaNameClusterAuthPreference is the type of authentication for this cluster.
 	MetaNameClusterAuthPreference = "cluster-auth-preference"
 

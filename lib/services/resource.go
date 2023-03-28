@@ -197,6 +197,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindClusterMaintenanceConfig, nil
 	case types.KindIntegration, types.KindIntegration + "s":
 		return types.KindIntegration, nil
+	case types.KindCommand, types.KindCommand + "s":
+		return types.KindCommand, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -549,6 +551,13 @@ func init() {
 	})
 	RegisterResourceUnmarshaler(types.KindToken, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
 		token, err := UnmarshalProvisionToken(bytes, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return token, nil
+	})
+	RegisterResourceUnmarshaler(types.KindCommand, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		token, err := UnmarshalCommand(bytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
