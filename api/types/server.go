@@ -31,6 +31,17 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
+type Command interface {
+	ResourceWithLabels
+
+	GetNamespace() string
+	SetNamespace(string)
+
+	GetCommand() string
+	GetName() string
+	GetLabels() map[string]string
+}
+
 // Server represents a Node, Proxy or Auth server in a Teleport cluster
 type Server interface {
 	// ResourceWithLabels provides common resource headers

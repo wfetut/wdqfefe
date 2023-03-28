@@ -45,6 +45,79 @@ type PresenceService struct {
 	backend.Backend
 }
 
+func (s *PresenceService) GetCommands(ctx context.Context, namespace string) ([]types.Command, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing namespace value")
+	}
+
+	// Get all items in the bucket.
+	startKey := backend.Key(commandsPrefix, namespace)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Marshal values into a []services.Server slice.
+	commands := make([]types.Command, len(result.Items))
+	for i, item := range result.Items {
+		command, err := services.UnmarshalCommand(
+			item.Value,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		commands[i] = command
+	}
+
+	return commands, nil
+}
+
+func (s *PresenceService) GetCommand(ctx context.Context, namespace, name string) (types.Command, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
+	if name == "" {
+		return nil, trace.BadParameter("missing parameter name")
+	}
+	item, err := s.Get(ctx, backend.Key(commandsPrefix, namespace, name))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalCommand(
+		item.Value,
+	)
+}
+
+func (s *PresenceService) UpsertCommand(ctx context.Context, command types.Command) (*types.KeepAlive, error) {
+	if command.GetNamespace() == "" {
+		command.SetNamespace(apidefaults.Namespace)
+	}
+
+	if n := command.GetNamespace(); n != apidefaults.Namespace {
+		return nil, trace.BadParameter("cannot place node in namespace %q, custom namespaces are deprecated", n)
+	}
+	value, err := services.MarshalCommand(command)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lease, err := s.Put(ctx, backend.Item{
+		Key:     backend.Key(commandsPrefix, command.GetNamespace(), command.GetName()),
+		Value:   value,
+		Expires: command.Expiry(),
+		ID:      command.GetResourceID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if command.Expiry().IsZero() {
+		return &types.KeepAlive{}, nil
+	}
+	return &types.KeepAlive{
+		Type:    types.KeepAlive_NODE,
+		LeaseID: lease.ID,
+		Name:    command.GetName(),
+	}, nil
+}
+
 // backendItemToResourceFunc defines a function that unmarshals a
 // `backend.Item` into the implementation of `types.Resource`.
 type backendItemToResourceFunc func(item backend.Item) (types.ResourceWithLabels, error)
@@ -1418,6 +1491,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindKubeServer:
 		keyPrefix = []string{kubeServersPrefix}
 		unmarshalItemFunc = backendItemToKubernetesServer
+	case types.KindCommand:
+		keyPrefix = []string{commandsPrefix, req.Namespace}
+		unmarshalItemFunc = backendItemToCommand
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1652,6 +1728,12 @@ func backendItemToKubernetesServer(item backend.Item) (types.ResourceWithLabels,
 	)
 }
 
+func backendItemToCommand(item backend.Item) (types.ResourceWithLabels, error) {
+	return services.UnmarshalCommand(
+		item.Value,
+	)
+}
+
 // backendItemToServer returns `backendItemToResourceFunc` to unmarshal a
 // `backend.Item` into a `types.ServerV2` with a specific `kind`, returning it
 // as a `types.ResourceWithLabels`.
@@ -1681,6 +1763,7 @@ const (
 	trustedClustersPrefix        = "trustedclusters"
 	remoteClustersPrefix         = "remoteClusters"
 	nodesPrefix                  = "nodes"
+	commandsPrefix               = "commands"
 	appsPrefix                   = "apps"
 	snowflakePrefix              = "snowflake"
 	samlIdPPrefix                = "saml_idp" //nolint:revive // Because we want this to be IdP.

@@ -79,6 +79,23 @@ func onProxyCommandSSH(cf *CLIConf) error {
 	return trace.Wrap(err)
 }
 
+func onExecuteCommand(cf *CLIConf) error {
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = libclient.RetryWithRelogin(cf.Context, tc, func() error {
+		proxyParams, err := getSSHProxyParams(cf, tc)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return trace.Wrap(sshProxy(cf.Context, tc, *proxyParams))
+	})
+	return trace.Wrap(err)
+}
+
 // sshProxyParams combines parameters for establishing an SSH proxy used
 // as a ProxyCommand for SSH clients.
 type sshProxyParams struct {

@@ -136,7 +136,7 @@ func runTokensCommand(t *testing.T, fc *config.FileConfig, args []string, opts .
 
 func runUserCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
 	command := &UserCommand{}
-	args = append([]string{"users"}, args...)
+	args = append([]string{"commands"}, args...)
 	return runCommand(t, fc, command, args, opts...)
 }
 

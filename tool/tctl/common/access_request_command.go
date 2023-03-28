@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// AccessRequestCommand implements `tctl users` set of commands
+// AccessRequestCommand implements `tctl commands` set of commands
 // It implements CLICommand interface
 type AccessRequestCommand struct {
 	config *servicecfg.Config

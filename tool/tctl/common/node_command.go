@@ -214,7 +214,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client auth.ClientI) error {
 			})
 		}
 	} else {
-		// Always return a list, otherwise we'll break users tooling. See #1846 for
+		// Always return a list, otherwise we'll break commands tooling. See #1846 for
 		// more details.
 		tokens := []string{token}
 		out, err := json.Marshal(tokens)

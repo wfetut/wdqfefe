@@ -120,8 +120,8 @@ func TestUserAdd(t *testing.T) {
 			},
 		},
 		{
-			name: "kube users",
-			args: []string{"--kubernetes-users", "k1,k2,k3"},
+			name: "kube commands",
+			args: []string{"--kubernetes-commands", "k1,k2,k3"},
 			wantTraits: map[string][]string{
 				constants.TraitKubeUsers: {"k1", "k2", "k3"},
 			},
@@ -134,8 +134,8 @@ func TestUserAdd(t *testing.T) {
 			},
 		},
 		{
-			name: "db users",
-			args: []string{"--db-users", "d1,d2,d3"},
+			name: "db commands",
+			args: []string{"--db-commands", "d1,d2,d3"},
 			wantTraits: map[string][]string{
 				constants.TraitDBUsers: {"d1", "d2", "d3"},
 			},
@@ -276,8 +276,8 @@ func TestUserUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "new kube users",
-			args: []string{"--set-kubernetes-users", "k1,k2,k3"},
+			name: "new kube commands",
+			args: []string{"--set-kubernetes-commands", "k1,k2,k3"},
 			wantTraits: map[string][]string{
 				constants.TraitKubeUsers: {"k1", "k2", "k3"},
 			},
@@ -290,8 +290,8 @@ func TestUserUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "new db users",
-			args: []string{"--set-db-users", "d1,d2,d3"},
+			name: "new db commands",
+			args: []string{"--set-db-commands", "d1,d2,d3"},
 			wantTraits: map[string][]string{
 				constants.TraitDBUsers: {"d1", "d2", "d3"},
 			},

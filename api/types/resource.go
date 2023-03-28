@@ -154,6 +154,19 @@ func (r ResourcesWithLabels) AsServers() ([]Server, error) {
 	return servers, nil
 }
 
+// AsCommands converts each resource into type Server.
+func (r ResourcesWithLabels) AsCommands() ([]Command, error) {
+	commands := make([]Command, 0, len(r))
+	for _, resource := range r {
+		command, ok := resource.(Command)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Server, got: %T", resource)
+		}
+		commands = append(commands, command)
+	}
+	return commands, nil
+}
+
 // AsDatabases converts each resource into type Database.
 func (r ResourcesWithLabels) AsDatabases() ([]Database, error) {
 	dbs := make([]Database, 0, len(r))

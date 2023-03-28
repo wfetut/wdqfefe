@@ -109,6 +109,41 @@ type GRPCServer struct {
 	collectortracepb.TraceServiceServer
 }
 
+func (g *GRPCServer) GetCommand(ctx context.Context, req *types.ResourceInNamespaceRequest) (*types.CommandV1, error) {
+	if req.Namespace == "" {
+		return nil, trace.BadParameter("missing parameter namespace")
+	}
+	if req.Name == "" {
+		return nil, trace.BadParameter("missing parameter name")
+	}
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	command, err := auth.ServerWithRoles.GetCommand(ctx, req.Namespace, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	serverV1, ok := command.(*types.CommandV1)
+	if !ok {
+		return nil, trace.Errorf("encountered unexpected command type: %T", command)
+	}
+	return serverV1, nil
+}
+
+func (g *GRPCServer) UpsertCommand(ctx context.Context, cmd *types.CommandV1) (*types.KeepAlive, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keepAlive, err := auth.ServerWithRoles.UpsertCommand(ctx, cmd)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return keepAlive, nil
+}
+
 func (g *GRPCServer) serverContext() context.Context {
 	return g.AuthServer.closeCtx
 }
@@ -4178,6 +4213,12 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}}
+		case types.KindCommand:
+			cmd, ok := resource.(*types.CommandV1)
+			if !ok {
+				return nil, trace.BadParameter("node has invalid type %T", resource)
+			}
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Command{Command: cmd}}
 		case types.KindKubeServer:
 			srv, ok := resource.(*types.KubernetesServerV3)
 			if !ok {

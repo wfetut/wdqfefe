@@ -727,6 +727,10 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	h.GET("/webapi/headless/:headless_authentication_id", h.WithAuth(h.getHeadless))
 	h.PUT("/webapi/headless/:headless_authentication_id", h.WithAuth(h.putHeadlessState))
+
+	//h.POST("/webapi/command/complete", h.WithAuth(h.postCommandComplete))
+	h.POST("/webapi/command/complete", httplib.MakeHandler(h.postCommandComplete))
+	h.POST("/webapi/command", h.WithAuth(h.postCommand))
 }
 
 // GetProxyClient returns authenticated auth server client

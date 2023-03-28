@@ -113,6 +113,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
+		{Kind: types.KindCommand},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -156,6 +157,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
+		{Kind: types.KindCommand},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -260,6 +262,7 @@ func ForNode(cfg Config) Config {
 		// data about other namespaces or node events
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
 		{Kind: types.KindNetworkRestrictions},
+		{Kind: types.KindCommand},
 	}
 
 	cfg.QueueSize = defaults.NodeQueueSize

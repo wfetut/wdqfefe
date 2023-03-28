@@ -710,6 +710,24 @@ func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.List
 	return servers, trace.Wrap(err)
 }
 
+func (proxy *ProxyClient) FindCommandsByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Command, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/FindNodesByFilters",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("resource", req.ResourceType),
+			attribute.Int("limit", int(req.Limit)),
+			attribute.String("predicate", req.PredicateExpression),
+			attribute.StringSlice("keywords", req.SearchKeywords),
+		),
+	)
+	defer span.End()
+
+	servers, err := proxy.FindCommandsByFiltersForCluster(ctx, req, proxy.siteName)
+	return servers, trace.Wrap(err)
+}
+
 func (proxy *ProxyClient) GetClusterAlerts(ctx context.Context, req types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
@@ -753,6 +771,40 @@ func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req 
 	}
 
 	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
+}
+
+func (proxy *ProxyClient) FindCommandsByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.Command, error) {
+	req.ResourceType = types.KindCommand
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/FindNodesByFiltersForCluster",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("cluster", cluster),
+			attribute.String("resource", req.ResourceType),
+			attribute.Int("limit", int(req.Limit)),
+			attribute.String("predicate", req.PredicateExpression),
+			attribute.StringSlice("keywords", req.SearchKeywords),
+		),
+	)
+	defer span.End()
+
+	site, err := proxy.ConnectToCluster(ctx, cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resources, err := client.GetResourcesWithFilters(ctx, site, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resources).AsCommands()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -853,6 +905,30 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.Create
 
 // GetAppSession creates a new application access session.
 func (proxy *ProxyClient) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/GetAppSession",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	clusterName, err := proxy.RootClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authClient, err := proxy.ConnectToCluster(ctx, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ws, err := authClient.GetAppSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ws, nil
+}
+
+// Get creates a new application access session.
+func (proxy *ProxyClient) Get(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/GetAppSession",

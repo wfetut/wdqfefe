@@ -23,8 +23,6 @@ import (
 	"time"
 
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -36,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -65,7 +64,7 @@ type Client struct {
 	*APIClient
 	// HTTPClient is used to make http requests to the server
 	*HTTPClient
-	// oktaClient is used to make Okta resoruce requests to the server.
+	// oktaClient is used to make Okta resource requests to the server.
 	oktaClient services.Okta
 }
 
@@ -337,7 +336,7 @@ func (c *Client) DeleteAllReverseTunnels() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllCertNamespaces not implemented: can only be called locally.
+// DeleteAllNamespaces not implemented: can only be called locally.
 func (c *Client) DeleteAllNamespaces() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
@@ -845,4 +844,6 @@ type ClientI interface {
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
+
+	UpsertCommand(ctx context.Context, command types.Command) (*types.KeepAlive, error)
 }

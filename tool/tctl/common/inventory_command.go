@@ -174,7 +174,7 @@ func (c *InventoryCommand) List(ctx context.Context, client auth.ClientI) error 
 }
 
 // makeInstanceStatus builds the instance status string. This currently distinguishes online/offline, but the
-// plan is to eventually use the status field to give users insight at a glance into the current status of
+// plan is to eventually use the status field to give commands insight at a glance into the current status of
 // ongoing upgrades as well.  Ex:
 //
 // Status

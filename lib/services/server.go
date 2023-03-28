@@ -331,6 +331,15 @@ func GuessProxyHostAndVersion(proxies []types.Server) (string, string, error) {
 	return guessProxyHost, proxies[0].GetTeleportVersion(), nil
 }
 
+func UnmarshalCommand(bytes []byte) (types.Command, error) {
+	var c types.CommandV1
+	if err := utils.FastUnmarshal(bytes, &c); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+
+	return &c, nil
+}
+
 // UnmarshalServer unmarshals the Server resource from JSON.
 func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (types.Server, error) {
 	cfg, err := CollectOptions(opts)
@@ -389,6 +398,32 @@ func MarshalServer(server types.Server, opts ...MarshalOption) ([]byte, error) {
 		return utils.FastMarshal(server)
 	default:
 		return nil, trace.BadParameter("unrecognized server version %T", server)
+	}
+}
+
+// MarshalCommand marshals the Server resource to JSON.
+func MarshalCommand(command types.Command, opts ...MarshalOption) ([]byte, error) {
+	if err := command.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch cmd := command.(type) {
+	case *types.CommandV1:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *cmd
+			copy.SetResourceID(0)
+			cmd = &copy
+		}
+		return utils.FastMarshal(cmd)
+	default:
+		return nil, trace.BadParameter("unrecognized command version %T", cmd)
 	}
 }
 

@@ -394,6 +394,10 @@ func (r *Services) OktaClient() services.Okta {
 	return r.okta
 }
 
+func (r *Services) UpsertCommand(ctx context.Context, command types.Command) (*types.KeepAlive, error) {
+	return r.PresenceInternal.UpsertCommand(ctx, command)
+}
+
 var (
 	generateRequestsCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -4892,6 +4896,26 @@ func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*t
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
 	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
 	return headlessAuthn, trace.Wrap(err)
+}
+
+func (a *Server) UpsertCommand(ctx context.Context, command types.Command) (*types.KeepAlive, error) {
+	lease, err := a.Services.UpsertCommand(ctx, command)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	kind := usagereporter.ResourceKindNode
+	if command.GetSubKind() == types.SubKindOpenSSHNode {
+		kind = usagereporter.ResourceKindNodeOpenSSH
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   command.GetName(),
+		Kind:   kind,
+		Static: command.Expiry().IsZero(),
+	})
+
+	return lease, nil
 }
 
 // authKeepAliver is a keep aliver using auth server directly

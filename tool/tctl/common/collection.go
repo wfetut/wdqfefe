@@ -190,6 +190,26 @@ func (u *userCollection) writeText(w io.Writer) error {
 	return nil
 }
 
+type commandCollection struct {
+	commands []types.Command
+}
+
+func (u *commandCollection) resources() (r []types.Resource) {
+	for _, resource := range u.commands {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (u *commandCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Command"})
+	for _, user := range u.commands {
+		t.AddRow([]string{user.GetName()})
+	}
+	_, err := fmt.Fprintf(w, t.AsBuffer().String())
+	return trace.Wrap(err)
+}
+
 type authorityCollection struct {
 	cas []types.CertAuthority
 }

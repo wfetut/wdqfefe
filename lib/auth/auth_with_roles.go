@@ -70,6 +70,21 @@ type ServerWithRoles struct {
 	context authz.Context
 }
 
+func (a *ServerWithRoles) GetCommands(ctx context.Context, namespace string) ([]types.Command, error) {
+	return a.GetCommands(ctx, namespace)
+}
+
+func (a *ServerWithRoles) GetCommand(ctx context.Context, namespace, name string) (types.Command, error) {
+	return a.GetCommand(ctx, namespace, name)
+}
+
+func (a *ServerWithRoles) UpsertCommand(ctx context.Context, command types.Command) (*types.KeepAlive, error) {
+	if err := a.action(command.GetNamespace(), types.KindCommand, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.UpsertCommand(ctx, command)
+}
+
 // CloseContext is closed when the auth server shuts down
 func (a *ServerWithRoles) CloseContext() context.Context {
 	return a.authServer.closeCtx
@@ -1454,7 +1469,8 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
+	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeServer,
+		types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindCommand:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1552,6 +1568,8 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr, state)
 	case types.WindowsDesktopService:
 		return r.CheckAccess(rr, state)
+	case types.Command:
+		return r.CheckAccess(rr, state)
 	default:
 		return trace.BadParameter("could not check access to resource type %T", r)
 	}
@@ -1560,7 +1578,8 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode, types.KindKubeServer:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop,
+		types.KindWindowsDesktopService, types.KindNode, types.KindKubeServer, types.KindCommand:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
@@ -1652,6 +1671,16 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		}
 		resources = desktops.AsResources()
 
+	case types.KindCommand:
+		commands, err := a.GetCommands(ctx, "default")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		_ = commands
+		panic("aaaaa")
+		//sortedCommands := types.Command
+		//
+		//resources = commands.
 	default:
 		return nil, trace.NotImplemented("resource type %q is not supported for listResourcesWithSort", req.ResourceType)
 	}

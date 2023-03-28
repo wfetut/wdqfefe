@@ -269,6 +269,42 @@ message DatabaseV3List {
   repeated DatabaseV3 Databases = 1;
 }
 
+message CommandV1 {
+  //  option (gogoproto.goproto_stringer) = false;
+  //  option (gogoproto.stringer) = false;
+
+  // Kind is the database resource kind.
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // SubKind is an optional resource subkind.
+  string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version is the resource version.
+  string Version = 3 [(gogoproto.jsontag) = "version"];
+  // Metadata is the database metadata.
+  Metadata Metadata = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "metadata"
+  ];
+  // Spec is the database spec.
+  CommandSpecV1 Spec = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// CommandSpecV1 is the command spec.
+message CommandSpecV1 {
+  // Protocol is the database protocol: postgres, mysql, mongodb, etc.
+  string Interpreter = 1 [(gogoproto.jsontag) = "interpreter"];
+  // URI is the database connection endpoint.
+  string Command = 2 [(gogoproto.jsontag) = "command"];
+
+  // DynamicLabels is the database dynamic labels.
+  map<string, CommandLabelV2> LabelSelector = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "dynamic_labels,omitempty"
+  ];
+}
+
 // DatabaseV3 represents a single proxied database.
 message DatabaseV3 {
   option (gogoproto.goproto_stringer) = false;

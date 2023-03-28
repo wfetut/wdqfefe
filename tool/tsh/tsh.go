@@ -439,6 +439,8 @@ type CLIConf struct {
 
 	// HeadlessAuthenticationID is the ID of a headless authentication.
 	HeadlessAuthenticationID string
+
+	ExecCommand string
 }
 
 // Stdout returns the stdout writer.
@@ -935,6 +937,11 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	approve := headless.Command("approve", "headless approval").Interspersed(true)
 	approve.Arg("request id", "headless authentication request id").StringVar(&cf.HeadlessAuthenticationID)
 
+	commandSwitch := app.Command("command", "commmmmands")
+	listCommands := commandSwitch.Command("ls", "list commands")
+	execCommand := commandSwitch.Command("exec", "execute command")
+	execCommand.Arg("command name", "name of the command").StringVar(&cf.ExecCommand)
+
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
 	kubectl := app.Command("kubectl", "Runs a kubectl command on a Kubernetes cluster").Interspersed(false)
@@ -1248,6 +1255,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onKubectlCommand(&cf, args[idx:])
 	case approve.FullCommand():
 		err = onHeadlessApprove(&cf)
+	case listCommands.FullCommand():
+		err = onListCommands(&cf)
+	case execCommand.FullCommand():
+		err = onExecCommand(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
