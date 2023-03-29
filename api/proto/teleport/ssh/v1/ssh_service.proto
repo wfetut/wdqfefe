@@ -1,0 +1,46 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.ssh.v1;
+
+//import "teleport/legacy/types/types.proto";
+//import "google/protobuf/empty.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1";
+
+// ExecuteRequest
+message ExecuteRequest {
+  string command_id = 1;
+  map<string, string> labels = 2;
+}
+
+// CommandLogResponse
+message CommandLogResponse {
+  int64 count = 1;
+  string stream_id = 2;
+  bytes data = 3;
+}
+
+// ListRequest
+//message ListRequest {}
+
+// CommandService ....
+service CommandService {
+  // Execute ....
+  rpc Execute(ExecuteRequest) returns (stream CommandLogResponse);
+  //   List...
+  //  rpc List(ListRequest) returns (google.protobuf.Empty);
+}

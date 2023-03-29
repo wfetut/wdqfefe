@@ -20,18 +20,15 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"os"
+	"io"
 	"sort"
-	"strings"
 
-	"github.com/gravitational/teleport"
+	protossh "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/common"
-	"github.com/gravitational/trace"
 )
 
 func onListCommands(cf *CLIConf) error {
@@ -46,7 +43,7 @@ func onListCommands(cf *CLIConf) error {
 
 	tc.AllowHeadless = true
 
-	// Get list of all nodes in backend and sort by "Node Name".
+	// Get list of all nodes in the backend and sort by "Node Name".
 	var nodes []types.Command
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		nodes, err = tc.ListCommandsWithFilters(cf.Context)
@@ -68,6 +65,9 @@ func onListCommands(cf *CLIConf) error {
 }
 
 func onExecCommand(cf *CLIConf) error {
+	if cf.ExecCommand == "" {
+		return trace.BadParameter("missing param")
+	}
 	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -75,64 +75,32 @@ func onExecCommand(cf *CLIConf) error {
 
 	tc.AllowHeadless = true
 
-	tc.Stdin = os.Stdin
-	err = retryWithAccessRequest(cf, tc, func() error {
-		err = client.RetryWithRelogin(cf.Context, tc, func() error {
-			commands, err := tc.ListCommandsWithFilters(cf.Context)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			var command types.Command
-			for _, cmd := range commands {
-				if cmd.GetName() == cf.ExecCommand {
-					command = cmd
-					break
-				}
-			}
-			if command == nil {
-				return trace.Errorf("command not found")
-			}
-
-			tc.Labels = map[string]string{
-				"env": "example",
-			}
-
-			return tc.SSH(cf.Context, []string{command.GetCommand()}, cf.LocalExec)
-		})
-		if err != nil {
-			if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
-				// Match on hostname or host ID, user could have given either
-				expr := fmt.Sprintf(hostnameOrIDPredicateTemplate, tc.Host)
-				tc.PredicateExpression = expr
-				nodes, err := tc.ListNodesWithFilters(cf.Context)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				fmt.Fprintf(cf.Stderr(), "error: ambiguous host could match multiple nodes\n\n")
-				printNodesAsText(cf.Stderr(), nodes, true)
-				fmt.Fprintf(cf.Stderr(), "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
-				fmt.Fprintf(cf.Stderr(), "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
-				fmt.Fprintf(cf.Stderr(), "\n")
-				return trace.Wrap(&common.ExitCodeError{Code: 1})
-			}
-			return trace.Wrap(err)
-		}
-		return nil
-	})
-	// Exit with the same exit status as the failed command.
-	if tc.ExitStatus != 0 {
-		var exitErr *common.ExitCodeError
-		if errors.As(err, &exitErr) {
-			// Already have an exitCodeError, return that.
-			return trace.Wrap(err)
-		}
-		if err != nil {
-			// Print the error here so we don't lose it when returning the exitCodeError.
-			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		}
-		err = &common.ExitCodeError{Code: tc.ExitStatus}
+	proxyGRPCClient, err := tc.NewCommandServiceClient(cf.Context)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(err)
+	req := protossh.ExecuteRequest{
+		CommandId: cf.ExecCommand,
+		Labels:    tc.Labels,
+	}
+
+	logs, err := proxyGRPCClient.Execute(cf.Context, &req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer logs.CloseSend()
+
+	for {
+		resp, err := logs.Recv()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return trace.Wrap(err)
+		}
+
+		fmt.Printf("%v\n", resp)
+	}
+
+	return nil
 }

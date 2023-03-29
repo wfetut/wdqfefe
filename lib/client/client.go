@@ -94,6 +94,71 @@ func (proxy *ProxyClient) ClusterName() string {
 	return proxy.siteName
 }
 
+//func (proxy *ProxyClient) ExecuteCommand(ctx context.Context) (any, error) {
+//	proxySession, err := proxy.Client.NewSession(ctx)
+//	if err != nil {
+//		return nil, trace.Wrap(err)
+//	}
+//	defer proxySession.Close()
+//
+//	if err := proxySession.RequestSubsystem(ctx, sshutils.CommandSubsystem); err != nil {
+//		return nil, trace.Wrap(err)
+//	}
+//
+//	stdout := &bytes.Buffer{}
+//	reader, err := proxySession.StdoutPipe()
+//	if err != nil {
+//		return nil, trace.Wrap(err)
+//	}
+//	writer, err := proxySession.StdinPipe()
+//	if err != nil {
+//		return nil, trace.Wrap(err)
+//	}
+//	req := protossh.ExecuteRequest{
+//		CommandId: "ls-la",
+//	}
+//
+//	reqData, err := req.Marshal()
+//	if err != nil {
+//		return nil, trace.Wrap(err)
+//	}
+//
+//	reqData = append(reqData, 0)
+//
+//	if _, err := writer.Write(reqData); err != nil {
+//		return nil, trace.Wrap(err)
+//	}
+//
+//	done := make(chan struct{})
+//	go func() {
+//		if _, err := io.Copy(stdout, reader); err != nil {
+//			log.Warningf("Error reading STDOUT from proxy: %v", err)
+//		}
+//		close(done)
+//	}()
+//	// this function is async because,
+//	// the function call StdoutPipe() could fail if proxy rejected
+//	// the session request, and then RequestSubsystem call could hang
+//	// forever
+//	//go func() {
+//	//	if err := proxySession.RequestSubsystem(ctx, sshutils.CommandSubsystem); err != nil {
+//	//		log.Warningf("Failed to request subsystem: %v", err)
+//	//	}
+//	//}()
+//	select {
+//	case <-done:
+//	case <-time.After(apidefaults.DefaultIOTimeout):
+//		return nil, trace.ConnectionProblem(nil, "timeout")
+//	}
+//	log.Debugf("Found clusters: %v", stdout.String())
+//
+//	//var sites []types.Site
+//	//if err := json.Unmarshal(stdout.Bytes(), &sites); err != nil {
+//	//	return nil, trace.Wrap(err)
+//	//}
+//	return nil, nil
+//}
+
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
 // Each site is returned as an instance of its auth server
 func (proxy *ProxyClient) GetSites(ctx context.Context) ([]types.Site, error) {

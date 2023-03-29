@@ -26,6 +26,7 @@ main() {
     --path=api/proto/teleport/okta/ \
     --path=api/proto/teleport/plugins/ \
     --path=api/proto/teleport/samlidp/ \
+    --path=api/proto/teleport/ssh/ \
     --path=api/proto/teleport/transport/ \
     --path=api/proto/teleport/trust/ \
     --path=proto/teleport/lib/multiplexer/ \

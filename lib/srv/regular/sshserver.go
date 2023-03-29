@@ -1655,6 +1655,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 	case sshutils.EnvRequest:
 		return s.handleEnv(ch, req, serverContext)
+	//case sshutils.CommandSubsystem:
+	//	return s.handleCommandSubsystem(ctx, ch, req, serverContext)
 	case sshutils.SubsystemRequest:
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
@@ -1794,6 +1796,26 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 
 	return nil
 }
+
+//
+//func (s *Server) handleCommandSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
+//	s.Logger.Info("started command subsystem")
+//
+//	var cmdReq *protossh.CommandRunRequest
+//
+//	data, err := io.ReadAll(ch)
+//	if err != nil {
+//		return trace.Wrap(err)
+//	}
+//
+//	if err := cmdReq.Unmarshal(data); err != nil {
+//		return trace.Wrap(err)
+//	}
+//
+//	s.Logger.Infof("end command subsystem: %v", cmdReq)
+//
+//	return nil
+//}
 
 func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
 	sb, err := s.parseSubsystemRequest(req, ch, serverContext)
@@ -2034,6 +2056,8 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *sr
 		}
 
 		return newSFTPSubsys()
+	//case r.Name == sshutils.CommandSubsystem:
+	//	return newExecSubsystem()
 	default:
 		return nil, trace.BadParameter("unrecognized subsystem: %v", r.Name)
 	}

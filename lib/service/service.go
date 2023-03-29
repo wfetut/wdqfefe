@@ -43,6 +43,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
+	protossh "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -5395,7 +5396,9 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	kubeproto.RegisterKubeServiceServer(server, kubeServer)
+	protossh.RegisterCommandServiceServer(server, kubeServer)
 
 	process.RegisterCriticalFunc("proxy.grpc.secure", func() error {
 		process.log.Infof("Starting proxy gRPC server on %v.", cfg.listener.Addr())

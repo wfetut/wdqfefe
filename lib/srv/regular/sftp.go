@@ -55,6 +55,42 @@ func newSFTPSubsys() (*sftpSubsys, error) {
 	}, nil
 }
 
+//type execSubsystem struct {
+//	log *logrus.Entry
+//}
+
+//func newExecSubsystem() (*execSubsystem, error) {
+//	// TODO: add prometheus collectors?
+//	return &execSubsystem{
+//		log: logrus.WithFields(logrus.Fields{
+//			trace.Component: teleport.ComponentSubsystemSFTP,
+//		}),
+//	}, nil
+//}
+
+//func (s *execSubsystem) Start(ctx context.Context, serverConn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverCtx *srv.ServerContext) error {
+//	s.log.Info("started command subsystem")
+//
+//	var cmdReq *proto.CommandRunRequest
+//
+//	data, err := io.ReadAll(ch)
+//	if err != nil {
+//		return trace.Wrap(err)
+//	}
+//
+//	if err := cmdReq.Unmarshal(data); err != nil {
+//		return trace.Wrap(err)
+//	}
+//
+//	s.log.Infof("end command subsystem: %v", cmdReq)
+//
+//	return nil
+//}
+
+//func (s *execSubsystem) Wait() error {
+//	return nil
+//}
+
 func (s *sftpSubsys) Start(ctx context.Context, serverConn *ssh.ServerConn, ch ssh.Channel, _ *ssh.Request,
 	serverCtx *srv.ServerContext,
 ) error {
