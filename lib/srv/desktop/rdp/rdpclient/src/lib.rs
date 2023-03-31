@@ -72,8 +72,8 @@ use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
 use std::net;
 use std::net::{TcpStream, ToSocketAddrs};
-use std::os::raw::c_char;
-use std::os::unix::io::AsRawFd;
+use std::os::raw::{c_char, c_int};
+use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
 use std::sync::{Arc, Mutex};
 use std::{mem, ptr, slice, time};
 
@@ -190,10 +190,9 @@ pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) ->
         ConnectParams {
             addr,
             username,
+            proxy_tls_conn_fd: params.proxy_tls_conn_fd,
             cert_der,
             key_der,
-            screen_width: params.screen_width,
-            screen_height: params.screen_height,
             allow_clipboard: params.allow_clipboard,
             allow_directory_sharing: params.allow_directory_sharing,
             show_desktop_wallpaper: params.show_desktop_wallpaper,
@@ -229,12 +228,11 @@ const RDPSND_CHANNEL_NAME: &str = "rdpsnd";
 pub struct CGOConnectParams {
     go_addr: *const c_char,
     go_username: *const c_char,
+    proxy_tls_conn_fd: c_int,
     cert_der_len: u32,
     cert_der: *mut u8,
     key_der_len: u32,
     key_der: *mut u8,
-    screen_width: u16,
-    screen_height: u16,
     allow_clipboard: bool,
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,
@@ -243,10 +241,9 @@ pub struct CGOConnectParams {
 struct ConnectParams {
     addr: String,
     username: String,
+    proxy_tls_conn_fd: RawFd,
     cert_der: Vec<u8>,
     key_der: Vec<u8>,
-    screen_width: u16,
-    screen_height: u16,
     allow_clipboard: bool,
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,

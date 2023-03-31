@@ -276,7 +276,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 	}
 	tlsConfig.Certificates = []tls.Certificate{certConf}
 	// Pass target desktop name via SNI.
-	tlsConfig.ServerName = desktopName + desktop.SNISuffix
+	tlsConfig.ServerName = desktopName + "." + username + desktop.SNISuffix
 	return tlsConfig, nil
 }
 

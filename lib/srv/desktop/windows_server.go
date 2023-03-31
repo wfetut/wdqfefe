@@ -703,22 +703,12 @@ func (s *WindowsService) ldapReady() bool {
 func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log := s.cfg.Log
 
-	tdpConn := tdp.NewConn(proxyConn)
-	defer tdpConn.Close()
-
-	// Inline function to enforce that we are centralizing TDP Error sending in this function.
-	sendTDPError := func(message string) {
-		if err := tdpConn.SendNotification(message, tdp.SeverityError); err != nil {
-			log.Errorf("Failed to send TDP error message %v", err)
-		}
-	}
-
 	// don't handle connections until the LDAP initialization retry loop has succeeded
 	// (it would fail anyway, but this presents a better error to the user)
 	if !s.readyForConnections() {
 		const msg = "This service cannot accept connections until LDAP initialization has completed."
 		log.Error(msg)
-		sendTDPError(msg)
+		// todo(isaiah): need replacement for sendTdpError
 		return
 	}
 
@@ -726,13 +716,13 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	remoteAddr, _, err := net.SplitHostPort(proxyConn.RemoteAddr().String())
 	if err != nil {
 		log.WithError(err).Errorf("Could not parse client IP from %q", proxyConn.RemoteAddr().String())
-		sendTDPError("Internal error.")
+		// todo(isaiah): need replacement for sendTdpError
 		return
 	}
 	log = log.WithField("client-ip", remoteAddr)
 	if err := s.cfg.ConnLimiter.AcquireConnection(remoteAddr); err != nil {
 		log.WithError(err).Warning("Connection limit exceeded, rejecting connection")
-		sendTDPError("Connection limit exceeded.")
+		// todo(isaiah): need replacement for sendTdpError
 		return
 	}
 	defer s.cfg.ConnLimiter.ReleaseConnection(remoteAddr)
@@ -741,7 +731,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	ctx, err := s.middleware.WrapContextWithUser(s.closeCtx, proxyConn)
 	if err != nil {
 		log.WithError(err).Warning("mTLS authentication failed for incoming connection")
-		sendTDPError("Connection authentication failed.")
+		// todo(isaiah): need replacement for sendTdpError
 		return
 	}
 	log.Debug("Authenticated Windows desktop connection")
@@ -749,25 +739,28 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	authContext, err := s.cfg.Authorizer.Authorize(ctx)
 	if err != nil {
 		log.WithError(err).Warning("authorization failed for Windows desktop connection")
-		sendTDPError("Connection authorization failed.")
+		// todo(isaiah): need replacement for sendTdpError
 		return
 	}
 
-	// Fetch the target desktop info. Name of the desktop is passed via SNI.
-	desktopName := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
+	// Fetch the target desktop info. Name of the desktop and windows username is passed via SNI.
+	desktopNameAndUsername := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
+	parts := strings.Split(desktopNameAndUsername, ".")
+	desktopName := parts[0]
+	username := parts[1]
 	log = log.WithField("desktop-name", desktopName)
 
 	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx,
 		types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID, Name: desktopName})
 	if err != nil {
 		log.WithError(err).Warning("Failed to fetch desktop by name")
-		sendTDPError("Teleport failed to find the requested desktop in its database.")
+		// todo(isaiah): need replacement for sendTdpError
 		return
 	}
 	if len(desktops) == 0 {
 		log.Error("no windows desktops with HostID %s and Name %s", s.cfg.Heartbeat.HostUUID,
 			desktopName)
-		sendTDPError(fmt.Sprintf("Could not find desktop %v.", desktopName))
+		// todo(isaiah): need replacement for sendTdpError
 		return
 	}
 	desktop := desktops[0]
@@ -776,14 +769,14 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log.Debug("Connecting to Windows desktop")
 	defer log.Debug("Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext); err != nil {
+	if err := s.connectRDP(ctx, log, proxyConn, desktop, username, authContext); err != nil {
 		log.Errorf("RDP connection failed: %v", err)
-		sendTDPError("RDP connection failed.")
+		// todo(isaiah): need replacement for sendTdpError
 		return
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *authz.Context) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, proxyConn *tls.Conn, desktop types.WindowsDesktop, username string, authCtx *authz.Context) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
@@ -852,10 +845,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		}()
 	}()
 
-	delay := timer()
-	tdpConn.OnSend = s.makeTDPSendHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
-	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
-
 	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Log: log,
@@ -864,8 +853,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		},
 		CertTTL:               windows.CertTTL,
 		Addr:                  desktop.GetAddr(),
-		Conn:                  tdpConn,
 		AuthorizeFn:           authorize,
+		Username:              username,
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
 		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing(),
 		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
@@ -875,9 +864,10 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		return trace.Wrap(err)
 	}
 
+	// Create a connection monitor for the connection to the proxy
 	monitorCfg := srv.MonitorConfig{
 		Context:               ctx,
-		Conn:                  tdpConn,
+		Conn:                  proxyConn,
 		Clock:                 s.cfg.Clock,
 		ClientIdleTimeout:     authCtx.Checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(authCtx.Checker, authPref, &identity),
@@ -890,10 +880,8 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		TeleportUser:          identity.Username,
 		ServerID:              s.cfg.Heartbeat.HostUUID,
 		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
-		MessageWriter: &monitorErrorSender{
-			log:     log,
-			tdpConn: tdpConn,
-		},
+		// todo(isaiah): need a replacement for the MessageWriter that was previously here to send
+		// disconnection messages back to the client via TDP.
 	}
 
 	// UpdateClientActivity before starting monitor to
@@ -910,7 +898,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	}
 
 	s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, nil)
-	err = rdpc.Run(ctx)
+	err = rdpc.Run(ctx, proxyConn)
 	s.onSessionEnd(ctx, sw, &identity, sessionStartTime, recordSession, windowsUser, string(sessionID), desktop)
 
 	return trace.Wrap(err)
@@ -1079,20 +1067,6 @@ func (s *WindowsService) nameForStaticHost(addr string) (string, error) {
 	parts := strings.Split(s.cfg.Heartbeat.HostUUID, "-")
 	prefix := parts[len(parts)-1]
 	return prefix + "-static-" + strings.ReplaceAll(host, ".", "-"), nil
-}
-
-// timer returns a closure that on each call returns the
-// number of milliseconds that have elapsed since the first call.
-// it returns 0 on the very first call.
-func timer() func() int64 {
-	var first time.Time
-	return func() int64 {
-		if first.IsZero() {
-			first = time.Now()
-			return 0
-		}
-		return int64(time.Since(first) / time.Millisecond)
-	}
 }
 
 // generateUserCert generates a keypair for the given Windows username,

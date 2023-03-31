@@ -37,11 +37,9 @@ type Config struct {
 	CertTTL          time.Duration
 
 	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
-	AuthorizeFn func(login string) error
-
-	// Conn handles TDP messages between Windows Desktop Service
-	// and a Teleport Proxy.
-	Conn *tdp.Conn
+	AuthorizeFn func(username string) error
+	// Username is the windows username for the session
+	Username string
 
 	// Encoder is an optional override for PNG encoding.
 	Encoder *png.Encoder
@@ -73,11 +71,11 @@ func (c *Config) checkAndSetDefaults() error {
 	if c.GenerateUserCert == nil {
 		return trace.BadParameter("missing GenerateUserCert in rdpclient.Config")
 	}
-	if c.Conn == nil {
-		return trace.BadParameter("missing Conn in rdpclient.Config")
-	}
 	if c.AuthorizeFn == nil {
 		return trace.BadParameter("missing AuthorizeFn in rdpclient.Config")
+	}
+	if c.Username == "" {
+		return trace.BadParameter("missing Username in rdpclient.Config")
 	}
 	if c.Encoder == nil {
 		c.Encoder = tdp.PNGEncoder()

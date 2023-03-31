@@ -66,12 +66,15 @@ import "C"
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/binary"
 	"fmt"
+	"net"
 	"os"
 	"runtime/cgo"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -118,10 +121,6 @@ func init() {
 type Client struct {
 	cfg Config
 
-	// Parameters read from the TDP stream.
-	clientWidth, clientHeight uint16
-	username                  string
-
 	// handle allows the rust code to call back into the client.
 	handle cgo.Handle
 
@@ -157,26 +156,21 @@ func New(cfg Config) (*Client, error) {
 		readyForInput: 0,
 	}
 
-	if err := c.readClientUsername(); err != nil {
+	if err := cfg.AuthorizeFn(cfg.Username); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := cfg.AuthorizeFn(c.username); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := c.readClientSize(); err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	return c, nil
 }
 
 // Run starts the rdp client and blocks until the client disconnects,
 // then ensures the cleanup is run.
-func (c *Client) Run(ctx context.Context) error {
+func (c *Client) Run(ctx context.Context, proxyConn *tls.Conn) error {
 	defer c.cleanup()
 
 	c.handle = cgo.NewHandle(c)
 
-	if err := c.connect(ctx); err != nil {
+	if err := c.connect(ctx, proxyConn); err != nil {
 		return trace.Wrap(err)
 	}
 	c.start()
@@ -192,43 +186,44 @@ func (c *Client) Run(ctx context.Context) error {
 	return nil
 }
 
-func (c *Client) readClientUsername() error {
-	for {
-		msg, err := c.cfg.Conn.ReadMessage()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		u, ok := msg.(tdp.ClientUsername)
-		if !ok {
-			c.cfg.Log.Debugf("Expected ClientUsername message, got %T", msg)
-			continue
-		}
-		c.cfg.Log.Debugf("Got RDP username %q", u.Username)
-		c.username = u.Username
-		return nil
+// getNonBlockingFDFromTLSConn takes a *tls.Conn and returns the underlying file descriptor as
+// a non-blocking file descriptor which can be passed to Rust and used by a tokio::net::TcpStream.
+func getNonBlockingFDFromTLSConn(conn *tls.Conn) (int, error) {
+	// First, obtain the underlying connection object
+	netConn := conn.NetConn()
+
+	// Cast the connection object to a net.TCPConn
+	tcpConn, ok := netConn.(*net.TCPConn)
+	if !ok {
+		return -1, fmt.Errorf("failed to cast to *net.TCPConn")
 	}
+
+	// Obtain the file descriptor from the net.TCPConn
+	file, err := tcpConn.File()
+	if err != nil {
+		return -1, err
+	}
+	defer file.Close()
+
+	// Get the file descriptor as an int
+	fd := int(file.Fd())
+
+	// Set the file descriptor to non-blocking mode (important for usage in C)
+	if err := syscall.SetNonblock(fd, true); err != nil {
+		return -1, err
+	}
+
+	return fd, nil
 }
 
-func (c *Client) readClientSize() error {
-	for {
-		msg, err := c.cfg.Conn.ReadMessage()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s, ok := msg.(tdp.ClientScreenSpec)
-		if !ok {
-			c.cfg.Log.Debugf("Expected ClientScreenSpec message, got %T", msg)
-			continue
-		}
-		c.cfg.Log.Debugf("Got RDP screen size %dx%d", s.Width, s.Height)
-		c.clientWidth = uint16(s.Width)
-		c.clientHeight = uint16(s.Height)
-		return nil
+func (c *Client) connect(ctx context.Context, proxyConn *tls.Conn) error {
+	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.cfg.Username, c.cfg.CertTTL)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-}
 
-func (c *Client) connect(ctx context.Context) error {
-	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.username, c.cfg.CertTTL)
+	// Obtain the file descriptor from the TLS connection
+	proxyConnFD, err := getNonBlockingFDFromTLSConn(proxyConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -237,22 +232,21 @@ func (c *Client) connect(ctx context.Context) error {
 	// C.connect_rdp. They are copied on the Rust side and can be freed here.
 	addr := C.CString(c.cfg.Addr)
 	defer C.free(unsafe.Pointer(addr))
-	username := C.CString(c.username)
+	username := C.CString(c.cfg.Username)
 	defer C.free(unsafe.Pointer(username))
 
 	res := C.connect_rdp(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
-			go_addr:     addr,
-			go_username: username,
+			go_addr:           addr,
+			go_username:       username,
+			proxy_tls_conn_fd: C.int(proxyConnFD),
 			// cert length and bytes.
 			cert_der_len: C.uint32_t(len(userCertDER)),
 			cert_der:     (*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
 			// key length and bytes.
 			key_der_len:             C.uint32_t(len(userKeyDER)),
 			key_der:                 (*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
-			screen_width:            C.uint16_t(c.clientWidth),
-			screen_height:           C.uint16_t(c.clientHeight),
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),

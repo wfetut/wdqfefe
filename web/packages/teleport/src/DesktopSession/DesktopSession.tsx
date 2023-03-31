@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useEffect } from 'react';
+
 import {
   Indicator,
   Box,
@@ -31,7 +32,12 @@ import Dialog, {
   DialogFooter,
 } from 'design/Dialog';
 
+import { getAccessToken, getHostName } from 'teleport/services/api';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
+import '/Users/ibeckermayer/Devolutions/IronRDP/web-client/iron-remote-gui/dist/iron-remote-gui'; // iron-remote-gui todo(isaiah)
+import { IRGUserInteraction } from '/Users/ibeckermayer/Devolutions/IronRDP/web-client/iron-remote-gui/dist/'; // todo(isaiah)
+import cfg from 'teleport/config';
+
 import AuthnDialog from 'teleport/components/AuthnDialog';
 
 import useDesktopSession from './useDesktopSession';
@@ -220,10 +226,12 @@ export function DesktopSession(props: State) {
 }
 
 function Session({
+  username,
+  desktopName,
+  clusterId,
   setDisconnected,
   webauthn,
   tdpClient,
-  username,
   hostname,
   setClipboardSharingEnabled,
   directorySharingState,
@@ -249,6 +257,23 @@ function Session({
   onRemoveWarning,
   children,
 }: PropsWithChildren<Props>) {
+  useEffect(() => {
+    const addr = cfg.api.desktopWsAddr
+      .replace(':fqdn', getHostName())
+      .replace(':clusterId', clusterId)
+      .replace(':desktopName', desktopName)
+      .replace(':token', getAccessToken())
+      .replace(':username', username)
+      .replace(':width', '1920') // todo(isaiah): hardcoded
+      .replace(':height', '1080'); // todo(isaiah): hardcoded
+    let el = document.querySelector('iron-remote-gui');
+    el.addEventListener(
+      'ready',
+      (e: Event & { detail: { irgUserInteraction: IRGUserInteraction } }) => {
+        e.detail.irgUserInteraction.connect(username, '', '', addr, '', '');
+      }
+    );
+  }, [clusterId, username, desktopName]);
   return (
     <Flex flexDirection="column">
       <TopBar
@@ -288,26 +313,12 @@ function Session({
         />
       )}
 
-      <TdpClientCanvas
-        style={{
-          display: displayCanvas ? 'flex' : 'none',
-          flex: 1, // ensures the canvas fills available screen space
-        }}
-        tdpCli={tdpClient}
-        tdpCliInit={initTdpCli}
-        tdpCliOnPngFrame={onPngFrame}
-        tdpCliOnClipboardData={onClipboardData}
-        tdpCliOnTdpError={onTdpError}
-        tdpCliOnTdpWarning={onTdpWarning}
-        tdpCliOnWsClose={onWsClose}
-        tdpCliOnWsOpen={onWsOpen}
-        onKeyDown={onKeyDown}
-        onKeyUp={onKeyUp}
-        onMouseMove={onMouseMove}
-        onMouseDown={onMouseDown}
-        onMouseUp={onMouseUp}
-        onMouseWheelScroll={onMouseWheelScroll}
-        onContextMenu={onContextMenu}
+      <iron-remote-gui
+        debugwasm="DEBUG"
+        verbose="true"
+        scale="fit"
+        flexcenter="true"
+        targetplatform="web"
       />
     </Flex>
   );

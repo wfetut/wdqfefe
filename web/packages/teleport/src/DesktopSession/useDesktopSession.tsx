@@ -186,6 +186,8 @@ export default function useDesktopSession() {
     warnings,
     onRemoveWarning,
     ...clientCanvasProps,
+    desktopName,
+    clusterId,
   };
 }
 
