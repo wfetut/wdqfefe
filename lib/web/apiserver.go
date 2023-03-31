@@ -734,6 +734,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/headless/:headless_authentication_id", h.WithAuth(h.putHeadlessState))
 
 	h.GET("/webapi/assistant", h.WithAuth(h.assistant))
+
+	h.GET("/webapi/command/:site/execute", h.WithClusterAuth(h.executeCommand))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -2619,97 +2621,11 @@ func (h *Handler) siteNodeConnect(
 }
 
 func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string, owner string) (session.Session, error) {
-	var (
-		id   string
-		host string
-		port int
-	)
 	h.log.Infof("Generating new session for %s\n", clusterName)
 
-	if _, err := uuid.Parse(req.Server); err != nil {
-		// The requested server is either a hostname or an address. Get all
-		// servers that may fuzzily match by populating SearchKeywords
-		resources, err := apiclient.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
-			ResourceType:   types.KindNode,
-			Namespace:      apidefaults.Namespace,
-			SearchKeywords: []string{req.Server},
-		})
-		if err != nil {
-			return session.Session{}, trace.Wrap(err)
-		}
-
-		if len(resources) == 0 {
-			// If we didn't find the resource set host and port,
-			// so we can try direct dial.
-			host, port, err = serverHostPort(req.Server)
-			if err != nil {
-				return session.Session{}, trace.Wrap(err)
-			}
-			id = host
-		}
-
-		matches := 0
-		for _, resource := range resources {
-			server, ok := resource.(types.Server)
-			if !ok {
-				return session.Session{}, trace.BadParameter("expected types.Server, got: %T", resource)
-			}
-
-			// match by hostname
-			if server.GetHostname() == req.Server {
-				if matches > 0 {
-					matches++
-					continue
-				}
-
-				host = server.GetHostname()
-				id = server.GetName()
-				port = 0
-
-				matches++
-				continue
-			}
-
-			// exact match by address
-			if server.GetAddr() == req.Server {
-				if matches > 0 {
-					matches++
-					continue
-				}
-
-				host = req.Server
-				id = server.GetName()
-				port = 0
-
-				matches++
-				continue
-			}
-		}
-
-		// there was either at least one partial match or multiple
-		// exact matches on the server. connect with the resolved
-		// host and port of the requested server.
-		if matches > 1 || host == "" && id == "" {
-			host, port, err = serverHostPort(req.Server)
-			if err != nil {
-				return session.Session{}, trace.Wrap(err)
-			}
-			id = req.Server
-		}
-	} else {
-		// Even though the UUID was provided and can be dialed directly, the UI
-		// requires the hostname to populate the title of the session window.
-		// Looking the node up directly by UUID is the most efficient we can be until
-		// the UI is modified to remember the hostname when the connect button is
-		// used to establish a session.
-		server, err := clt.GetNode(ctx, apidefaults.Namespace, req.Server)
-		if err != nil {
-			return session.Session{}, trace.Wrap(err)
-		}
-
-		host = server.GetHostname()
-		port = 0
-		id = req.Server
+	host, port, id, err := findByHost(ctx, clt, req.Server)
+	if err != nil {
+		return session.Session{}, err
 	}
 
 	return session.Session{
@@ -2724,6 +2640,123 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		Namespace:      apidefaults.Namespace,
 		Owner:          owner,
 	}, nil
+}
+
+func (h *Handler) generateCommandSession(ctx context.Context, clt auth.ClientI, login, nodeID, clusterName, owner string) (session.Session, error) {
+	h.log.Infof("Generating new session for %s\n", clusterName)
+
+	host, port, id, err := findByHost(ctx, clt, nodeID) //TODO(jakule): Add search by label
+	if err != nil {
+		return session.Session{}, err
+	}
+
+	return session.Session{
+		Login:          login,
+		ServerID:       id,
+		ClusterName:    clusterName,
+		ServerHostname: host,
+		ServerHostPort: port,
+		ID:             session.NewID(),
+		Created:        time.Now().UTC(),
+		LastActive:     time.Now().UTC(),
+		Namespace:      apidefaults.Namespace,
+		Owner:          owner,
+	}, nil
+}
+
+func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (string, int, string, error) {
+	var (
+		id   string
+		host string
+		port int
+	)
+
+	if _, err := uuid.Parse(serverName); err != nil {
+		// The requested server is either a hostname or an address. Get all
+		// servers that may fuzzily match by populating SearchKeywords
+		resources, err := apiclient.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+			ResourceType:   types.KindNode,
+			Namespace:      apidefaults.Namespace,
+			SearchKeywords: []string{serverName},
+		})
+		if err != nil {
+			return "", 0, "", trace.Wrap(err)
+		}
+
+		if len(resources) == 0 {
+			// If we didn't find the resource set host and port,
+			// so we can try direct dial.
+			host, port, err = serverHostPort(serverName)
+			if err != nil {
+				return "", 0, "", trace.Wrap(err)
+			}
+			id = host
+		}
+
+		matches := 0
+		for _, resource := range resources {
+			server, ok := resource.(types.Server)
+			if !ok {
+				return "", 0, "", trace.BadParameter("expected types.Server, got: %T", resource)
+			}
+
+			// match by hostname
+			if server.GetHostname() == serverName {
+				if matches > 0 {
+					matches++
+					continue
+				}
+
+				host = server.GetHostname()
+				id = server.GetName()
+				port = 0
+
+				matches++
+				continue
+			}
+
+			// exact match by address
+			if server.GetAddr() == serverName {
+				if matches > 0 {
+					matches++
+					continue
+				}
+
+				host = serverName
+				id = server.GetName()
+				port = 0
+
+				matches++
+				continue
+			}
+		}
+
+		// there was either at least one partial match or multiple
+		// exact matches on the server. connect with the resolved
+		// host and port of the requested server.
+		if matches > 1 || host == "" && id == "" {
+			host, port, err = serverHostPort(serverName)
+			if err != nil {
+				return "", 0, "", trace.Wrap(err)
+			}
+			id = serverName
+		}
+	} else {
+		// Even though the UUID was provided and can be dialed directly, the UI
+		// requires the hostname to populate the title of the session window.
+		// Looking the node up directly by UUID is the most efficient we can be until
+		// the UI is modified to remember the hostname when the connect button is
+		// used to establish a session.
+		server, err := clt.GetNode(ctx, apidefaults.Namespace, serverName)
+		if err != nil {
+			return "", 0, "", trace.Wrap(err)
+		}
+
+		host = server.GetHostname()
+		port = 0
+		id = serverName
+	}
+	return host, port, id, nil
 }
 
 func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, string, error) {

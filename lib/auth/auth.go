@@ -4978,7 +4978,7 @@ func (k *authKeepAliver) Close() error {
 const (
 	// BearerTokenTTL specifies standard bearer token to exist before
 	// it has to be renewed by the client
-	BearerTokenTTL = 10 * time.Minute
+	BearerTokenTTL = 100 * time.Minute
 
 	// TokenLenBytes is len in bytes of the invite token
 	TokenLenBytes = 16
