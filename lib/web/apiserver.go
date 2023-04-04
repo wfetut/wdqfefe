@@ -2623,17 +2623,17 @@ func (h *Handler) siteNodeConnect(
 func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string, owner string) (session.Session, error) {
 	h.log.Infof("Generating new session for %s\n", clusterName)
 
-	host, port, id, err := findByHost(ctx, clt, req.Server)
+	host, err := findByHost(ctx, clt, req.Server)
 	if err != nil {
 		return session.Session{}, err
 	}
 
 	return session.Session{
 		Login:          req.Login,
-		ServerID:       id,
+		ServerID:       host.id,
 		ClusterName:    clusterName,
-		ServerHostname: host,
-		ServerHostPort: port,
+		ServerHostname: host.hostName,
+		ServerHostPort: host.port,
 		ID:             session.NewID(),
 		Created:        time.Now().UTC(),
 		LastActive:     time.Now().UTC(),
@@ -2642,20 +2642,15 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 	}, nil
 }
 
-func (h *Handler) generateCommandSession(ctx context.Context, clt auth.ClientI, login, nodeID, clusterName, owner string) (session.Session, error) {
-	h.log.Infof("Generating new session for %s\n", clusterName)
-
-	host, port, id, err := findByHost(ctx, clt, nodeID) //TODO(jakule): Add search by label
-	if err != nil {
-		return session.Session{}, err
-	}
+func (h *Handler) generateCommandSession(host *hostInfo, login, clusterName, owner string) (session.Session, error) {
+	h.log.Infof("Generating new session for %s in %s\n", host.hostName, clusterName)
 
 	return session.Session{
 		Login:          login,
-		ServerID:       id,
+		ServerID:       host.id,
 		ClusterName:    clusterName,
-		ServerHostname: host,
-		ServerHostPort: port,
+		ServerHostname: host.hostName,
+		ServerHostPort: host.port,
 		ID:             session.NewID(),
 		Created:        time.Now().UTC(),
 		LastActive:     time.Now().UTC(),
@@ -2664,12 +2659,46 @@ func (h *Handler) generateCommandSession(ctx context.Context, clt auth.ClientI, 
 	}, nil
 }
 
-func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (string, int, string, error) {
-	var (
-		id   string
-		host string
-		port int
-	)
+type hostInfo struct {
+	id       string
+	hostName string
+	port     int
+}
+
+func findByLabels(ctx context.Context, clt auth.ClientI, labels map[string]string) ([]hostInfo, error) {
+	if len(labels) == 0 {
+		return nil, nil
+	}
+
+	resources, err := apiclient.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    apidefaults.Namespace,
+		Labels:       labels,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	hosts := make([]hostInfo, 0)
+	for _, resource := range resources {
+		server, ok := resource.(types.Server)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Server, got: %T", resource)
+		}
+
+		h := hostInfo{
+			hostName: server.GetHostname(),
+			id:       server.GetName(),
+			port:     0,
+		}
+		hosts = append(hosts, h)
+	}
+
+	return hosts, nil
+}
+
+func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (*hostInfo, error) {
+	var host hostInfo
 
 	if _, err := uuid.Parse(serverName); err != nil {
 		// The requested server is either a hostname or an address. Get all
@@ -2680,24 +2709,24 @@ func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (strin
 			SearchKeywords: []string{serverName},
 		})
 		if err != nil {
-			return "", 0, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		if len(resources) == 0 {
 			// If we didn't find the resource set host and port,
 			// so we can try direct dial.
-			host, port, err = serverHostPort(serverName)
+			host.hostName, host.port, err = serverHostPort(serverName)
 			if err != nil {
-				return "", 0, "", trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
-			id = host
+			host.id = host.hostName
 		}
 
 		matches := 0
 		for _, resource := range resources {
 			server, ok := resource.(types.Server)
 			if !ok {
-				return "", 0, "", trace.BadParameter("expected types.Server, got: %T", resource)
+				return nil, trace.BadParameter("expected types.Server, got: %T", resource)
 			}
 
 			// match by hostname
@@ -2707,9 +2736,9 @@ func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (strin
 					continue
 				}
 
-				host = server.GetHostname()
-				id = server.GetName()
-				port = 0
+				host.hostName = server.GetHostname()
+				host.id = server.GetName()
+				host.port = 0
 
 				matches++
 				continue
@@ -2722,9 +2751,9 @@ func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (strin
 					continue
 				}
 
-				host = serverName
-				id = server.GetName()
-				port = 0
+				host.hostName = serverName
+				host.id = server.GetName()
+				host.port = 0
 
 				matches++
 				continue
@@ -2734,12 +2763,12 @@ func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (strin
 		// there was either at least one partial match or multiple
 		// exact matches on the server. connect with the resolved
 		// host and port of the requested server.
-		if matches > 1 || host == "" && id == "" {
-			host, port, err = serverHostPort(serverName)
+		if matches > 1 || host.hostName == "" && host.id == "" {
+			host.hostName, host.port, err = serverHostPort(serverName)
 			if err != nil {
-				return "", 0, "", trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
-			id = serverName
+			host.id = serverName
 		}
 	} else {
 		// Even though the UUID was provided and can be dialed directly, the UI
@@ -2749,14 +2778,14 @@ func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (strin
 		// used to establish a session.
 		server, err := clt.GetNode(ctx, apidefaults.Namespace, serverName)
 		if err != nil {
-			return "", 0, "", trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
-		host = server.GetHostname()
-		port = 0
-		id = serverName
+		host.hostName = server.GetHostname()
+		host.port = 0
+		host.id = serverName
 	}
-	return host, port, id, nil
+	return &host, nil
 }
 
 func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, string, error) {

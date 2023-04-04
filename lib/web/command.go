@@ -145,11 +145,31 @@ func (h *Handler) executeCommand(
 		return nil, nil
 	}
 
-	//if req.SessionID.IsZero() {
+	hosts, err := findByLabels(ctx, clt, req.Labels)
+	if err != nil {
+		log.WithError(err).Warn("failed to find nodes by labels")
+	}
+
 	for _, nodeID := range req.NodesID {
+		host, err := findByHost(ctx, clt, nodeID)
+		if err != nil {
+			h.log.WithError(err).Warn("failed to find host by node ID")
+			continue
+		}
+
+		hosts = append(hosts, *host)
+	}
+
+	if len(hosts) == 0 {
+		const errMsg = "no server founds"
+		h.log.Error(errMsg)
+		return nil, trace.Errorf(errMsg)
+	}
+
+	for _, host := range hosts {
 		err := func() error {
 			// An existing session ID was not provided, so we need to create a new one.
-			sessionData, err := h.generateCommandSession(ctx, clt, req.Login, nodeID, clusterName, sessionCtx.cfg.User)
+			sessionData, err := h.generateCommandSession(&host, req.Login, clusterName, sessionCtx.cfg.User)
 			if err != nil {
 				h.log.WithError(err).Debug("Unable to generate new ssh session.")
 				return trace.Wrap(err)
