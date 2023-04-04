@@ -36,8 +36,8 @@ import (
 )
 
 const (
-	cookie = "__Host-grv_csrf=54034323553f2d32b48e39164cf72ea11505ffff951d82ba2e103bf873ce3f5d; __Host-session=7b2275736572223a22626f62222c22736964223a2264363535626136383137343636333532363635363365343337336565623735653538396538393236386238353636306131323431363138633231653532336537227d"
-	auth   = "4379f858ad08b0d8ed72ebb14ed4f076859874ed5507244d1c6bf412ec3a4e2b"
+	cookie = "__Host-grv_csrf=54034323553f2d32b48e39164cf72ea11505ffff951d82ba2e103bf873ce3f5d; __Host-session=7b2275736572223a22626f62222c22736964223a2263303138396361363962346232623735313838666466613466613165303464303638303933306439646635616539386432306665666665316265636561386262227d"
+	auth   = "d9f45b1eef4dbb66d06b96aa87440ce65788ed797474a947f0c0007e46d4cb0b"
 )
 
 func main() {
@@ -50,12 +50,12 @@ func main() {
 	}
 
 	requestData := web.CommandRequest{
-		Command: "ls",
+		Command: "echo abc && sleep 3 && ls -la",
 		//Login:   "ubuntu",
-		Login: "jnyckowski",
-		Labels: map[string]string{
-			"env": "dev",
-		},
+		Login: "jnyckowski1",
+		//Labels: map[string]string{
+		//	"env": "example",
+		//},
 		NodesID: []string{
 			"e5a6d0b9-1fb0-4584-8fcb-16de60e513fa",
 			"854e9299-c604-4af8-baa9-2580c4337a84",
@@ -110,9 +110,14 @@ func main() {
 			log.Fatal(err)
 		}
 
+		if env.Type == "c" {
+			log.Printf("received end message")
+			continue
+		}
+
 		p := &payloadEnv{}
 		if err := json.Unmarshal([]byte(env.Payload), p); err != nil {
-			log.Print(err, env.Payload)
+			log.Print(err, string(raw))
 			continue
 		}
 
