@@ -1600,7 +1600,7 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 func (c *NodeClient) RunCommand(ctx context.Context, cmd []string, sessToJoin types.SessionTracker) error {
 	ctx, span := c.Tracer.Start(
 		ctx,
-		"nodeClient/RunInteractiveShell",
+		"nodeClient/RunCommand",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
@@ -1620,7 +1620,7 @@ func (c *NodeClient) RunCommand(ctx context.Context, cmd []string, sessToJoin ty
 		return trace.Wrap(err)
 	}
 
-	if err = nodeSession.runCommand(ctx, types.SessionPeerMode, cmd, c.TC.OnShellCreated, false); err != nil { // update here
+	if err = nodeSession.runCommand(ctx, types.SessionPeerMode, cmd, c.TC.OnShellCreated, false); err != nil {
 		switch e := trace.Unwrap(err).(type) {
 		case *ssh.ExitError:
 			c.TC.ExitStatus = e.ExitStatus()

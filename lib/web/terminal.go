@@ -58,15 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-type CommandRequest struct {
-	Command string `json:"command"`
-	// Login is a Linux username to connect as.
-	Login string `json:"login"`
-
-	NodesID []string          `json:"node_id"`
-	Labels  map[string]string `json:"labels"`
-}
-
 // TerminalRequest describes a request to create a web-based terminal
 // to a remote SSH server.
 type TerminalRequest struct {

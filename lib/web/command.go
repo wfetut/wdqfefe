@@ -58,6 +58,17 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
+type CommandRequest struct {
+	// Command is the command to be executed on all nodes.
+	Command string `json:"command"`
+	// Login is a Linux username to connect as.
+	Login string `json:"login"`
+	//NodesID is the nodes ID where the command should be executed.
+	NodesID []string `json:"node_id"`
+	// Labels are the nodes labels where the command should be executed.
+	Labels map[string]string `json:"labels"`
+}
+
 func (h *Handler) executeCommand(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -157,14 +168,13 @@ func (h *Handler) executeCommand(
 
 	for _, host := range hosts {
 		err := func() error {
-			// An existing session ID was not provided, so we need to create a new one.
 			sessionData, err := h.generateCommandSession(&host, req.Login, clusterName, sessionCtx.cfg.User)
 			if err != nil {
 				h.log.WithError(err).Debug("Unable to generate new ssh session.")
 				return trace.Wrap(err)
 			}
 
-			h.log.Debugf("New terminal request for server=%s, labels=%v, login=%s, sid=%s, websid=%s.",
+			h.log.Debugf("New command request for server=%s, labels=%v, login=%s, sid=%s, websid=%s.",
 				req.NodesID, req.Labels, req.Login, sessionData.ID, sessionCtx.GetSessionID())
 
 			commandHandlerConfig := CommandHandlerConfig{
@@ -203,32 +213,6 @@ func (h *Handler) executeCommand(
 	}
 
 	return nil, nil
-}
-
-func removeDuplicates(hosts []hostInfo) []hostInfo {
-	if len(hosts) <= 1 {
-		return hosts
-	}
-
-	unique := make(map[hostInfo]struct{}, len(hosts))
-	for _, h := range hosts {
-		unique[h] = struct{}{}
-	}
-
-	uniqueHosts := make([]hostInfo, 0, len(unique))
-	for k := range unique {
-		uniqueHosts = append(uniqueHosts, k)
-	}
-
-	return uniqueHosts
-}
-
-type noopCloserWS struct {
-	*websocket.Conn
-}
-
-func (ws *noopCloserWS) Close() error {
-	return nil
 }
 
 func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandHandler, error) {
@@ -353,11 +337,12 @@ type commandHandler struct {
 	// interactiveCommand is a command to execute.
 	interactiveCommand []string
 
+	// ws is the websocket connection to the client.
 	ws WSConn
 }
 
-func (t *commandHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// This allows closing of the websocket if the user logs out before exiting
+func (t *commandHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
+	// Allow closing websocket if the user logs out before exiting
 	// the session.
 	t.ctx.AddClosers(t)
 	defer t.ctx.RemoveCloser(t)
@@ -511,14 +496,14 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 		})
 		if err != nil {
 			t.log.WithError(err).Warn("Unable to stream terminal - failed to determine if per session mfa is required")
-			// write the original connect error
+			// write the original connection error
 			t.writeError(connectErr)
 			return
 		}
 
 		if !mfaRequiredResp.Required {
 			t.log.WithError(connectErr).Warn("Unable to stream terminal - user does not have access to host")
-			// write the original connect error
+			// write the original connection  error
 			t.writeError(connectErr)
 			return
 		}
@@ -576,42 +561,6 @@ func (t *commandHandler) Close() error {
 	return nil
 }
 
-type outEnvelope struct {
-	NodeID  string `json:"node_id"`
-	Type    string `json:"type"`
-	Payload []byte `json:"payload"`
-}
-
-type payloadWriter struct {
-	nodeID     string
-	outputName string
-	stream     io.Writer
-}
-
-func (p *payloadWriter) Write(b []byte) (n int, err error) {
-	out := &outEnvelope{
-		NodeID:  p.nodeID,
-		Type:    p.outputName,
-		Payload: b,
-	}
-	data, err := json.Marshal(out)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	_, err = p.stream.Write(data)
-
-	return len(b), err
-}
-
-func newPayloadWriter(nodeID, outputName string, stream io.Writer) *payloadWriter {
-	return &payloadWriter{
-		nodeID:     nodeID,
-		outputName: outputName,
-		stream:     stream,
-	}
-}
-
 // makeClient builds a *client.TeleportClient for the connection.
 func (t *commandHandler) makeClient(ctx context.Context, ws WSConn) (*client.TeleportClient, error) {
 	ctx, span := tracing.DefaultProvider().Tracer("terminal").Start(ctx, "commandHandler/makeClient")
@@ -627,7 +576,7 @@ func (t *commandHandler) makeClient(ctx context.Context, ws WSConn) (*client.Tel
 	clientConfig.Namespace = apidefaults.Namespace
 	clientConfig.Stdout = newPayloadWriter(t.sessionData.ServerID, "stdout", t.stream)
 	clientConfig.Stderr = newPayloadWriter(t.sessionData.ServerID, "stderr", t.stream)
-	clientConfig.Stdin = &bytes.Buffer{} //t.stream
+	clientConfig.Stdin = &bytes.Buffer{} // set stdin to a dummy buffer
 	clientConfig.SiteName = t.sessionData.ClusterName
 	if err := clientConfig.ParseProxyHost(t.proxyHostPort); err != nil {
 		return nil, trace.BadParameter("failed to parse proxy address: %v", err)
@@ -705,22 +654,4 @@ func (t *commandHandler) writeError(err error) {
 	if _, writeErr := t.stream.Write(data); writeErr != nil {
 		t.log.WithError(writeErr).Warnf("Unable to send error to terminal: %v", err)
 	}
-}
-
-type WSConn interface {
-	Close() error
-
-	LocalAddr() net.Addr
-	RemoteAddr() net.Addr
-
-	WriteControl(messageType int, data []byte, deadline time.Time) error
-	WriteMessage(messageType int, data []byte) error
-	NextReader() (messageType int, r io.Reader, err error)
-	ReadMessage() (messageType int, p []byte, err error)
-
-	SetReadDeadline(t time.Time) error
-	PingHandler() func(appData string) error
-	SetPingHandler(h func(appData string) error)
-	PongHandler() func(appData string) error
-	SetPongHandler(h func(appData string) error)
 }

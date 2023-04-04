@@ -2665,6 +2665,7 @@ type hostInfo struct {
 	port     int
 }
 
+// findByLabels returns all hosts matching the given labels.
 func findByLabels(ctx context.Context, clt auth.ClientI, labels map[string]string) ([]hostInfo, error) {
 	if len(labels) == 0 {
 		return nil, nil
@@ -2697,6 +2698,7 @@ func findByLabels(ctx context.Context, clt auth.ClientI, labels map[string]strin
 	return hosts, nil
 }
 
+// findByHost return a host matching by the host name.
 func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (*hostInfo, error) {
 	var host hostInfo
 
@@ -2808,7 +2810,7 @@ func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, re
 	// When joining an existing session use the specially handled
 	// `SSHSessionJoinPrincipal` login instead of the provided login so that
 	// users are able to join sessions without having permissions to create
-	// new ones themselves for auditing purposes. Otherwise the user would
+	// new ones themselves for auditing purposes. Otherwise, the user would
 	// fail the SSH lib username validation step.
 	sessionData.Login = teleport.SSHSessionJoinPrincipal
 	// Using the Login above will then display `-teleport-internal-join` as the
