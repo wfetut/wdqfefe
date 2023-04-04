@@ -34,6 +34,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
+	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -89,23 +90,6 @@ func (h *Handler) executeCommand(
 		return nil, trace.Wrap(err)
 	}
 
-	//} else {
-	//	sessionData, displayLogin, err = h.fetchExistingSession(ctx, clt, req, clusterName)
-	//	if err != nil {
-	//		return nil, trace.Wrap(err)
-	//	}
-	//}
-
-	// If the participantMode is not specified, and the user is the one who created the session,
-	// they should be in Peer mode. If not, default to Observer mode.
-	//if req.ParticipantMode == "" {
-	//	if sessionData.Owner == sessionCtx.cfg.User {
-	//		req.ParticipantMode = types.SessionPeerMode
-	//	} else {
-	//		req.ParticipantMode = types.SessionObserverMode
-	//	}
-	//}
-
 	authAccessPoint, err := site.CachingAccessPoint()
 	if err != nil {
 		h.log.WithError(err).Debug("Unable to get auth access point.")
@@ -133,9 +117,10 @@ func (h *Handler) executeCommand(
 		http.Error(w, errMsg, http.StatusInternalServerError)
 		return nil, nil
 	}
+
 	defer func() {
-		ws.Close()
 		ws.WriteMessage(websocket.CloseMessage, nil)
+		ws.Close()
 	}()
 
 	keepAliveInterval := netConfig.GetKeepAliveInterval()
@@ -165,6 +150,10 @@ func (h *Handler) executeCommand(
 		h.log.Error(errMsg)
 		return nil, trace.Errorf(errMsg)
 	}
+
+	hosts = removeDuplicates(hosts)
+
+	h.log.Debugf("found %d hosts", len(hosts))
 
 	for _, host := range hosts {
 		err := func() error {
@@ -208,11 +197,30 @@ func (h *Handler) executeCommand(
 		}()
 
 		if err != nil {
-			return nil, trace.Wrap(err)
+			h.log.WithError(err).Warnf("failed to start session: %v", host.hostName)
+			continue
 		}
 	}
 
 	return nil, nil
+}
+
+func removeDuplicates(hosts []hostInfo) []hostInfo {
+	if len(hosts) <= 1 {
+		return hosts
+	}
+
+	unique := make(map[hostInfo]struct{}, len(hosts))
+	for _, h := range hosts {
+		unique[h] = struct{}{}
+	}
+
+	uniqueHosts := make([]hostInfo, 0, len(unique))
+	for k := range unique {
+		uniqueHosts = append(uniqueHosts, k)
+	}
+
+	return uniqueHosts
 }
 
 type noopCloserWS struct {
@@ -305,7 +313,7 @@ func (t *CommandHandlerConfig) CheckAndSetDefaults() error {
 		t.TracerProvider = tracing.DefaultProvider()
 	}
 
-	t.tracer = t.TracerProvider.Tracer("webterminal")
+	t.tracer = t.TracerProvider.Tracer("webcommand")
 
 	return nil
 }
@@ -351,35 +359,8 @@ type commandHandler struct {
 func (t *commandHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// This allows closing of the websocket if the user logs out before exiting
 	// the session.
-	//t.ctx.AddClosers(t)
-	//defer t.ctx.RemoveCloser(t)
-
-	//upgrader := websocket.Upgrader{
-	//	ReadBufferSize:  1024,
-	//	WriteBufferSize: 1024,
-	//	CheckOrigin:     func(r *http.Request) bool { return true },
-	//}
-	//
-	//ws, err := upgrader.Upgrade(w, r, nil)
-	//if err != nil {
-	//	errMsg := "Error upgrading to websocket"
-	//	t.log.WithError(err).Error(errMsg)
-	//	http.Error(w, errMsg, http.StatusInternalServerError)
-	//	return
-	//}
-	//
-	//err = ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
-	//if err != nil {
-	//	t.log.WithError(err).Error("Error setting websocket readline")
-	//	return
-	//}
-
-	// If the displayLogin is set then use it instead of the login name used in
-	// the SSH connection. This is specifically for the use case when joining
-	// a session to avoid displaying "-teleport-internal-join" as the username.
-	//if t.displayLogin != "" {
-	//	t.sessionData.Login = t.displayLogin
-	//}
+	t.ctx.AddClosers(t)
+	defer t.ctx.RemoveCloser(t)
 
 	sendError := func(errMsg string, err error, ws WSConn) {
 		envelope := &Envelope{
@@ -421,16 +402,11 @@ func (t *commandHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t.handler(t.ws, r)
+	t.handler(r)
 }
 
-func (t *commandHandler) handler(ws WSConn, r *http.Request) {
-	//defer ws.Close()
-
-	// Create a terminal stream that wraps/unwraps the envelope used to
-	// communicate over the websocket.
-	//resizeC := make(chan *session.TerminalParams, 1)
-	stream, err := NewWStream(ws)
+func (t *commandHandler) handler(r *http.Request) {
+	stream, err := NewWStream(t.ws)
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a terminal stream for session")
 		t.writeError(err)
@@ -438,14 +414,9 @@ func (t *commandHandler) handler(ws WSConn, r *http.Request) {
 	}
 	t.stream = stream
 
-	// Create a context for signaling when the terminal session is over and
-	// link it first with the trace context from the request context
-	//tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
-	//t.terminalContext, t.terminalCancel = context.WithCancel(tctx)
-
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
-	tc, err := t.makeClient(r.Context(), ws)
+	tc, err := t.makeClient(r.Context(), t.ws)
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a client for session")
 		t.writeError(err)
@@ -455,24 +426,17 @@ func (t *commandHandler) handler(ws WSConn, r *http.Request) {
 	t.log.Debug("Creating websocket stream")
 
 	// Update the read deadline upon receiving a pong message.
-	ws.SetPongHandler(func(_ string) error {
-		ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
+	t.ws.SetPongHandler(func(_ string) error {
+		t.ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
 		return nil
 	})
 
-	// Start sending ping frames through websocket to client.
-	go t.startPingLoop(ws)
+	// Start sending ping frames through websocket to the client.
+	go t.startPingLoop(r.Context(), t.ws)
 
-	go t.streamEvents(tc)
+	go t.streamEvents(r.Context(), tc)
 	// Pump raw terminal in/out and audit events into the websocket.
-	t.streamOutput(r.Context(), ws, tc)
-
-	// process window resizing
-	//go t.handleWindowResize(resizeC)
-
-	// Block until the terminal session is complete.
-	//<-t.terminalContext.Done()
-	t.log.Debug("Closing websocket stream")
+	t.streamOutput(r.Context(), t.ws, tc)
 }
 
 // streamTerminal opens a SSH connection to the remote host and streams
@@ -480,8 +444,6 @@ func (t *commandHandler) handler(ws WSConn, r *http.Request) {
 func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client.TeleportClient) {
 	ctx, span := t.tracer.Start(ctx, "commandHandler/streamOutput")
 	defer span.End()
-	//
-	//defer t.terminalCancel()
 
 	accessChecker, err := t.ctx.GetUserAccessChecker()
 	if err != nil {
@@ -539,53 +501,32 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 		t.writeError(connectErr)
 		return
 	case connectErr != nil && trace.IsAccessDenied(connectErr): // see if per session mfa would allow access
-		panic(err)
-		//	mfaRequiredResp, err := t.authProvider.IsMFARequired(ctx, &authproto.IsMFARequiredRequest{
-		//		Target: &authproto.IsMFARequiredRequest_Node{
-		//			Node: &authproto.NodeLogin{
-		//				Node:  t.sessionData.ServerID,
-		//				Login: tc.HostLogin,
-		//			},
-		//		},
-		//	})
-		//	if err != nil {
-		//		t.log.WithError(err).Warn("Unable to stream terminal - failed to determine if per session mfa is required")
-		//		// write the original connect error
-		//		t.writeError(connectErr)
-		//		return
-		//	}
-		//
-		//	if !mfaRequiredResp.Required {
-		//		t.log.WithError(connectErr).Warn("Unable to stream terminal - user does not have access to host")
-		//		// write the original connect error
-		//		t.writeError(connectErr)
-		//		return
-		//	}
-		//
-		//	// perform mfa ceremony and retrieve new certs
-		//	if err := t.issueSessionMFACerts(ctx, tc); err != nil {
-		//		t.log.WithError(err).Warn("Unable to stream terminal - failed to perform mfa ceremony")
-		//		t.writeError(err)
-		//		return
-		//	}
-		//
-		//	// update auth methods
-		//	sshConfig.Auth = tc.AuthMethods
-		//
-		//	// connect to the node again with the new certs
-		//	conn, _, err = t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signerCreator)
-		//	if err != nil {
-		//		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host")
-		//		t.writeError(err)
-		//		return
-		//	}
-		//
-		//	nc, err = client.NewNodeClient(ctx, sshConfig, conn, net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)), tc, modules.GetModules().IsBoringBinary())
-		//	if err != nil {
-		//		t.log.WithError(err).Warn("Unable to stream terminal - failed to create node client")
-		//		t.writeError(err)
-		//		return
-		//	}
+		mfaRequiredResp, err := t.authProvider.IsMFARequired(ctx, &authproto.IsMFARequiredRequest{
+			Target: &authproto.IsMFARequiredRequest_Node{
+				Node: &authproto.NodeLogin{
+					Node:  t.sessionData.ServerID,
+					Login: tc.HostLogin,
+				},
+			},
+		})
+		if err != nil {
+			t.log.WithError(err).Warn("Unable to stream terminal - failed to determine if per session mfa is required")
+			// write the original connect error
+			t.writeError(connectErr)
+			return
+		}
+
+		if !mfaRequiredResp.Required {
+			t.log.WithError(connectErr).Warn("Unable to stream terminal - user does not have access to host")
+			// write the original connect error
+			t.writeError(connectErr)
+			return
+		}
+
+		//TODO(jakule): Implement MFA support
+		t.log.Errorf("MFA support is not implemented")
+		t.writeError(errors.New("MFA support is not implemented"))
+		return
 	}
 
 	// Establish SSH connection to the server. This function will block until
@@ -608,7 +549,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 // to prevent the connection between web client and teleport proxy from becoming idle.
 // Interval is determined by the keep_alive_interval config set by user (or default).
 // Loop will terminate when there is an error sending ping frame or when terminal session is closed.
-func (t *commandHandler) startPingLoop(ws WSConn) {
+func (t *commandHandler) startPingLoop(ctx context.Context, ws WSConn) {
 	t.log.Debugf("Starting websocket ping loop with interval %v.", t.keepAliveInterval)
 	tickerCh := time.NewTicker(t.keepAliveInterval)
 	defer tickerCh.Stop()
@@ -621,12 +562,12 @@ func (t *commandHandler) startPingLoop(ws WSConn) {
 			deadline := time.Now().Add(time.Second)
 			if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
 				t.log.WithError(err).Error("Unable to send ping frame to web client")
-				t.Close() //
+				t.Close()
 				return
 			}
-			//case <-t.terminalContext.Done():
-			//	t.log.Debug("Terminating websocket ping loop.")
-			//	return
+		case <-ctx.Done():
+			t.log.Debug("Terminating websocket ping loop.")
+			return
 		}
 	}
 }
@@ -697,10 +638,6 @@ func (t *commandHandler) makeClient(ctx context.Context, ws WSConn) (*client.Tel
 	clientConfig.ClientAddr = ws.RemoteAddr().String()
 	clientConfig.Tracer = t.tracer
 
-	//if len(t.interactiveCommand) > 0 {
-	//	clientConfig.InteractiveCommand = true
-	//}
-
 	tc, err := client.NewClient(clientConfig)
 	if err != nil {
 		return nil, trace.BadParameter("failed to create client: %v", err)
@@ -711,7 +648,6 @@ func (t *commandHandler) makeClient(ctx context.Context, ws WSConn) (*client.Tel
 	// to allow future window changes.
 	tc.OnShellCreated = func(s *tracessh.Session, c *tracessh.Client, _ io.ReadWriteCloser) (bool, error) {
 		t.sshSession = s
-		//t.windowChange(ctx, &t.term)
 
 		return false, nil
 	}
@@ -719,7 +655,7 @@ func (t *commandHandler) makeClient(ctx context.Context, ws WSConn) (*client.Tel
 	return tc, nil
 }
 
-func (t *commandHandler) streamEvents(tc *client.TeleportClient) {
+func (t *commandHandler) streamEvents(ctx context.Context, tc *client.TeleportClient) {
 	for {
 		select {
 		// Send push events that come over the events channel to the web client.
@@ -734,22 +670,21 @@ func (t *commandHandler) streamEvents(tc *client.TeleportClient) {
 
 			logger.Debug("Sending audit event to web client.")
 
-			_ = data
-			//if err := t.stream.writeAuditEvent(data); err != nil {
-			//	if err != nil {
-			//		if errors.Is(err, websocket.ErrCloseSent) {
-			//			logger.WithError(err).Debug("Websocket was closed, no longer streaming events")
-			//			return
-			//		}
-			//		logger.WithError(err).Error("Unable to send audit event to web client")
-			//		continue
-			//	}
-			//}
+			if err := t.stream.writeAuditEvent(data); err != nil {
+				if err != nil {
+					if errors.Is(err, websocket.ErrCloseSent) {
+						logger.WithError(err).Debug("Websocket was closed, no longer streaming events")
+						return
+					}
+					logger.WithError(err).Error("Unable to send audit event to web client")
+					continue
+				}
+			}
 
-			// Once the terminal stream is over (and the close envelope has been sent),
-			// close stop streaming envelopes.
-			//case <-t.terminalContext.Done():
-			//	return
+		// Once the terminal stream is over (and the close envelope has been sent),
+		// close stop streaming envelopes.
+		case <-ctx.Done():
+			return
 		}
 	}
 }
@@ -773,28 +708,19 @@ func (t *commandHandler) writeError(err error) {
 }
 
 type WSConn interface {
-	Subprotocol() string
 	Close() error
+
 	LocalAddr() net.Addr
 	RemoteAddr() net.Addr
+
 	WriteControl(messageType int, data []byte, deadline time.Time) error
-	NextWriter(messageType int) (io.WriteCloser, error)
-	WritePreparedMessage(pm *websocket.PreparedMessage) error
 	WriteMessage(messageType int, data []byte) error
-	SetWriteDeadline(t time.Time) error
 	NextReader() (messageType int, r io.Reader, err error)
 	ReadMessage() (messageType int, p []byte, err error)
+
 	SetReadDeadline(t time.Time) error
-	SetReadLimit(limit int64)
-	CloseHandler() func(code int, text string) error
-	SetCloseHandler(h func(code int, text string) error)
 	PingHandler() func(appData string) error
 	SetPingHandler(h func(appData string) error)
 	PongHandler() func(appData string) error
 	SetPongHandler(h func(appData string) error)
-	UnderlyingConn() net.Conn
-	EnableWriteCompression(enable bool)
-	SetCompressionLevel(level int) error
-	WriteJSON(v interface{}) error
-	ReadJSON(v interface{}) error
 }
