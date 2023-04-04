@@ -38,6 +38,7 @@
 //! persist MUST be copied into Rust-owned memory.
 
 mod cliprdr;
+mod devolutions_gateway_utils;
 mod errors;
 mod piv;
 mod rdpdr;
@@ -49,68 +50,39 @@ extern crate log;
 #[macro_use]
 extern crate num_derive;
 
+use anyhow::Context;
+use anyhow::Result;
+use devolutions_gateway_utils::{
+    read_cleanpath_pdu, CleanPathError, NegotiationWithServerTransport,
+};
 use errors::try_error;
-use rand::Rng;
-use rand::SeedableRng;
 use rdp::core::event::*;
-use rdp::core::gcc::KeyboardLayout;
 use rdp::core::global;
-use rdp::core::global::ServerError;
 use rdp::core::mcs;
-use rdp::core::sec;
-use rdp::core::tpkt;
-use rdp::core::x224;
 use rdp::model::error::{Error as RdpError, RdpError as RdpProtocolError, RdpErrorKind, RdpResult};
-use rdp::model::link::{Link, Stream};
 use rdpdr::path::UnixPath;
 use rdpdr::ServerCreateDriveRequest;
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString, NulError};
 use std::fmt::Debug;
 use std::io::Error as IoError;
-use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
-use std::net;
-use std::net::{TcpStream, ToSocketAddrs};
+use std::net::ToSocketAddrs;
 use std::os::raw::{c_char, c_int};
-use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
-use std::sync::{Arc, Mutex};
+use std::os::unix::io::{FromRawFd, RawFd};
 use std::{mem, ptr, slice, time};
-
-pub fn test() {}
+use thiserror::Error;
+use tokio::io::AsyncReadExt as _;
+use tokio::io::AsyncWriteExt;
+use tokio::net::TcpStream;
+use tokio_util::codec::Decoder;
 
 #[no_mangle]
 pub extern "C" fn init() {
     env_logger::try_init().unwrap_or_else(|e| println!("failed to initialize Rust logger: {e}"));
 }
 
-#[derive(Clone)]
-struct SharedStream {
-    tcp: Arc<TcpStream>,
-}
-
-impl SharedStream {
-    fn new(tcp: TcpStream) -> Self {
-        Self { tcp: Arc::new(tcp) }
-    }
-}
-
-impl Read for SharedStream {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, IoError> {
-        self.tcp.as_ref().read(buf)
-    }
-}
-
-impl Write for SharedStream {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, IoError> {
-        self.tcp.as_ref().write(buf)
-    }
-
-    fn flush(&mut self) -> Result<(), IoError> {
-        self.tcp.as_ref().flush()
-    }
-}
-
+/// todo(isaiah): update this docstring
 /// Client has an unusual lifecycle:
 /// - connect_rdp creates it on the heap, grabs a raw pointer and returns in to Go
 /// - most other exported rdp functions take the raw pointer, convert it to a reference for use
@@ -121,10 +93,9 @@ impl Write for SharedStream {
 /// tcp_fd is only set in connect_rdp and used as read-only afterwards, so it does not need
 /// synchronization.
 pub struct Client {
-    rdp_client: Arc<Mutex<RdpClient<SharedStream>>>,
-    tcp_fd: usize,
+    proxy_tls_conn: TcpStream,
+    rdp_conn: TcpStream,
     go_ref: usize,
-    tcp: SharedStream,
 }
 
 impl Client {
@@ -151,8 +122,8 @@ pub struct ClientOrError {
     err: CGOErrCode,
 }
 
-impl From<Result<Client, ConnectError>> for ClientOrError {
-    fn from(r: Result<Client, ConnectError>) -> ClientOrError {
+impl From<Result<Client>> for ClientOrError {
+    fn from(r: Result<Client>) -> ClientOrError {
         match r {
             Ok(client) => ClientOrError {
                 client: Box::new(client).into_raw(),
@@ -201,11 +172,14 @@ pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) ->
     .into()
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 enum ConnectError {
+    #[error("TCP error")]
     Tcp(IoError),
+    #[error("RDP error")]
     Rdp(RdpError),
-    InvalidAddr(),
+    #[error("invalid address")]
+    InvalidAddr,
 }
 
 impl From<IoError> for ConnectError {
@@ -220,7 +194,7 @@ impl From<RdpError> for ConnectError {
     }
 }
 
-const RDP_CONNECT_TIMEOUT: time::Duration = time::Duration::from_secs(5);
+const RDP_CONNECT_TIMEOUT: tokio::time::Duration = tokio::time::Duration::from_secs(10);
 const RDP_HANDSHAKE_TIMEOUT: time::Duration = time::Duration::from_secs(10);
 const RDPSND_CHANNEL_NAME: &str = "rdpsnd";
 
@@ -249,371 +223,116 @@ struct ConnectParams {
     show_desktop_wallpaper: bool,
 }
 
-fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client, ConnectError> {
+fn fd_to_stream(fd: RawFd) -> Result<TcpStream> {
+    let tcp_stream = unsafe { std::net::TcpStream::from_raw_fd(fd) };
+    TcpStream::from_std(tcp_stream).context("could not convert to tokio TcpStream")
+}
+
+async fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client> {
+    debug!("Reading RDCleanPath");
+    // Convert the proxy TLS connection FD to a stream.
+    let mut proxy_tls_conn = fd_to_stream(params.proxy_tls_conn_fd)?;
+
+    // Read the RDCleanPath PDU from the client.
+    let cleanpath_pdu = read_cleanpath_pdu(&mut proxy_tls_conn)
+        .await
+        .context("couldn’t read clean cleanpath PDU")?;
+    debug!("Read RDCleanPath: {:?}", cleanpath_pdu);
+
+    debug!("Establishing TCP connection to RDP server: {}", params.addr);
     // Connect and authenticate.
     let addr = params
         .addr
         .to_socket_addrs()?
         .next()
-        .ok_or(ConnectError::InvalidAddr())?;
-    let tcp = TcpStream::connect_timeout(&addr, RDP_CONNECT_TIMEOUT)?;
-    let tcp_fd = tcp.as_raw_fd() as usize;
-    // Domain name "." means current domain.
-    let domain = ".";
+        .ok_or(ConnectError::InvalidAddr)?;
 
-    // From rdp-rs/src/core/client.rs
-    let shared_tcp = SharedStream::new(tcp);
-    // Set read timeout to prevent blocking forever on the handshake if the RDP server doesn't respond.
-    shared_tcp
-        .tcp
-        .set_read_timeout(Some(RDP_HANDSHAKE_TIMEOUT))?;
-    let tcp = Link::new(Stream::Raw(shared_tcp.clone()));
-    let protocols = x224::Protocols::ProtocolSSL as u32;
-    let x224 = x224::Client::connect(tpkt::Client::new(tcp), protocols, false, None, false, false)?;
-    let mut mcs = mcs::Client::new(x224);
-
-    // request the static channels we'll need:
-    // rdpdr: derive redirection (smart cards)
-    // rdpsnd: sound (for some reason we need to request this)
-    // cliprdr: clipboard
-    let mut static_channels = vec![
-        rdpdr::CHANNEL_NAME.to_string(),
-        RDPSND_CHANNEL_NAME.to_string(),
-    ];
-    if params.allow_clipboard {
-        static_channels.push(cliprdr::CHANNEL_NAME.to_string())
-    }
-    mcs.connect(
-        "rdp-rs".to_string(),
-        params.screen_width,
-        params.screen_height,
-        KeyboardLayout::US,
-        &static_channels,
-    )?;
-    // Generate a random 8-digit PIN for our smartcard.
-    let mut rng = rand_chacha::ChaCha20Rng::from_entropy();
-    let pin = format!("{:08}", rng.gen_range(0i32..=99999999i32));
-    let mut performance_flags = sec::ExtendedInfoFlag::PerfDisableFullWindowDrag as u32
-        | sec::ExtendedInfoFlag::PerfDisableMenuAnimations as u32;
-    if !params.show_desktop_wallpaper {
-        performance_flags |= sec::ExtendedInfoFlag::PerfDisableWallpaper as u32;
-    }
-    sec::connect(
-        &mut mcs,
-        &domain.to_string(),
-        &params.username,
-        &pin,
-        true,
-        // InfoPasswordIsScPin means that the user will not be prompted for the smartcard PIN code,
-        // which is known only to Teleport and unique for each RDP session.
-        Some(sec::InfoFlag::InfoPasswordIsScPin as u32 | sec::InfoFlag::InfoMouseHasWheel as u32),
-        Some(performance_flags),
-    )?;
-    // Client for the "global" channel - video output and user input.
-    let global = global::Client::new(
-        mcs.get_user_id(),
-        mcs.get_global_channel_id(),
-        params.screen_width,
-        params.screen_height,
-        KeyboardLayout::US,
-        "rdp-rs",
-    );
-
-    let tdp_sd_acknowledge = Box::new(
-        move |mut ack: SharedDirectoryAcknowledge| -> RdpResult<()> {
-            debug!("sending TDP SharedDirectoryAcknowledge: {:?}", ack);
-            unsafe {
-                if tdp_sd_acknowledge(go_ref, &mut ack) != CGOErrCode::ErrCodeSuccess {
-                    return Err(RdpError::TryError(String::from(
-                        "call to tdp_sd_acknowledge failed",
-                    )));
-                }
-                Ok(())
-            }
-        },
-    );
-
-    let tdp_sd_info_request = Box::new(move |req: SharedDirectoryInfoRequest| -> RdpResult<()> {
-        debug!("sending TDP SharedDirectoryInfoRequest: {:?}", req);
-        // Create C compatible string from req.path
-        match req.path.to_cstring() {
-            Ok(c_string) => {
-                unsafe {
-                    let err = tdp_sd_info_request(
-                        go_ref,
-                        &mut CGOSharedDirectoryInfoRequest {
-                            completion_id: req.completion_id,
-                            directory_id: req.directory_id,
-                            path: c_string.as_ptr(),
-                        },
-                    );
-                    if err != CGOErrCode::ErrCodeSuccess {
-                        return Err(RdpError::TryError(String::from(
-                            "call to tdp_sd_info_request failed",
-                        )));
-                    };
-                }
-                Ok(())
-            }
-            Err(_) => {
-                // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                Err(RdpError::TryError(format!(
-                    "path contained characters that couldn't be converted to a C string: {:?}",
-                    req.path
-                )))
-            }
-        }
-    });
-
-    let tdp_sd_create_request =
-        Box::new(move |req: SharedDirectoryCreateRequest| -> RdpResult<()> {
-            debug!("sending TDP SharedDirectoryCreateRequest: {:?}", req);
-            // Create C compatible string from req.path
-            match req.path.to_cstring() {
-                Ok(c_string) => {
-                    unsafe {
-                        let err = tdp_sd_create_request(
-                            go_ref,
-                            &mut CGOSharedDirectoryCreateRequest {
-                                completion_id: req.completion_id,
-                                directory_id: req.directory_id,
-                                file_type: req.file_type,
-                                path: c_string.as_ptr(),
-                            },
-                        );
-                        if err != CGOErrCode::ErrCodeSuccess {
-                            return Err(RdpError::TryError(String::from(
-                                "call to tdp_sd_create_request failed",
-                            )));
-                        };
-                    }
-                    Ok(())
-                }
-                Err(_) => {
-                    // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                    Err(RdpError::TryError(format!(
-                        "path contained characters that couldn't be converted to a C string: {:?}",
-                        req.path
-                    )))
-                }
-            }
-        });
-
-    let tdp_sd_delete_request =
-        Box::new(move |req: SharedDirectoryDeleteRequest| -> RdpResult<()> {
-            debug!("sending TDP SharedDirectoryDeleteRequest: {:?}", req);
-            // Create C compatible string from req.path
-            match req.path.to_cstring() {
-                Ok(c_string) => {
-                    unsafe {
-                        let err = tdp_sd_delete_request(
-                            go_ref,
-                            &mut CGOSharedDirectoryDeleteRequest {
-                                completion_id: req.completion_id,
-                                directory_id: req.directory_id,
-                                path: c_string.as_ptr(),
-                            },
-                        );
-                        if err != CGOErrCode::ErrCodeSuccess {
-                            return Err(RdpError::TryError(String::from(
-                                "call to tdp_sd_delete_request failed",
-                            )));
-                        };
-                    }
-                    Ok(())
-                }
-                Err(_) => {
-                    // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                    Err(RdpError::TryError(format!(
-                        "path contained characters that couldn't be converted to a C string: {:?}",
-                        req.path
-                    )))
-                }
-            }
-        });
-
-    let tdp_sd_list_request = Box::new(move |req: SharedDirectoryListRequest| -> RdpResult<()> {
-        debug!("sending TDP SharedDirectoryListRequest: {:?}", req);
-        // Create C compatible string from req.path
-        match req.path.to_cstring() {
-            Ok(c_string) => {
-                unsafe {
-                    let err = tdp_sd_list_request(
-                        go_ref,
-                        &mut CGOSharedDirectoryListRequest {
-                            completion_id: req.completion_id,
-                            directory_id: req.directory_id,
-                            path: c_string.as_ptr(),
-                        },
-                    );
-                    if err != CGOErrCode::ErrCodeSuccess {
-                        return Err(RdpError::TryError(String::from(
-                            "call to tdp_sd_list_request failed",
-                        )));
-                    };
-                }
-                Ok(())
-            }
-            Err(_) => {
-                // TODO(isaiah): change TryError to TeleportError for a generic error caused by Teleport specific code.
-                Err(RdpError::TryError(format!(
-                    "path contained characters that couldn't be converted to a C string: {:?}",
-                    req.path
-                )))
-            }
-        }
-    });
-
-    let tdp_sd_read_request = Box::new(move |req: SharedDirectoryReadRequest| -> RdpResult<()> {
-        debug!("sending TDP SharedDirectoryReadRequest: {:?}", req);
-        match req.path.to_cstring() {
-            Ok(c_string) => {
-                unsafe {
-                    let err = tdp_sd_read_request(
-                        go_ref,
-                        &mut CGOSharedDirectoryReadRequest {
-                            completion_id: req.completion_id,
-                            directory_id: req.directory_id,
-                            path: c_string.as_ptr(),
-                            path_length: req.path.len(),
-                            offset: req.offset,
-                            length: req.length,
-                        },
-                    );
-
-                    if err != CGOErrCode::ErrCodeSuccess {
-                        return Err(RdpError::TryError(String::from(
-                            "call to tdp_sd_read_request failed",
-                        )));
-                    }
-                }
-                Ok(())
-            }
-            Err(_) => Err(RdpError::TryError(format!(
-                "path contained characters that couldn't be converted to a C string: {:?}",
-                req.path
-            ))),
-        }
-    });
-
-    let tdp_sd_write_request = Box::new(move |req: SharedDirectoryWriteRequest| -> RdpResult<()> {
-        debug!("sending TDP SharedDirectoryWriteRequest: {:?}", req);
-        match req.path.to_cstring() {
-            Ok(c_string) => {
-                unsafe {
-                    let err = tdp_sd_write_request(
-                        go_ref,
-                        &mut CGOSharedDirectoryWriteRequest {
-                            completion_id: req.completion_id,
-                            directory_id: req.directory_id,
-                            offset: req.offset,
-                            path: c_string.as_ptr(),
-                            path_length: req.path.len(),
-                            write_data_length: req.write_data.len() as u32,
-                            write_data: req.write_data.as_ptr() as *mut u8,
-                        },
-                    );
-
-                    if err != CGOErrCode::ErrCodeSuccess {
-                        return Err(RdpError::TryError(String::from(
-                            "call to tdp_sd_write_failed",
-                        )));
-                    }
-                }
-                Ok(())
-            }
-            Err(_) => Err(RdpError::TryError(format!(
-                "path contained characters that couldn't be converted to a C string: {:?}",
-                req.path
-            ))),
-        }
-    });
-
-    let tdp_sd_move_request = Box::new(move |req: SharedDirectoryMoveRequest| -> RdpResult<()> {
-        debug!("sending TDP SharedDirectoryMoveRequest: {:?}", req);
-        match req.original_path.to_cstring() {
-            Ok(original_path) => match req.new_path.to_cstring() {
-                Ok(new_path) => {
-                    unsafe {
-                        let err = tdp_sd_move_request(
-                            go_ref,
-                            &mut CGOSharedDirectoryMoveRequest {
-                                completion_id: req.completion_id,
-                                directory_id: req.directory_id,
-                                original_path: original_path.as_ptr(),
-                                new_path: new_path.as_ptr(),
-                            },
-                        );
-
-                        if err != CGOErrCode::ErrCodeSuccess {
-                            return Err(RdpError::TryError(String::from(
-                                "call to tdp_sd_Move_failed",
-                            )));
-                        }
-                    }
-                    Ok(())
-                }
-                Err(_) => Err(RdpError::TryError(format!(
-                    "new_path contained characters that couldn't be converted to a C string: {:?}",
-                    req.new_path
-                ))),
-            },
-            Err(_) => Err(RdpError::TryError(format!(
-                "original_path contained characters that couldn't be converted to a C string: {:?}",
-                req.original_path
-            ))),
-        }
-    });
-
-    // Client for the "rdpdr" channel - smartcard emulation and drive redirection.
-    let rdpdr = rdpdr::Client::new(rdpdr::Config {
-        cert_der: params.cert_der,
-        key_der: params.key_der,
-        pin,
-        allow_directory_sharing: params.allow_directory_sharing,
-        tdp_sd_acknowledge,
-        tdp_sd_info_request,
-        tdp_sd_create_request,
-        tdp_sd_delete_request,
-        tdp_sd_list_request,
-        tdp_sd_read_request,
-        tdp_sd_write_request,
-        tdp_sd_move_request,
-    });
-
-    // Client for the "cliprdr" channel - clipboard sharing.
-    let cliprdr = if params.allow_clipboard {
-        Some(cliprdr::Client::new(Box::new(move |v| -> RdpResult<()> {
-            unsafe {
-                if handle_remote_copy(go_ref, v.as_ptr() as _, v.len() as u32)
-                    != CGOErrCode::ErrCodeSuccess
-                {
-                    return Err(errors::try_error("failed to handle remote copy"));
-                }
-            }
-            Ok(())
-        })))
-    } else {
-        None
+    let fut = async move {
+        // let socket_addr = resolve_target_to_socket_addr(dest).await?;
+        TcpStream::connect(addr)
+            .await
+            .context("couldn't connect stream")
     };
+    let mut rdp_conn = tokio::time::timeout(RDP_CONNECT_TIMEOUT, fut).await??;
+    debug!("TCP connection to RDP server established");
 
-    let rdp_client = RdpClient {
-        mcs,
-        global,
-        rdpdr,
-        cliprdr,
+    // Send X224 connection request
+    debug!("Sending X224 connection request to RDP server");
+    let x224_req = cleanpath_pdu
+        .x224_connection_pdu
+        .context("request is missing X224 connection PDU")
+        .map_err(CleanPathError::BadRequest)?;
+    rdp_conn.write_all(x224_req.as_bytes()).await?;
+    debug!("X224 connection request sent to RDP server");
+
+    // Receive server X224 connection response
+    let mut buf = bytes::BytesMut::new();
+    let mut decoder = NegotiationWithServerTransport;
+
+    debug!("Receiving X224 response from RDP server");
+    // todo(isaiah): check if there is code to be reused from ironrdp code base for this
+    let x224_rsp = loop {
+        let len = rdp_conn.read_buf(&mut buf).await?;
+
+        if len == 0 {
+            if let Some(frame) = decoder.decode_eof(&mut buf)? {
+                break frame;
+            }
+        } else if let Some(frame) = decoder.decode(&mut buf)? {
+            break frame;
+        }
     };
+    debug!("Received X224 response from RDP server");
 
-    // Reset read timeout as rdp-rs isn't build to handle it internally.
-    // This won't cause a lockup later since at that point the close_rdp() function will be called which
-    // will terminate the connection if the websocket disconnects.
-    shared_tcp.tcp.set_read_timeout(None)?;
+    // let mut x224_rsp_buf = Vec::new();
+    // ironrdp::pdu::PduParsing::to_buffer(&x224_rsp, &mut x224_rsp_buf)
+    //     .context("failed to reencode x224 response from server")?;
+
+    // let server_addr = rdp_conn
+    //     .peer_addr()
+    //     .context("couldn’t get server peer address")?;
+
+    // debug!("Establishing TLS connection with server");
+
+    // let mut rdp_conn = {
+    //     // Establish TLS connection with server
+
+    //     let dns_name = server_addr
+    //         .host()
+    //         .try_into()
+    //         .context("Invalid DNS name in selected target")?;
+
+    //     // TODO: optimize client config creation
+    //     //
+    //     // rustls doc says:
+    //     //
+    //     // > Making one of these can be expensive, and should be once per process rather than once per connection.
+    //     //
+    //     // source: https://docs.rs/rustls/latest/rustls/struct.ClientConfig.html
+    //     //
+    //     // In our case, this doesn’t work, so I’m creating a new ClientConfig from scratch each time (slow).
+    //     // rustls issue: https://github.com/rustls/rustls/issues/1186
+    //     let tls_client_config = TlsClientConfig::builder()
+    //         .with_safe_defaults()
+    //         .with_custom_certificate_verifier(std::sync::Arc::new(
+    //             crate::utils::danger_transport::NoCertificateVerification,
+    //         ))
+    //         .with_no_client_auth()
+    //         .pipe(Arc::new);
+
+    //     tokio_rustls::TlsConnector::from(tls_client_config)
+    //         .connect(dns_name, rdp_conn)
+    //         .await
+    //         .map_err(CleanPathError::TlsHandshake)?
+    // };
+
+    // // https://docs.rs/tokio-rustls/latest/tokio_rustls/#why-do-i-need-to-call-poll_flush
+    // rdp_conn.flush().await?;
 
     Ok(Client {
-        rdp_client: Arc::new(Mutex::new(rdp_client)),
-        tcp_fd,
+        proxy_tls_conn,
+        rdp_conn,
         go_ref,
-        tcp: shared_tcp,
     })
 }
 
@@ -888,445 +607,6 @@ fn wait_for_fd(fd: usize) -> RdpResult<()> {
     }
 }
 
-/// `update_clipboard` is called from Go, and caches data that was copied
-/// client-side while notifying the RDP server that new clipboard data is available.
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-///
-/// data MUST be a valid pointer.
-/// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
-#[no_mangle]
-pub unsafe extern "C" fn update_clipboard(
-    client_ptr: *mut Client,
-    data: *mut u8,
-    len: u32,
-) -> CGOErrCode {
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-    let data = from_go_array(data, len);
-    let mut lock = client.rdp_client.lock().unwrap();
-
-    match lock.cliprdr {
-        Some(ref mut clip) => match clip
-            .update_clipboard(String::from_utf8_lossy(&data).into_owned())
-        {
-            Ok(messages) => {
-                for message in messages {
-                    if let Err(e) = lock.mcs.write(&cliprdr::CHANNEL_NAME.to_string(), message) {
-                        error!("failed writing cliprdr format list: {:?}", e);
-                        return CGOErrCode::ErrCodeFailure;
-                    }
-                }
-                CGOErrCode::ErrCodeSuccess
-            }
-            Err(e) => {
-                error!("failed updating clipboard: {:?}", e);
-                CGOErrCode::ErrCodeFailure
-            }
-        },
-        None => CGOErrCode::ErrCodeSuccess,
-    }
-}
-
-/// handle_tdp_sd_announce announces a new drive that's ready to be
-/// redirected over RDP.
-///
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-///
-/// sd_announce.name MUST be a non-null pointer to a C-style null terminated string.
-#[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_announce(
-    client_ptr: *mut Client,
-    sd_announce: CGOSharedDirectoryAnnounce,
-) -> CGOErrCode {
-    let sd_announce = SharedDirectoryAnnounce::from(sd_announce);
-
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-
-    let new_drive =
-        rdpdr::ClientDeviceListAnnounce::new_drive(sd_announce.directory_id, sd_announce.name);
-
-    let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.handle_client_device_list_announce(new_drive) {
-        Ok(()) => CGOErrCode::ErrCodeSuccess,
-        Err(e) => {
-            error!("failed to announce new drive: {:?}", e);
-            CGOErrCode::ErrCodeFailure
-        }
-    }
-}
-
-/// handle_tdp_sd_info_response handles a TDP Shared Directory Info Response
-/// message
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-///
-/// res.fso.path MUST be a non-null pointer to a C-style null terminated string.
-#[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_info_response(
-    client_ptr: *mut Client,
-    res: CGOSharedDirectoryInfoResponse,
-) -> CGOErrCode {
-    let res = SharedDirectoryInfoResponse::from(res);
-
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-
-    let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.handle_tdp_sd_info_response(res) {
-        Ok(()) => CGOErrCode::ErrCodeSuccess,
-        Err(e) => {
-            error!("failed to handle Shared Directory Info Response: {:?}", e);
-            CGOErrCode::ErrCodeFailure
-        }
-    }
-}
-
-/// handle_tdp_sd_create_response handles a TDP Shared Directory Create Response
-/// message
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-#[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_create_response(
-    client_ptr: *mut Client,
-    res: CGOSharedDirectoryCreateResponse,
-) -> CGOErrCode {
-    let res = SharedDirectoryCreateResponse::from(res);
-
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-
-    let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.handle_tdp_sd_create_response(res) {
-        Ok(()) => CGOErrCode::ErrCodeSuccess,
-        Err(e) => {
-            error!("failed to handle Shared Directory Create Response: {:?}", e);
-            CGOErrCode::ErrCodeFailure
-        }
-    }
-}
-
-/// handle_tdp_sd_delete_response handles a TDP Shared Directory Delete Response
-/// message
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-#[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_delete_response(
-    client_ptr: *mut Client,
-    res: CGOSharedDirectoryDeleteResponse,
-) -> CGOErrCode {
-    let res: SharedDirectoryDeleteResponse = res;
-
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-
-    let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.handle_tdp_sd_delete_response(res) {
-        Ok(()) => CGOErrCode::ErrCodeSuccess,
-        Err(e) => {
-            error!("failed to handle Shared Directory Create Response: {:?}", e);
-            CGOErrCode::ErrCodeFailure
-        }
-    }
-}
-
-/// handle_tdp_sd_list_response handles a TDP Shared Directory List Response message.
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-///
-/// res.fso_list MUST be a valid pointer
-/// (validity defined by the validity of data in https://doc.rust-lang.org/std/slice/fn.from_raw_parts_mut.html)
-///
-/// each res.fso_list[i].path MUST be a non-null pointer to a C-style null terminated string.
-#[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_list_response(
-    client_ptr: *mut Client,
-    res: CGOSharedDirectoryListResponse,
-) -> CGOErrCode {
-    let res = SharedDirectoryListResponse::from(res);
-
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-
-    let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.handle_tdp_sd_list_response(res) {
-        Ok(()) => CGOErrCode::ErrCodeSuccess,
-        Err(e) => {
-            error!("failed to handle Shared Directory List Response: {:?}", e);
-            CGOErrCode::ErrCodeFailure
-        }
-    }
-}
-
-/// handle_tdp_sd_read_response handles a TDP Shared Directory Read Response
-/// message
-///
-/// # Safety
-///
-/// client_ptr must be a valid pointer
-#[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_read_response(
-    client_ptr: *mut Client,
-    res: CGOSharedDirectoryReadResponse,
-) -> CGOErrCode {
-    let res = SharedDirectoryReadResponse::from(res);
-
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-
-    let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.handle_tdp_sd_read_response(res) {
-        Ok(()) => CGOErrCode::ErrCodeSuccess,
-        Err(e) => {
-            error!("failed to handle Shared Directory Read Response: {:?}", e);
-            CGOErrCode::ErrCodeFailure
-        }
-    }
-}
-
-/// handle_tdp_sd_write_response handles a TDP Shared Directory Write Response
-/// message
-///
-/// # Safety
-///
-/// client_ptr must be a valid pointer
-#[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_write_response(
-    client_ptr: *mut Client,
-    res: CGOSharedDirectoryWriteResponse,
-) -> CGOErrCode {
-    let res: SharedDirectoryWriteResponse = res;
-
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-
-    let mut rdp_client = client.rdp_client.lock().unwrap();
-
-    match rdp_client.handle_tdp_sd_write_response(res) {
-        Ok(()) => CGOErrCode::ErrCodeSuccess,
-        Err(e) => {
-            error!("failed to handle Shared Directory Write Response: {:?}", e);
-            CGOErrCode::ErrCodeFailure
-        }
-    }
-}
-
-/// handle_tdp_sd_move_response handles a TDP Shared Directory Move Response
-/// message
-///
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-#[no_mangle]
-pub unsafe extern "C" fn handle_tdp_sd_move_response(
-    client_ptr: *mut Client,
-    res: CGOSharedDirectoryMoveResponse,
-) -> CGOErrCode {
-    let res: SharedDirectoryMoveResponse = res;
-
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-
-    let mut rdp_client = client.rdp_client.lock().unwrap();
-    match rdp_client.handle_tdp_sd_move_response(res) {
-        Ok(()) => CGOErrCode::ErrCodeSuccess,
-        Err(e) => {
-            error!("failed to handle Shared Directory Move Response: {:?}", e);
-            CGOErrCode::ErrCodeFailure
-        }
-    }
-}
-
-/// `read_rdp_output` reads incoming RDP bitmap frames from client at client_ref, encodes bitmap
-/// as a png and forwards them to handle_png.
-///
-/// # Safety
-///
-/// `client_ptr` must be a valid pointer to a Client.
-/// `handle_png` *must not* free the memory of CGOPNG.
-#[no_mangle]
-pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpOutputReturns {
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return ReadRdpOutputReturns {
-                user_message: "invalid Rust client pointer".to_string(),
-                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                err_code: cgo_error,
-            }
-            .into();
-        }
-    };
-
-    read_rdp_output_inner(client).into()
-}
-
-fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
-    let tcp_fd = client.tcp_fd;
-    let client_ref = client.go_ref;
-
-    loop {
-        // Read incoming events.
-        //
-        // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
-        // us from locking the mutex in Client permanently while no data is available.
-        match wait_for_fd(tcp_fd) {
-            Ok(_) => {
-                let mut err = CGOErrCode::ErrCodeSuccess;
-                let res = client.rdp_client.lock().unwrap().read(|rdp_event| {
-                    // This callback can be called multiple times per rdp_client.read()
-                    // (if multiple messages were received since the last call). Therefore,
-                    // we check that the previous call to handle_png succeeded, so we don't
-                    // have a situation where handle_png fails repeatedly and creates a
-                    // bunch of repetitive error messages in the logs. If it fails once,
-                    // we assume the connection is broken and stop trying to send PNGs.
-                    if err == CGOErrCode::ErrCodeSuccess {
-                        match rdp_event {
-                            RdpEvent::Bitmap(bitmap) => {
-                                let mut cpng = match CGOPNG::try_from(bitmap) {
-                                    Ok(cb) => cb,
-                                    Err(e) => {
-                                        error!(
-                                    "failed to convert RDP bitmap to CGO representation: {:?}",
-                                    e
-                                );
-                                        return;
-                                    }
-                                };
-                                unsafe {
-                                    err = handle_png(client_ref, &mut cpng) as CGOErrCode;
-                                };
-                            }
-                            // No other events should be sent by the server to us.
-                            _ => {
-                                debug!("got unexpected pointer event from RDP server, ignoring");
-                            }
-                        }
-                    }
-                });
-                match res {
-                    Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => {
-                        debug!("client disconnect detected");
-                        return ReadRdpOutputReturns {
-                            user_message: "Client successfully disconnected".to_string(),
-                            disconnect_code: CGODisconnectCode::DisconnectCodeClient,
-                            err_code: CGOErrCode::ErrCodeSuccess,
-                        };
-                    }
-                    Err(RdpError::RdpError(rdp_err))
-                        if rdp_err.kind() == RdpErrorKind::Disconnect =>
-                    {
-                        // RdpErrorKind::Disconnect means we encountered a Disconnect Provider Ultimatum.
-                        // If we don't know why that was sent, return an failure, otherwise return a success.
-                        debug!("server disconnect detected");
-                        let disconnect_code = CGODisconnectCode::DisconnectCodeServer;
-                        let server_error = client.rdp_client.lock().unwrap().global.server_error();
-                        let mut message = server_error.to_string();
-                        let mut err_code = CGOErrCode::ErrCodeSuccess;
-                        if server_error == ServerError::None || server_error.is_error() {
-                            err_code = CGOErrCode::ErrCodeFailure;
-                            if server_error == ServerError::None {
-                                message =
-                                    "RDP server disconnected for an unknown reason".to_string();
-                            }
-                        }
-                        return ReadRdpOutputReturns {
-                            user_message: message,
-                            disconnect_code,
-                            err_code,
-                        };
-                    }
-                    Err(e) => {
-                        return ReadRdpOutputReturns {
-                            user_message: format!("RDP read failed: {e:?}"),
-                            disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                            err_code: CGOErrCode::ErrCodeFailure,
-                        };
-                    }
-                    Ok(()) => {
-                        // continue
-                    }
-                }
-                if err != CGOErrCode::ErrCodeSuccess {
-                    return ReadRdpOutputReturns {
-                        user_message: "failed forwarding RDP bitmap frame".to_string(),
-                        disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                        err_code: err,
-                    };
-                }
-            }
-            Err(err) => {
-                let user_message = match err {
-                    RdpError::Io(err) => err.to_string(),
-                    _ => "RDP read failed for an unknown reason".to_string(),
-                };
-                return ReadRdpOutputReturns {
-                    user_message,
-                    disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                    err_code: CGOErrCode::ErrCodeFailure,
-                };
-            }
-        }
-    }
-}
-
 /// CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
 /// PointerEvent is a mouse move or click update from the user.
 #[repr(C)]
@@ -1384,35 +664,6 @@ impl From<CGOMousePointerEvent> for PointerEvent {
     }
 }
 
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-#[no_mangle]
-pub unsafe extern "C" fn write_rdp_pointer(
-    client_ptr: *mut Client,
-    pointer: CGOMousePointerEvent,
-) -> CGOErrCode {
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-    let res = client
-        .rdp_client
-        .lock()
-        .unwrap()
-        .write(RdpEvent::Pointer(pointer.into()));
-
-    if let Err(e) = res {
-        error!("failed writing RDP pointer event: {:?}", e);
-        CGOErrCode::ErrCodeFailure
-    } else {
-        CGOErrCode::ErrCodeSuccess
-    }
-}
-
 /// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
 /// KeyboardEvent is a keyboard update from the user.
 #[repr(C)]
@@ -1437,67 +688,6 @@ impl From<CGOKeyboardEvent> for KeyboardEvent {
             down: k.down,
         }
     }
-}
-
-/// # Safety
-///
-/// client_ptr MUST be a valid pointer.
-/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
-#[no_mangle]
-pub unsafe extern "C" fn write_rdp_keyboard(
-    client_ptr: *mut Client,
-    key: CGOKeyboardEvent,
-) -> CGOErrCode {
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-    let res = client
-        .rdp_client
-        .lock()
-        .unwrap()
-        .write(RdpEvent::Key(key.into()));
-    if let Err(e) = res {
-        error!("failed writing RDP keyboard event: {:?}", e);
-        CGOErrCode::ErrCodeFailure
-    } else {
-        CGOErrCode::ErrCodeSuccess
-    }
-}
-
-/// # Safety
-///
-/// client_ptr must be a valid pointer to a Client.
-#[no_mangle]
-pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
-    let client = match Client::from_ptr(client_ptr) {
-        Ok(client) => client,
-        Err(cgo_error) => {
-            return cgo_error;
-        }
-    };
-
-    let res = match client.rdp_client.lock().unwrap().shutdown() {
-        Err(_) => CGOErrCode::ErrCodeFailure,
-        Ok(_) => CGOErrCode::ErrCodeSuccess,
-    };
-
-    if let Err(err) = client.tcp.tcp.shutdown(net::Shutdown::Both) {
-        match err.kind() {
-            ErrorKind::NotConnected => {
-                debug!("TCP socket was not connected");
-                return CGOErrCode::ErrCodeSuccess;
-            }
-            _ => {
-                error!("failed shutting down TCP socket: {:?}", err);
-                return CGOErrCode::ErrCodeFailure;
-            }
-        }
-    }
-
-    res
 }
 
 #[repr(C)]

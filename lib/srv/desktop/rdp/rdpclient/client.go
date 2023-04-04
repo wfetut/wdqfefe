@@ -173,15 +173,6 @@ func (c *Client) Run(ctx context.Context, proxyConn *tls.Conn) error {
 	if err := c.connect(ctx, proxyConn); err != nil {
 		return trace.Wrap(err)
 	}
-	c.start()
-
-	// Hang until input and output streaming
-	// goroutines both finish.
-	c.wg.Wait()
-
-	// Both goroutines have finished, it's now
-	// safe for the deferred c.cleanup() call to
-	// clean up the memory.
 
 	return nil
 }
