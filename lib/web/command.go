@@ -199,15 +199,14 @@ func (h *Handler) executeCommand(
 			h.userConns.Add(1)
 			defer h.userConns.Add(-1)
 
-			// start the websocket session with a web-based terminal:
-			h.log.Infof("Getting terminal to %#v.", req)
+			h.log.Infof("Executing command: %#v.", req)
 			httplib.MakeTracingHandler(handler, teleport.ComponentProxy).ServeHTTP(w, r)
 
 			return nil
 		}()
 
 		if err != nil {
-			h.log.WithError(err).Warnf("failed to start session: %v", host.hostName)
+			h.log.WithError(err).Warnf("Failed to start session: %v", host.hostName)
 			continue
 		}
 	}
