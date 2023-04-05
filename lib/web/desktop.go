@@ -194,16 +194,6 @@ func (h *Handler) createDesktopConnection(
 	}
 	log.Debug("Connected to windows_desktop_service")
 
-	tdpConn := tdp.NewConn(serviceConnTLS)
-	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: username})
-	if err != nil {
-		return sendTDPError(err)
-	}
-	err = tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
-	if err != nil {
-		return sendTDPError(err)
-	}
-
 	// proxyWebsocketConn hangs here until connection is closed
 	handleProxyWebsocketConnErr(
 		proxyWebsocketConn(ws, serviceConnTLS), log)
@@ -275,8 +265,8 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		return nil, trace.Wrap(err)
 	}
 	tlsConfig.Certificates = []tls.Certificate{certConf}
-	// Pass target desktop name via SNI.
-	tlsConfig.ServerName = desktopName + "." + username + desktop.SNISuffix
+	// Pass target username and desktop via SNI.
+	tlsConfig.ServerName = username + "-" + desktopName + desktop.SNISuffix
 	return tlsConfig, nil
 }
 
@@ -337,72 +327,19 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 	}
 
 	errs := make(chan error, 2)
+	stream := &WebsocketIO{Conn: ws}
 
 	go func() {
 		defer closeOnce.Do(close)
-
-		// we avoid using io.Copy here, as we want to make sure
-		// each TDP message is sent as a unit so that a single
-		// 'message' event is emitted in the browser
-		// (io.Copy's internal buffer could split one message
-		// into multiple ws.WriteMessage calls)
-		tc := tdp.NewConn(wds)
-
-		// we don't care about the content of the message, we just
-		// need to split the stream into individual messages and
-		// write them to the websocket
-		for {
-			msg, err := tc.ReadMessage()
-			if utils.IsOKNetworkError(err) {
-				errs <- nil
-				return
-			} else if err != nil {
-				isFatal := tdp.IsFatalErr(err)
-				severity := tdp.SeverityError
-				if !isFatal {
-					severity = tdp.SeverityWarning
-				}
-				sendErr := sendTDPNotification(ws, err, severity)
-
-				// If the error wasn't fatal and we successfully
-				// sent it back to the client, continue.
-				if !isFatal && sendErr == nil {
-					continue
-				}
-
-				// If the error was fatal or we failed to send it back
-				// to the client, send it to the errs channel and end
-				// the session.
-				if sendErr != nil {
-					err = sendErr
-				}
-				errs <- err
-				return
-			}
-			encoded, err := msg.Encode()
-			if err != nil {
-				errs <- err
-				return
-			}
-			err = ws.WriteMessage(websocket.BinaryMessage, encoded)
-			if utils.IsOKNetworkError(err) {
-				errs <- nil
-				return
-			}
-			if err != nil {
-				errs <- err
-				return
-			}
+		_, err := io.Copy(stream, wds)
+		if utils.IsOKNetworkError(err) {
+			err = nil
 		}
+		errs <- err
 	}()
 
 	go func() {
 		defer closeOnce.Do(close)
-
-		// io.Copy is fine here, as the Windows Desktop Service
-		// operates on a stream and doesn't care if TPD messages
-		// are fragmented
-		stream := &WebsocketIO{Conn: ws}
 		_, err := io.Copy(wds, stream)
 		if utils.IsOKNetworkError(err) {
 			err = nil

@@ -69,7 +69,7 @@ func SetIndexContentSecurityPolicy(h http.Header) {
 		"style-src 'self' 'unsafe-inline'",
 		"img-src 'self' data: blob:",
 		"font-src 'self' data:",
-		"connect-src 'self' wss:",
+		// "connect-src 'self' wss:", //todo(isaiah): temporarily commented out to get this to work with foreign iron-remote-gui
 	}, ";")
 
 	h.Set("Content-Security-Policy", cspValue)
@@ -92,7 +92,7 @@ func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
 // GetDefaultContentSecurityPolicy provides a starting Content Security Policy with safe defaults.
 func GetDefaultContentSecurityPolicy() string {
 	return strings.Join([]string{
-		"default-src 'self'",
+		// "default-src 'self'", //todo(isaiah): temporarily commented out to get this to work with foreign iron-remote-gui
 		// specify CSP directives not covered by `default-src`
 		"base-uri 'self'",
 		"form-action 'self'",

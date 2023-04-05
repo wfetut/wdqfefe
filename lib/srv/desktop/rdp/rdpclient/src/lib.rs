@@ -51,7 +51,7 @@ extern crate log;
 extern crate num_derive;
 
 use anyhow::Context;
-use anyhow::Result;
+use anyhow::{Error as AnyhowError, Result};
 use devolutions_gateway_utils::{
     read_cleanpath_pdu, CleanPathError, NegotiationWithServerTransport,
 };
@@ -71,10 +71,11 @@ use std::net::ToSocketAddrs;
 use std::os::raw::{c_char, c_int};
 use std::os::unix::io::{FromRawFd, RawFd};
 use std::{mem, ptr, slice, time};
-use thiserror::Error;
+use thiserror::Error as ThisError;
 use tokio::io::AsyncReadExt as _;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
+use tokio::runtime::Runtime;
 use tokio_util::codec::Decoder;
 
 #[no_mangle]
@@ -96,6 +97,7 @@ pub struct Client {
     proxy_tls_conn: TcpStream,
     rdp_conn: TcpStream,
     go_ref: usize,
+    tokio_rt: Option<Runtime>,
 }
 
 impl Client {
@@ -140,6 +142,25 @@ impl From<Result<Client>> for ClientOrError {
     }
 }
 
+impl From<Client> for ClientOrError {
+    fn from(client: Client) -> ClientOrError {
+        ClientOrError {
+            client: Box::new(client).into_raw(),
+            err: CGOErrCode::ErrCodeSuccess,
+        }
+    }
+}
+
+impl From<AnyhowError> for ClientOrError {
+    fn from(e: AnyhowError) -> ClientOrError {
+        error!("{:?}", e);
+        ClientOrError {
+            client: ptr::null_mut(),
+            err: CGOErrCode::ErrCodeFailure,
+        }
+    }
+}
+
 /// connect_rdp establishes an RDP connection to go_addr with the provided credentials and screen
 /// size. If succeeded, the client is internally registered under client_ref. When done with the
 /// connection, the caller must call close_rdp.
@@ -156,23 +177,33 @@ pub unsafe extern "C" fn connect_rdp(go_ref: usize, params: CGOConnectParams) ->
     let cert_der = from_go_array(params.cert_der, params.cert_der_len);
     let key_der = from_go_array(params.key_der, params.key_der_len);
 
-    connect_rdp_inner(
-        go_ref,
-        ConnectParams {
-            addr,
-            username,
-            proxy_tls_conn_fd: params.proxy_tls_conn_fd,
-            cert_der,
-            key_der,
-            allow_clipboard: params.allow_clipboard,
-            allow_directory_sharing: params.allow_directory_sharing,
-            show_desktop_wallpaper: params.show_desktop_wallpaper,
-        },
-    )
-    .into()
+    let tokio_rt = Runtime::new().unwrap();
+
+    match tokio_rt.block_on(async {
+        connect_rdp_inner(
+            go_ref,
+            ConnectParams {
+                addr,
+                username,
+                proxy_tls_conn_fd: params.proxy_tls_conn_fd,
+                cert_der,
+                key_der,
+                allow_clipboard: params.allow_clipboard,
+                allow_directory_sharing: params.allow_directory_sharing,
+                show_desktop_wallpaper: params.show_desktop_wallpaper,
+            },
+        )
+        .await
+    }) {
+        Ok(mut client) => {
+            client.tokio_rt = Some(tokio_rt);
+            client.into()
+        }
+        Err(err) => err.into(),
+    }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, ThisError)]
 enum ConnectError {
     #[error("TCP error")]
     Tcp(IoError),
@@ -229,10 +260,10 @@ fn fd_to_stream(fd: RawFd) -> Result<TcpStream> {
 }
 
 async fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Client> {
-    debug!("Reading RDCleanPath");
     // Convert the proxy TLS connection FD to a stream.
     let mut proxy_tls_conn = fd_to_stream(params.proxy_tls_conn_fd)?;
 
+    debug!("Reading RDCleanPath");
     // Read the RDCleanPath PDU from the client.
     let cleanpath_pdu = read_cleanpath_pdu(&mut proxy_tls_conn)
         .await
@@ -333,6 +364,7 @@ async fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Clien
         proxy_tls_conn,
         rdp_conn,
         go_ref,
+        tokio_rt: None,
     })
 }
 
@@ -1233,39 +1265,7 @@ pub struct CGOSharedDirectoryListRequest {
 // These functions are defined on the Go side. Look for functions with '//export funcname'
 // comments.
 extern "C" {
-    fn handle_png(client_ref: usize, b: *mut CGOPNG) -> CGOErrCode;
-    fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
-
-    fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge)
-        -> CGOErrCode;
-    fn tdp_sd_info_request(
-        client_ref: usize,
-        req: *mut CGOSharedDirectoryInfoRequest,
-    ) -> CGOErrCode;
-    fn tdp_sd_create_request(
-        client_ref: usize,
-        req: *mut CGOSharedDirectoryCreateRequest,
-    ) -> CGOErrCode;
-    fn tdp_sd_delete_request(
-        client_ref: usize,
-        req: *mut CGOSharedDirectoryDeleteRequest,
-    ) -> CGOErrCode;
-    fn tdp_sd_list_request(
-        client_ref: usize,
-        req: *mut CGOSharedDirectoryListRequest,
-    ) -> CGOErrCode;
-    fn tdp_sd_read_request(
-        client_ref: usize,
-        req: *mut CGOSharedDirectoryReadRequest,
-    ) -> CGOErrCode;
-    fn tdp_sd_write_request(
-        client_ref: usize,
-        req: *mut CGOSharedDirectoryWriteRequest,
-    ) -> CGOErrCode;
-    fn tdp_sd_move_request(
-        client_ref: usize,
-        req: *mut CGOSharedDirectoryMoveRequest,
-    ) -> CGOErrCode;
+    // todo(isaiah)
 }
 
 /// Payload represents raw incoming RDP messages for parsing.

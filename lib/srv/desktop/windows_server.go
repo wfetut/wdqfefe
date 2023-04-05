@@ -744,10 +744,16 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	}
 
 	// Fetch the target desktop info. Name of the desktop and windows username is passed via SNI.
-	desktopNameAndUsername := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
-	parts := strings.Split(desktopNameAndUsername, ".")
-	desktopName := parts[0]
-	username := parts[1]
+	usernameAndDesktopName := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
+	username, desktopName, found := strings.Cut(usernameAndDesktopName, "-")
+	if !found {
+		log.WithError(err).Warning(
+			"could not parse username and desktop name from SNI, which was %q",
+			proxyConn.ConnectionState().ServerName,
+		)
+		// todo(isaiah): need replacement for sendTdpError
+		return
+	}
 	log = log.WithField("desktop-name", desktopName)
 
 	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx,

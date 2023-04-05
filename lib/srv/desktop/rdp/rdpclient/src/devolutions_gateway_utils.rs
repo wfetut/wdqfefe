@@ -1,7 +1,7 @@
 // todo(isaiah): some utils adapted from the devolutions-gateway repo, see if there's a way to put these in
 // ironrdp, otherwise rename them.
 use bytes::{Buf, BytesMut};
-use ironrdp::pdu::connection_initiation::{NegotiationError, Request, Response};
+use ironrdp::pdu::connection_initiation::{NegotiationError, Response};
 use ironrdp::pdu::PduParsing;
 use ironrdp::rdcleanpath::RDCleanPathPdu;
 use std::io;
@@ -94,7 +94,8 @@ fn map_negotiation_error(e: NegotiationError) -> io::Error {
     }
 }
 
-// todo(isaiah): copied from devolutions-gateway
+// todo(isaiah): copied from devolutions-gateway, we don't need most of these types and can
+// probably remove thi
 #[derive(Debug, Error)]
 pub(crate) enum CleanPathError {
     #[error("bad request")]
@@ -107,4 +108,12 @@ pub(crate) enum CleanPathError {
     Authorization(#[from] AuthorizationError),
     #[error("Generic IO error")]
     Io(#[from] io::Error),
+}
+
+#[derive(Debug, Error)]
+pub(crate) enum AuthorizationError {
+    #[error("token not allowed")]
+    Forbidden,
+    #[error("token missing from request")]
+    Unauthorized,
 }
