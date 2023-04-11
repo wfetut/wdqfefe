@@ -74,6 +74,7 @@ const (
 	TypeSharedDirectoryListResponse   = MessageType(26)
 	TypePNG2Frame                     = MessageType(27)
 	TypeNotification                  = MessageType(28)
+	TypeRemoteFxFrame                 = MessageType(29)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -112,6 +113,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodePNGFrame(in)
 	case TypePNG2Frame:
 		return decodePNG2Frame(in)
+	case TypeRemoteFxFrame:
+		return decodeRemoteFxFrame(in)
 	case TypeMouseMove:
 		return decodeMouseMove(in)
 	case TypeMouseButton:
@@ -253,11 +256,46 @@ func (f PNG2Frame) Encode() ([]byte, error) {
 	// nature of AuditWriter. Copying into a new buffer here is
 	// a temporary hack that fixes that.
 	//
-	// TODO(isaiah, zmb3, LKozlowski): remove this once a buffer pool
+	// TODO(isaiah, zmb3): remove this once a buffer pool
 	// is added.
 	b := make([]byte, len(f))
 	copy(b, f)
 	return b, nil
+}
+
+// RemoteFxFrame is a RemoteFX frame message
+// | message type (29) | data_length uint32 | data []byte |
+type RemoteFxFrame []byte
+
+func decodeRemoteFxFrame(in byteReader) (RemoteFxFrame, error) {
+	// Read PNG length so we can allocate buffer that will fit PNG2Frame message
+	var dataLength uint32
+	if err := binary.Read(in, binary.BigEndian, &dataLength); err != nil {
+		return RemoteFxFrame{}, trace.Wrap(err)
+	}
+
+	// Allocate buffer that will fit RemoteFxFrame message
+	// message type (1) + data_length (4) + data => 5 + data
+	remoteFxFrame := make([]byte, 5+dataLength)
+
+	// Write message type and png length into the buffer
+	remoteFxFrame[0] = byte(TypeRemoteFxFrame)
+	binary.BigEndian.PutUint32(remoteFxFrame[1:5], dataLength)
+
+	// Write the data into the buffer
+	if _, err := io.ReadFull(in, remoteFxFrame[5:]); err != nil {
+		return RemoteFxFrame{}, trace.Wrap(err)
+	}
+
+	return remoteFxFrame, nil
+}
+
+func (f RemoteFxFrame) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeRemoteFxFrame))
+	writeUint32(buf, uint32(len(f)))
+	buf.Write(f)
+	return buf.Bytes(), nil
 }
 
 // MouseMove is the mouse movement message.
