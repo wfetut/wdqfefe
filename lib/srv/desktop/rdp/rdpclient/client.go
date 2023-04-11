@@ -114,7 +114,7 @@ func init() {
 // rdpc.Run()   // starts rdp and waits for the duration of the connection
 // ```
 type Client struct {
-	cfg Config
+	Config
 
 	// handle allows the rust code to call back into the client.
 	handle cgo.Handle
@@ -127,16 +127,6 @@ type Client struct {
 	// Used with sync/atomic, 0 means false, 1 means true.
 	readyForInput uint32
 
-	// wg is used to wait for the input/output streaming
-	// goroutines to complete
-	wg        sync.WaitGroup
-	closeOnce sync.Once
-
-	// png2FrameBuffer is used in the handlePNG function
-	// to avoid allocation of the buffer on each png as
-	// that part of the code is performance-sensitive.
-	png2FrameBuffer []byte
-
 	clientActivityMu sync.RWMutex
 	clientLastActive time.Time
 }
@@ -147,7 +137,7 @@ func New(cfg Config) (*Client, error) {
 		return nil, err
 	}
 	c := &Client{
-		cfg:           cfg,
+		Config:        cfg,
 		readyForInput: 0,
 	}
 
@@ -155,17 +145,17 @@ func New(cfg Config) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	c.handle = cgo.NewHandle(c)
+
 	return c, nil
 }
 
 // Run starts the rdp client and blocks until the client disconnects,
 // then ensures the cleanup is run.
-func (c *Client) Run(ctx context.Context, proxyConn *tls.Conn) error {
+func (c *Client) Run(ctx context.Context) error {
 	defer c.cleanup()
 
-	c.handle = cgo.NewHandle(c)
-
-	if err := c.connect(ctx, proxyConn); err != nil {
+	if err := c.connect(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -177,6 +167,8 @@ func (c *Client) Run(ctx context.Context, proxyConn *tls.Conn) error {
 func getNonBlockingFDFromTLSConn(conn *tls.Conn) (int, error) {
 	// First, obtain the underlying connection object
 	netConn := conn.NetConn()
+	conn.SetDeadline()
+	conn.Read()
 
 	// Cast the connection object to a net.TCPConn
 	tcpConn, ok := netConn.(*net.TCPConn)
@@ -201,40 +193,33 @@ func getNonBlockingFDFromTLSConn(conn *tls.Conn) (int, error) {
 	return fd, nil
 }
 
-func (c *Client) connect(ctx context.Context, proxyConn *tls.Conn) error {
-	userCertDER, userKeyDER, err := c.cfg.GenerateUserCert(ctx, c.cfg.Username, c.cfg.CertTTL)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Obtain the file descriptor from the TLS connection
-	proxyConnFD, err := getNonBlockingFDFromTLSConn(proxyConn)
+func (c *Client) connect(ctx context.Context) error {
+	userCertDER, userKeyDER, err := c.GenerateUserCert(ctx, c.Username, c.CertTTL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Addr and username strings only need to be valid for the duration of
 	// C.connect_rdp. They are copied on the Rust side and can be freed here.
-	addr := C.CString(c.cfg.Addr)
+	addr := C.CString(c.Addr)
 	defer C.free(unsafe.Pointer(addr))
-	username := C.CString(c.cfg.Username)
+	username := C.CString(c.Username)
 	defer C.free(unsafe.Pointer(username))
 
 	res := C.connect_rdp(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
-			go_addr:           addr,
-			go_username:       username,
-			proxy_tls_conn_fd: C.int(proxyConnFD),
+			go_addr:     addr,
+			go_username: username,
 			// cert length and bytes.
 			cert_der_len: C.uint32_t(len(userCertDER)),
 			cert_der:     (*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
 			// key length and bytes.
 			key_der_len:             C.uint32_t(len(userKeyDER)),
 			key_der:                 (*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
-			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
-			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
-			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
+			allow_clipboard:         C.bool(c.AllowClipboard),
+			allow_directory_sharing: C.bool(c.AllowDirectorySharing),
+			show_desktop_wallpaper:  C.bool(c.ShowDesktopWallpaper),
 		},
 	)
 	if res.err != C.ErrCodeSuccess {
