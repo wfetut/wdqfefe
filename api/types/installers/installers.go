@@ -54,4 +54,6 @@ type Template struct {
 	// TeleportPackage is the teleport package to use. `teleport` or
 	// `teleport-ent` depending on if the cluster is enterprise or not.
 	TeleportPackage string
+	// RepoChannel is the repo's channel name to install.
+	RepoChannel string
 }

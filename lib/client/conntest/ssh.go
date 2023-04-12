@@ -172,14 +172,13 @@ func (s *SSHConnectionTester) TestConnection(ctx context.Context, req TestConnec
 	clientConf.Host = req.ResourceName
 	clientConf.HostKeyCallback = hostkeyCallback
 	clientConf.HostLogin = req.SSHPrincipal
-	clientConf.SkipLocalAuth = true
+	clientConf.NonInteractive = true
 	clientConf.SSHProxyAddr = s.sshProxyAddr
 	clientConf.Stderr = io.Discard
 	clientConf.Stdin = &bytes.Buffer{}
 	clientConf.Stdout = processStdout
 	clientConf.TLS = clientConfTLS
 	clientConf.TLSRoutingEnabled = s.cfg.TLSRoutingEnabled
-	clientConf.UseKeyPrincipals = true
 	clientConf.Username = currentUser.GetName()
 	clientConf.WebProxyAddr = s.webProxyAddr
 	clientConf.SiteName = clusterName.GetClusterName()
@@ -230,7 +229,7 @@ func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDia
 	}
 
 	processStdoutString := strings.TrimSpace(processStdout.String())
-	if strings.HasPrefix(processStdoutString, "Failed to launch: user: unknown user") {
+	if strings.HasPrefix(processStdoutString, "Failed to launch: user:") {
 		connDiag, err := s.cfg.UserClient.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
 			types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
 			fmt.Sprintf("Invalid user. Please ensure the principal %q is a valid Linux login in the target node. Output from Node: %v", sshPrincipal, processStdoutString),

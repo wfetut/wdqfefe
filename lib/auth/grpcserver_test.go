@@ -1163,7 +1163,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 	// Register an SSH node.
 	node := &types.ServerV2{
-		Kind:    types.KindKubeService,
+		Kind:    types.KindNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name: "node-a",
@@ -1174,18 +1174,15 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	}
 	_, err = srv.Auth().UpsertNode(ctx, node)
 	require.NoError(t, err)
-	// Register a k8s cluster.
-	k8sSrv := &types.ServerV2{
-		Kind:    types.KindKubeService,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name: "kube-a",
-		},
-		Spec: types.ServerSpecV2{
-			KubernetesClusters: []*types.KubernetesCluster{{Name: "kube-a"}},
-		},
-	}
-	_, err = srv.Auth().UpsertKubeServiceV2(ctx, k8sSrv)
+
+	kube, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: "kube-a",
+	}, types.KubernetesClusterSpecV3{})
+
+	require.NoError(t, err)
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(kube, "kube-a", "kube-a")
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 	// Register a database.
 	db, err := types.NewDatabaseServerV3(types.Metadata{
@@ -1590,7 +1587,7 @@ func TestIsMFARequired(t *testing.T) {
 
 	// Register an SSH node.
 	node := &types.ServerV2{
-		Kind:    types.KindKubeService,
+		Kind:    types.KindNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name: "node-a",
@@ -2195,6 +2192,8 @@ func TestLocksCRUD(t *testing.T) {
 		Expires: &now,
 	})
 	require.NoError(t, err)
+	lock1.SetCreatedBy(string(types.RoleAdmin))
+	lock1.SetCreatedAt(now)
 
 	lock2, err := types.NewLock("lock2", types.LockSpecV2{
 		Target: types.LockTarget{
@@ -2203,6 +2202,8 @@ func TestLocksCRUD(t *testing.T) {
 		Message: "node compromised",
 	})
 	require.NoError(t, err)
+	lock2.SetCreatedBy(string(types.RoleAdmin))
+	lock2.SetCreatedAt(now)
 
 	t.Run("CreateLock", func(t *testing.T) {
 		// Initially expect no locks to be returned.
@@ -2385,7 +2386,7 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	app2, err := types.NewAppV3(types.Metadata{
 		Name:   "app2",
-		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+		Labels: map[string]string{types.OriginLabel: types.OriginOkta}, // This should be overwritten
 	}, types.AppSpecV3{
 		URI: "localhost2",
 	})
@@ -2403,6 +2404,7 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fetch all apps.
+	app2.SetOrigin(types.OriginDynamic)
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
@@ -2453,6 +2455,104 @@ func TestAppsCRUD(t *testing.T) {
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 0)
+}
+
+// TestAppServersCRUD tests application server resource operations.
+func TestAppServersCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create an app server, expected origin dynamic.
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	app1, err := types.NewAppV3(types.Metadata{
+		Name: "app-dynamic",
+	}, types.AppSpecV3{
+		URI: "localhost1",
+	})
+	require.NoError(t, err)
+
+	appServer1, err := types.NewAppServerV3FromApp(app1, "app-dynamic", "hostID")
+	require.NoError(t, err)
+
+	_, err = clt.UpsertApplicationServer(ctx, appServer1)
+	require.NoError(t, err)
+
+	resources, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindAppServer,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	require.Len(t, resources.Resources, 1)
+
+	appServer := resources.Resources[0].(types.AppServer)
+	require.Empty(t, cmp.Diff(appServer, appServer1,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	require.NoError(t, clt.DeleteApplicationServer(ctx, apidefaults.Namespace, "hostID", appServer1.GetName()))
+
+	resources, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindAppServer,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	require.Empty(t, resources.Resources)
+
+	// Try to create app servers with Okta labels as a non-Okta role.
+	app2, err := types.NewAppV3(types.Metadata{
+		Name:   "app-okta",
+		Labels: map[string]string{types.OriginLabel: types.OriginOkta},
+	}, types.AppSpecV3{
+		URI: "localhost1",
+	})
+	require.NoError(t, err)
+
+	appServer2, err := types.NewAppServerV3FromApp(app2, "app-okta", "hostID")
+	require.NoError(t, err)
+
+	_, err = clt.UpsertApplicationServer(ctx, appServer2)
+	require.ErrorIs(t, err, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"))
+
+	delete(app2.Metadata.Labels, types.OriginLabel)
+	appServer2.SetOrigin(types.OriginOkta)
+
+	_, err = clt.UpsertApplicationServer(ctx, appServer2)
+	require.ErrorIs(t, err, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"))
+
+	// Create an app server with Okta labels using the Okta role.
+	clt, err = srv.NewClient(TestBuiltin(types.RoleOkta))
+	require.NoError(t, err)
+
+	app2.SetOrigin(types.OriginOkta)
+	appServer2.SetOrigin(types.OriginOkta)
+	_, err = clt.UpsertApplicationServer(ctx, appServer2)
+	require.NoError(t, err)
+
+	resources, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindAppServer,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	require.Len(t, resources.Resources, 1)
+
+	appServer2.SetOrigin(types.OriginOkta)
+	app2.SetOrigin(types.OriginOkta)
+	appServer = resources.Resources[0].(types.AppServer)
+	require.Empty(t, cmp.Diff(appServer, appServer2,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	require.NoError(t, clt.DeleteApplicationServer(ctx, apidefaults.Namespace, "hostID", appServer2.GetName()))
+
+	resources, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindAppServer,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	require.Empty(t, resources.Resources)
 }
 
 // TestDatabasesCRUD tests database resource operations.
@@ -2817,18 +2917,25 @@ func TestListResources(t *testing.T) {
 				return err
 			},
 		},
-		"KubeService": {
-			resourceType: types.KindKubeService,
+		"KubeServer": {
+			resourceType: types.KindKubeServer,
 			createResource: func(name string, clt *Client) error {
-				server, err := types.NewServer(name, types.KindKubeService, types.ServerSpecV2{
-					KubernetesClusters: []*types.KubernetesCluster{
-						{Name: name, StaticLabels: map[string]string{"name": name}},
+				kube, err := types.NewKubernetesClusterV3(
+					types.Metadata{
+						Name:   name,
+						Labels: map[string]string{"name": name},
 					},
-				})
+					types.KubernetesClusterSpecV3{},
+				)
 				if err != nil {
 					return err
 				}
-				_, err = clt.UpsertKubeServiceV2(ctx, server)
+
+				kubeServer, err := types.NewKubernetesServerV3FromCluster(kube, "_", "_")
+				if err != nil {
+					return err
+				}
+				_, err = clt.UpsertKubernetesServer(ctx, kubeServer)
 				return err
 			},
 		},
@@ -2900,7 +3007,7 @@ func TestListResources(t *testing.T) {
 			require.Empty(t, resp.TotalCount)
 
 			// Test types.KindKubernetesCluster
-			if test.resourceType == types.KindKubeService {
+			if test.resourceType == types.KindKubeServer {
 				test.resourceType = types.KindKubernetesCluster
 				resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 					ResourceType: test.resourceType,
@@ -2911,10 +3018,8 @@ func TestListResources(t *testing.T) {
 				require.Len(t, resp.Resources, 2)
 				require.Empty(t, resp.NextKey)
 				require.Equal(t, 2, resp.TotalCount)
-			}
-
-			// Test listing with NeedTotalCount flag.
-			if test.resourceType != types.KindKubeService {
+			} else {
+				// Test listing with NeedTotalCount flag.
 				resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 					ResourceType:   test.resourceType,
 					Limit:          100,
@@ -3290,6 +3395,7 @@ func TestExport(t *testing.T) {
 			// Setup the server
 			if tt.authorizer != nil {
 				srv.TLSServer.grpcServer.Authorizer = tt.authorizer
+				require.NoError(t, err)
 			}
 
 			// Get a client for the test identity

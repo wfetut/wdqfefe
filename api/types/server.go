@@ -19,7 +19,6 @@ package types
 import (
 	"fmt"
 	"net/netip"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -74,13 +73,6 @@ type Server interface {
 	// GetApps gets the list of applications this server is proxying.
 	// DELETE IN 9.0.
 	SetApps([]*App)
-	// GetKubeClusters returns the kubernetes clusters directly handled by this
-	// server.
-	// DELETE IN 13.0.0
-	GetKubernetesClusters() []*KubernetesCluster
-	// SetKubeClusters sets the kubernetes clusters handled by this server.
-	// DELETE IN 13.0.0
-	SetKubernetesClusters([]*KubernetesCluster)
 	// GetPeerAddr returns the peer address of the server.
 	GetPeerAddr() string
 	// SetPeerAddr sets the peer address of the server.
@@ -236,16 +228,29 @@ func (s *ServerV2) GetHostname() string {
 	return s.Spec.Hostname
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (s *ServerV2) GetLabel(key string) (value string, ok bool) {
+	if cmd, ok := s.Spec.CmdLabels[key]; ok {
+		return cmd.Result, ok
+	}
+
+	v, ok := s.Metadata.Labels[key]
+	return v, ok
+}
+
+// GetLabels returns server's static label key pairs.
 // GetLabels and GetStaticLabels are the same, and that is intentional. GetLabels
 // exists to preserve backwards compatibility, while GetStaticLabels exists to
 // implement ResourcesWithLabels.
-
-// GetLabels returns server's static label key pairs
 func (s *ServerV2) GetLabels() map[string]string {
 	return s.Metadata.Labels
 }
 
 // GetStaticLabels returns the server static labels.
+// GetLabels and GetStaticLabels are the same, and that is intentional. GetLabels
+// exists to preserve backwards compatibility, while GetStaticLabels exists to
+// implement ResourcesWithLabels.
 func (s *ServerV2) GetStaticLabels() map[string]string {
 	return s.Metadata.Labels
 }
@@ -312,19 +317,6 @@ func (s *ServerV2) SetProxyIDs(proxyIDs []string) {
 func (s *ServerV2) GetAllLabels() map[string]string {
 	// server labels (static and dynamic)
 	labels := CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
-
-	// server-specific labels
-	switch s.Kind {
-	case KindKubeService:
-		for _, cluster := range s.Spec.KubernetesClusters {
-			// Combine cluster static and dynamic labels, and merge into
-			// `labels`.
-			for name, value := range CombineLabels(cluster.StaticLabels, cluster.DynamicLabels) {
-				labels[name] = value
-			}
-		}
-	}
-
 	return labels
 }
 
@@ -338,17 +330,6 @@ func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) 
 		lmap[key] = cmd.Result
 	}
 	return lmap
-}
-
-// GetKubernetesClusters returns the kubernetes clusters directly handled by this
-// server.
-// DEPRECATED, remove in 12.0.0
-func (s *ServerV2) GetKubernetesClusters() []*KubernetesCluster { return s.Spec.KubernetesClusters }
-
-// SetKubernetesClusters sets the kubernetes clusters handled by this server.
-// DEPRECATED, remove in 12.0.0
-func (s *ServerV2) SetKubernetesClusters(clusters []*KubernetesCluster) {
-	s.Spec.KubernetesClusters = clusters
 }
 
 // GetPeerAddr returns the peer address of the server.
@@ -441,11 +422,6 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	for key := range s.Spec.CmdLabels {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("invalid label key: %q", key)
-		}
-	}
-	for _, kc := range s.Spec.KubernetesClusters {
-		if !validKubeClusterName.MatchString(kc.Name) {
-			return trace.BadParameter("invalid kubernetes cluster name: %q", kc.Name)
 		}
 	}
 
@@ -561,12 +537,6 @@ func LabelsToV2(labels map[string]CommandLabel) map[string]CommandLabelV2 {
 	}
 	return out
 }
-
-// validKubeClusterName filters the allowed characters in kubernetes cluster
-// names. We need this because cluster names are used for cert filenames on the
-// client side, in the ~/.tsh directory. Restricting characters helps with
-// sneaky cluster names being used for client directory traversal and exploits.
-var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 
 // Servers represents a list of servers.
 type Servers []Server

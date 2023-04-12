@@ -259,10 +259,6 @@ const (
 	// KindState is local on disk process state
 	KindState = "state"
 
-	// KindKubeService is a kubernetes service resource
-	// DELETE in 13.0.0
-	KindKubeService = "kube_service"
-
 	// KindMFADevice is an MFA device for a user.
 	KindMFADevice = "mfa_device"
 
@@ -342,6 +338,16 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
+	// KindIntegration is a connection to a 3rd party system API.
+	KindIntegration = "integration"
+
+	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
+	KindClusterMaintenanceConfig = "cluster_maintenance_config"
+
+	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
+	// window singleton resource.
+	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
@@ -395,6 +401,10 @@ const (
 	// VerbEnroll allows enrollment of trusted devices.
 	// Device Trust is a Teleport Enterprise feature.
 	VerbEnroll = "enroll"
+
+	// VerbUse allows the usage of an Integration.
+	// Roles with this verb can issue API calls using the integration.
+	VerbUse = "use"
 )
 
 const (
@@ -428,6 +438,10 @@ const (
 	// OriginKubernetes is an origin value indicating that the resource was
 	// created from the Kubernetes Operator.
 	OriginKubernetes = "kubernetes"
+
+	// OriginOkta is an origin value indicating that the resource was
+	// created from the Okta service.
+	OriginOkta = "okta"
 
 	// AWSAccountIDLabel is used to identify nodes by AWS account ID
 	// found via automatic discovery, to avoid re-running installation
@@ -473,7 +487,14 @@ const (
 )
 
 // OriginValues lists all possible origin values.
-var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud, OriginKubernetes}
+var OriginValues = []string{
+	OriginDefaults,
+	OriginConfigFile,
+	OriginDynamic,
+	OriginCloud,
+	OriginKubernetes,
+	OriginOkta,
+}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
@@ -519,6 +540,9 @@ const (
 
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
+
+	// OktaTunnel is a tunnel where the Okta service dials back to the proxy.
+	OktaTunnel TunnelType = "okta"
 )
 
 type TunnelStrategyType string

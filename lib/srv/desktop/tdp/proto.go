@@ -298,6 +298,12 @@ func (f RemoteFxFrame) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+func (f PNG2Frame) Left() uint32   { return binary.BigEndian.Uint32(f[5:9]) }
+func (f PNG2Frame) Top() uint32    { return binary.BigEndian.Uint32(f[9:13]) }
+func (f PNG2Frame) Right() uint32  { return binary.BigEndian.Uint32(f[13:17]) }
+func (f PNG2Frame) Bottom() uint32 { return binary.BigEndian.Uint32(f[17:21]) }
+func (f PNG2Frame) Data() []byte   { return f[21:] }
+
 // MouseMove is the mouse movement message.
 // | message type (3) | x uint32 | y uint32 |
 type MouseMove struct {

@@ -44,14 +44,20 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/api/utils/keys"
+	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
+	"github.com/gravitational/teleport/lib/auth/okta"
+	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -352,10 +358,8 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		return trace.Wrap(err)
 	}
 	servicesWatch := types.Watch{
-		Name: auth.User.GetName(),
-	}
-	for _, kind := range watch.Kinds {
-		servicesWatch.Kinds = append(servicesWatch.Kinds, proto.ToWatchKind(kind))
+		Name:  auth.User.GetName(),
+		Kinds: watch.Kinds,
 	}
 
 	if clusterName, err := auth.GetClusterName(); err == nil {
@@ -495,6 +499,20 @@ func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *proto.HostCerts
 	}
 
 	return certs, nil
+}
+
+func (g *GRPCServer) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := auth.ServerWithRoles.GenerateOpenSSHCert(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cert, nil
 }
 
 // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
@@ -769,34 +787,6 @@ func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthServi
 		}
 	}
 	return nil
-}
-
-// DEPRECATED, DELETE IN 11.0.0: Use GetAccessRequestsV2 instead.
-func (g *GRPCServer) GetAccessRequests(ctx context.Context, f *types.AccessRequestFilter) (*proto.AccessRequests, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var filter types.AccessRequestFilter
-	if f != nil {
-		filter = *f
-	}
-	reqs, err := auth.ServerWithRoles.GetAccessRequests(ctx, filter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	collector := make([]*types.AccessRequestV3, 0, len(reqs))
-	for _, req := range reqs {
-		r, ok := req.(*types.AccessRequestV3)
-		if !ok {
-			err = trace.BadParameter("unexpected access request type %T", req)
-			return nil, trace.Wrap(err)
-		}
-		collector = append(collector, r)
-	}
-	return &proto.AccessRequests{
-		AccessRequests: collector,
-	}, nil
 }
 
 func (g *GRPCServer) GetAccessRequestsV2(f *types.AccessRequestFilter, stream proto.AuthService_GetAccessRequestsV2Server) error {
@@ -1339,7 +1329,20 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *proto.Ups
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keepAlive, err := auth.UpsertApplicationServer(ctx, req.GetServer())
+	server := req.GetServer()
+	app := server.GetApp()
+
+	// Only allow app servers with Okta origins if coming from an Okta role. App servers sourced from
+	// Okta are redirected differently which could create unpredictable or insecure behavior if applied
+	// to non-Okta apps.
+	hasOktaOrigin := server.Origin() == types.OriginOkta || app.Origin() == types.OriginOkta
+	if builtinRole, ok := auth.context.Identity.(authz.BuiltinRole); !ok || builtinRole.Role != types.RoleOkta {
+		if hasOktaOrigin {
+			return nil, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin")
+		}
+	}
+
+	keepAlive, err := auth.UpsertApplicationServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1917,93 +1920,6 @@ func (g *GRPCServer) UpdateRemoteCluster(ctx context.Context, req *types.RemoteC
 	if err := auth.UpdateRemoteCluster(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &emptypb.Empty{}, nil
-}
-
-// UpsertKubeService adds a kubernetes service.
-func (g *GRPCServer) UpsertKubeService(ctx context.Context, req *proto.UpsertKubeServiceRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	server := req.GetServer()
-	// If Addr in the server is localhost, replace it with the address we see
-	// from our end.
-	//
-	// Services that listen on "0.0.0.0:12345" will put that exact address in
-	// the server.Addr field. It's not useful for other services that want to
-	// connect to it (like a proxy). Remote address of the gRPC connection is
-	// the closest thing we have to a public IP for the service.
-	clientAddr, err := authz.ClientAddrFromContext(ctx)
-	if err != nil {
-		g.Logger.WithError(err).Warn("error getting client address from context")
-		return nil, status.Errorf(codes.FailedPrecondition, "bug: client address not found in request context")
-	}
-	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), clientAddr.String()))
-
-	if err := auth.UpsertKubeService(ctx, server); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return new(emptypb.Empty), nil
-}
-
-// UpsertKubeServiceV2 adds a kubernetes service
-func (g *GRPCServer) UpsertKubeServiceV2(ctx context.Context, req *proto.UpsertKubeServiceRequest) (*types.KeepAlive, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	server := req.GetServer()
-	// If Addr in the server is localhost, replace it with the address we see
-	// from our end.
-	//
-	// Services that listen on "0.0.0.0:12345" will put that exact address in
-	// the server.Addr field. It's not useful for other services that want to
-	// connect to it (like a proxy). Remote address of the gRPC connection is
-	// the closest thing we have to a public IP for the service.
-	clientAddr, err := authz.ClientAddrFromContext(ctx)
-	if err != nil {
-		g.Logger.WithError(err).Warn("error getting client address from context")
-		return nil, status.Errorf(codes.FailedPrecondition, "bug: client address not found in request context")
-	}
-	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), clientAddr.String()))
-
-	keepAlive, err := auth.UpsertKubeServiceV2(ctx, server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return keepAlive, nil
-}
-
-// DeleteKubeService removes a kubernetes service.
-func (g *GRPCServer) DeleteKubeService(ctx context.Context, req *proto.DeleteKubeServiceRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.DeleteKubeService(ctx, req.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
-}
-
-// DeleteAllKubeServices removes all kubernetes services.
-func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.DeleteAllKubeServicesRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.DeleteAllKubeServices(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &emptypb.Empty{}, nil
 }
 
@@ -2918,7 +2834,7 @@ func (g *GRPCServer) GetGithubConnector(ctx context.Context, req *types.Resource
 	}
 	githubConnectorV3, ok := gc.(*types.GithubConnectorV3)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected Github connector type: %T", gc)
+		return nil, trace.Errorf("encountered unexpected GitHub connector type: %T", gc)
 	}
 	return githubConnectorV3, nil
 }
@@ -2937,7 +2853,7 @@ func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.Resourc
 	for i, gc := range gcs {
 		var ok bool
 		if githubConnectorsV3[i], ok = gc.(*types.GithubConnectorV3); !ok {
-			return nil, trace.Errorf("encountered unexpected Github connector type: %T", gc)
+			return nil, trace.Errorf("encountered unexpected GitHub connector type: %T", gc)
 		}
 	}
 	return &types.GithubConnectorV3List{
@@ -4262,13 +4178,6 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}}
-		case types.KindKubeService:
-			srv, ok := resource.(*types.ServerV2)
-			if !ok {
-				return nil, trace.BadParameter("kubernetes service has invalid type %T", resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeService{KubeService: srv}}
 		case types.KindKubeServer:
 			srv, ok := resource.(*types.KubernetesServerV3)
 			if !ok {
@@ -4970,6 +4879,83 @@ func (g *GRPCServer) DeleteAllUserGroups(ctx context.Context, _ *emptypb.Empty) 
 	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllUserGroups(ctx))
 }
 
+// UpdateHeadlessAuthenticationState updates a headless authentication state.
+func (g *GRPCServer) UpdateHeadlessAuthenticationState(ctx context.Context, req *proto.UpdateHeadlessAuthenticationStateRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return &emptypb.Empty{}, trace.Wrap(err)
+	}
+
+	err = auth.UpdateHeadlessAuthenticationState(ctx, req.Id, req.State, req.MfaResponse)
+	return &emptypb.Empty{}, trace.Wrap(err)
+}
+
+// GetHeadlessAuthentication retrieves a headless authentication by id.
+func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.GetHeadlessAuthenticationRequest) (*types.HeadlessAuthentication, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authReq, err := auth.GetHeadlessAuthentication(ctx, req.Id)
+	return authReq, trace.Wrap(err)
+}
+
+// ExportUpgradeWindows is used to load derived upgrade window values for agents that
+// need to export schedules to external upgraders.
+func (g *GRPCServer) ExportUpgradeWindows(ctx context.Context, req *proto.ExportUpgradeWindowsRequest) (*proto.ExportUpgradeWindowsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ExportUpgradeWindows(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &rsp, nil
+}
+
+// GetClusterMaintenanceConfig gets the current maintenance config singleton.
+func (g *GRPCServer) GetClusterMaintenanceConfig(ctx context.Context, _ *emptypb.Empty) (*types.ClusterMaintenanceConfigV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cmc, err := auth.GetClusterMaintenanceConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, ok := cmc.(*types.ClusterMaintenanceConfigV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected maintenance config type %T", cmc)
+	}
+
+	return rsp, nil
+}
+
+// UpdateClusterMaintenanceConfig updates the current maintenance config singleton.
+func (g *GRPCServer) UpdateClusterMaintenanceConfig(ctx context.Context, cmc *types.ClusterMaintenanceConfigV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.UpdateClusterMaintenanceConfig(ctx, cmc); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// GetBackend returns the backend from the underlying auth server.
+func (g *GRPCServer) GetBackend() backend.Backend {
+	return g.AuthServer.bk
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
@@ -5043,6 +5029,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			},
 		),
 	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{
@@ -5050,8 +5039,19 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		}),
 		server: server,
 	}
+
 	proto.RegisterAuthServiceServer(server, authServer)
 	collectortracepb.RegisterTraceServiceServer(server, authServer)
+
+	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Cache:      cfg.AuthServer.Cache,
+		Backend:    cfg.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	trustpb.RegisterTrustServiceServer(server, trust)
 
 	// create server with no-op role to pass to JoinService server
 	serverWithNopRole, err := serverWithNopRole(cfg)
@@ -5060,6 +5060,25 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	joinServiceServer := joinserver.NewJoinServiceGRPCServer(serverWithNopRole)
 	proto.RegisterJoinServiceServer(server, joinServiceServer)
+
+	oktaServiceServer, err := okta.NewService(okta.ServiceConfig{
+		Backend:    cfg.AuthServer.bk,
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	oktapb.RegisterOktaServiceServer(server, oktaServiceServer)
+
+	integrationServiceServer, err := integrationService.NewService(&integrationService.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Backend:    cfg.AuthServer.Services,
+		Cache:      cfg.AuthServer.Cache,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	integrationpb.RegisterIntegrationServiceServer(server, integrationServiceServer)
 
 	return authServer, nil
 }
@@ -5099,25 +5118,7 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 	// HTTPS server expects auth context to be set by the auth middleware
 	authContext, err := g.Authorizer.Authorize(ctx)
 	if err != nil {
-		switch {
-		// propagate connection problem error so we can differentiate
-		// between connection failed and access denied
-		case trace.IsConnectionProblem(err):
-			return nil, trace.ConnectionProblem(err, "[10] failed to connect to the database")
-		case trace.IsNotFound(err):
-			// user not found, wrap error with access denied
-			return nil, trace.Wrap(err, "[10] access denied")
-		case trace.IsAccessDenied(err):
-			// don't print stack trace, just log the warning
-			log.Warn(err)
-		case keys.IsPrivateKeyPolicyError(err):
-			// private key policy errors should be returned to the client
-			// unaltered so that they know to reauthenticate with a valid key.
-			return nil, trace.Unwrap(err)
-		default:
-			log.Warn(trace.DebugReport(err))
-		}
-		return nil, trace.AccessDenied("[10] access denied")
+		return nil, authz.ConvertAuthorizerError(ctx, g.Logger, err)
 	}
 	return &grpcContext{
 		Context: authContext,

@@ -124,8 +124,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newRemoteClusterParser()
 		case types.KindKubeServer:
 			parser = newKubeServerParser()
-		case types.KindKubeService:
-			parser = newKubeServiceParser()
 		case types.KindDatabaseServer:
 			parser = newDatabaseServerParser()
 		case types.KindDatabaseService:
@@ -152,6 +150,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newSAMLIDPServiceProviderParser()
 		case types.KindUserGroup:
 			parser = newUserGroupParser()
+		case types.KindOktaImportRule:
+			parser = newOktaImportRuleParser()
+		case types.KindOktaAssignment:
+			parser = newOktaAssignmentParser()
+		case types.KindIntegration:
+			parser = newIntegrationParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
@@ -947,6 +951,7 @@ func newAppSessionParser() *webSessionParser {
 		},
 	}
 }
+
 func newWebSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: newBaseParser(backend.Key(webPrefix, sessionsPrefix)),
@@ -1044,20 +1049,6 @@ func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
-}
-
-func newKubeServiceParser() *kubeServiceParser {
-	return &kubeServiceParser{
-		baseParser: newBaseParser(backend.Key(kubeServicesPrefix)),
-	}
-}
-
-type kubeServiceParser struct {
-	baseParser
-}
-
-func (p *kubeServiceParser) parse(event backend.Event) (types.Resource, error) {
-	return parseServer(event, types.KindKubeService)
 }
 
 func newDatabaseServerParser() *databaseServerParser {
@@ -1478,6 +1469,78 @@ func (p *userGroupParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindUserGroup, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalUserGroup(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newOktaImportRuleParser() *oktaImportRuleParser {
+	return &oktaImportRuleParser{
+		baseParser: newBaseParser(backend.Key(oktaImportRulePrefix)),
+	}
+}
+
+type oktaImportRuleParser struct {
+	baseParser
+}
+
+func (p *oktaImportRuleParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindOktaImportRule, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalOktaImportRule(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newOktaAssignmentParser() *oktaAssignmentParser {
+	return &oktaAssignmentParser{
+		baseParser: newBaseParser(backend.Key(oktaAssignmentPrefix)),
+	}
+}
+
+type oktaAssignmentParser struct {
+	baseParser
+}
+
+func (p *oktaAssignmentParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindOktaAssignment, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalOktaAssignment(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newIntegrationParser() *integrationParser {
+	return &integrationParser{
+		baseParser: newBaseParser(backend.Key(integrationsPrefix)),
+	}
+}
+
+type integrationParser struct {
+	baseParser
+}
+
+func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindIntegration, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalIntegration(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
