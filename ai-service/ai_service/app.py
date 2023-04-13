@@ -3,9 +3,17 @@ from flask import Flask, request
 from langchain.chat_models import ChatOpenAI
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 import ai_service.model as model
+import qdrant_client
 
 app = Flask(__name__)
 
+client = qdrant_client.QdrantClient(
+    url="localhost", prefer_grpc=True
+)
+# qdrant = Qdrant(
+#     client=client, collection_name="my_documents",
+#     embedding_function=embeddings.embed_query
+# )
 
 @app.route("/")
 def root():
@@ -36,6 +44,7 @@ def assistant_query():
 
     model.add_try_extract(messages)
     completion = chat_llm(messages).content
+    # check from langchain.output_parsers import StructuredOutputParser, ResponseSchema
     try:
         data = json.loads(completion)
         return {
