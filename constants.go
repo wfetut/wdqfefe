@@ -659,6 +659,8 @@ const (
 	// requirement information should be printed.
 	EnvSSHSessionDisplayParticipantRequirements = "TELEPORT_SESSION_PARTICIPANT_REQUIREMENTS"
 
+	EnvParentSessionID = "TELEPORT_SESSION_PARENT_ID"
+
 	// SSHSessionJoinPrincipal is the SSH principal used when joining sessions.
 	// This starts with a hyphen so it isn't a valid unix login.
 	SSHSessionJoinPrincipal = "-teleport-internal-join"

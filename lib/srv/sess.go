@@ -442,6 +442,8 @@ type session struct {
 	// session ID. unique GUID, this is what people use to "join" sessions
 	id rsession.ID
 
+	psid rsession.ID
+
 	// parent session container
 	registry *SessionRegistry
 
@@ -546,6 +548,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 			"session_id":    id,
 		}),
 		id:                             id,
+		psid:                           rsession.ID(scx.env[teleport.EnvParentSessionID]),
 		registry:                       r,
 		parties:                        make(map[rsession.ID]*party),
 		participants:                   make(map[rsession.ID]*party),
@@ -728,7 +731,8 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 		},
 		ServerMetadata: s.serverMeta,
 		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(s.id),
+			SessionID:       string(s.id),
+			ParentSessionID: string(s.psid),
 		},
 		UserMetadata: ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
@@ -861,7 +865,8 @@ func (s *session) emitSessionEndEvent() {
 		},
 		ServerMetadata: s.serverMeta,
 		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(s.id),
+			SessionID:       string(s.id),
+			ParentSessionID: string(s.psid),
 		},
 		UserMetadata: ctx.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
@@ -1164,6 +1169,13 @@ func newEventOnlyRecorder(s *session, ctx *ServerContext) (events.StreamWriter, 
 }
 
 func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
+	inReader, inWriter := io.Pipe()
+	s.inWriter = inWriter
+	s.io.AddReader("reader", inReader)
+	s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
+
+	//s.io.AddWriter(sessionRecorderID, s.recorder)
+
 	// Emit a session.start event for the exec session.
 	s.emitSessionStartEvent(scx)
 
@@ -1213,6 +1225,18 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// Process has been placed in a cgroup, continue execution.
 	execRequest.Continue()
 
+	s.io.On()
+
+	doneCopy := make(chan struct{})
+	go func() {
+		if _, err := io.Copy(s.io, s.scx.teeOutput); err != nil {
+			s.log.WithError(err).Error("teeOutput copy failed")
+		}
+		inReader.Close()
+		inWriter.Close()
+		close(doneCopy)
+	}()
+
 	// Process is running, wait for it to stop.
 	go func() {
 		result = execRequest.Wait()
@@ -1233,6 +1257,9 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 			s.log.WithError(err).Error("Failed to close enhanced recording (exec) session")
 		}
 
+		<-doneCopy
+
+		s.io.Close()
 		s.emitSessionEndEvent()
 		s.Close()
 	}()

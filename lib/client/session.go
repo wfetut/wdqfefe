@@ -56,7 +56,8 @@ type NodeSession struct {
 	// namespace is a session this namespace belongs to
 	namespace string
 
-	// id is the Teleport session ID
+	// id is the Teleport session ID. When set, the client will be added
+	// to already existing node session - moderated session.
 	id session.ID
 
 	// env is the environment variables that need to be created
@@ -162,6 +163,7 @@ func newSession(ctx context.Context,
 	}
 
 	ns.env[sshutils.SessionEnvVar] = string(ns.id)
+	ns.env[teleport.EnvParentSessionID] = "123456"
 
 	// Close the Terminal when finished.
 	ns.closeWait.Add(1)

@@ -149,9 +149,18 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 		return nil, trace.Wrap(err)
 	}
 
+	outr, outw, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+
 	// Connect stdout and stderr to the channel so the user can interact with the command.
 	e.Cmd.Stderr = channel.Stderr()
-	e.Cmd.Stdout = channel
+	//e.Cmd.Stdout = channel
+	e.Cmd.Stdout = outw
+	//channel = outr
+
+	teeReader := io.TeeReader(outr, channel)
 
 	// Copy from the channel (client input) into stdin of the process.
 	inputWriter, err := e.Cmd.StdinPipe()
@@ -179,6 +188,8 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) (*ExecResult
 		}
 		inputWriter.Close()
 	}()
+
+	go io.Copy(e.Ctx.teeOutput, teeReader)
 
 	e.Ctx.Infof("Started local command execution: %q", e.Command)
 

@@ -17,6 +17,7 @@ limitations under the License.
 package srv
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -394,6 +395,8 @@ type ServerContext struct {
 	killShellr *os.File
 	killShellw *os.File
 
+	teeOutput io.ReadWriter
+
 	// ChannelType holds the type of the channel. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
 	ChannelType string
@@ -581,6 +584,10 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.AddCloser(child.errr)
 	child.AddCloser(child.errw)
 
+	//bufio.Reader{}
+	//child.teeOutput = &bytes.Buffer{}
+	child.teeOutput = bytes.NewBuffer(make([]byte, 0, 256))
+
 	return ctx, child, nil
 }
 
@@ -604,6 +611,16 @@ func (c *ServerContext) SessionID() rsession.ID {
 		return ""
 	}
 	return c.session.id
+}
+
+// ParentSessionID returns the ID of the parent session in the context.
+func (c *ServerContext) ParentSessionID() rsession.ID {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.session == nil {
+		return ""
+	}
+	return c.session.psid
 }
 
 // GetServer returns the underlying server which this context was created in.
@@ -945,8 +962,9 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 			ServerNamespace: c.GetServer().GetNamespace(),
 		},
 		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(c.SessionID()),
-			WithMFA:   c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
+			SessionID:       string(c.SessionID()),
+			ParentSessionID: string(c.ParentSessionID()),
+			WithMFA:         c.Identity.Certificate.Extensions[teleport.CertExtensionMFAVerified],
 		},
 		UserMetadata: c.Identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
