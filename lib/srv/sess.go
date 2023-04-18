@@ -1169,12 +1169,8 @@ func newEventOnlyRecorder(s *session, ctx *ServerContext) (events.StreamWriter, 
 }
 
 func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
-	inReader, inWriter := io.Pipe()
-	s.inWriter = inWriter
-	s.io.AddReader("reader", inReader)
 	s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
-
-	//s.io.AddWriter(sessionRecorderID, s.recorder)
+	s.scx.multiWriter = s.io
 
 	// Emit a session.start event for the exec session.
 	s.emitSessionStartEvent(scx)
@@ -1227,16 +1223,6 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 
 	s.io.On()
 
-	doneCopy := make(chan struct{})
-	go func() {
-		if _, err := io.Copy(s.io, s.scx.teeOutput); err != nil {
-			s.log.WithError(err).Error("teeOutput copy failed")
-		}
-		inReader.Close()
-		inWriter.Close()
-		close(doneCopy)
-	}()
-
 	// Process is running, wait for it to stop.
 	go func() {
 		result = execRequest.Wait()
@@ -1257,11 +1243,11 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 			s.log.WithError(err).Error("Failed to close enhanced recording (exec) session")
 		}
 
-		<-doneCopy
+		s.emitSessionEndEvent()
+		s.Close() //
 
 		s.io.Close()
-		s.emitSessionEndEvent()
-		s.Close()
+		close(s.doneCh)
 	}()
 
 	return nil

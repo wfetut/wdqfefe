@@ -17,7 +17,6 @@ limitations under the License.
 package srv
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -395,7 +394,7 @@ type ServerContext struct {
 	killShellr *os.File
 	killShellw *os.File
 
-	teeOutput io.ReadWriter
+	multiWriter io.Writer
 
 	// ChannelType holds the type of the channel. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
@@ -583,10 +582,6 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 	child.AddCloser(child.errr)
 	child.AddCloser(child.errw)
-
-	//bufio.Reader{}
-	//child.teeOutput = &bytes.Buffer{}
-	child.teeOutput = bytes.NewBuffer(make([]byte, 0, 256))
 
 	return ctx, child, nil
 }
