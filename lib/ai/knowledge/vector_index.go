@@ -16,23 +16,23 @@ limitations under the License.
 
 package ai
 
-import "github.com/sashabaranov/go-openai"
+import (
+	"github.com/gravitational/teleport/lib/ai"
+)
 
-type Client struct {
-	apiURL string
+type VectorStore interface {
+	Add(nodes []*EmbeddedNode)
+	Query(embedding []float64, similarityTopK int) []*Node
 }
 
-func NewClient(apiURL string) *Client {
-	return &Client{apiURL}
+type VectorIndex struct {
+	svc   *ai.ServiceContext
+	store VectorStore
 }
 
-func (client *Client) NewChat(username string) *Chat {
-	return &Chat{
-		client:   client,
-		username: username,
+func NewVectorIndex(svc *ai.ServiceContext, store VectorStore) *VectorIndex {
+	return &VectorIndex{
+		svc:   svc,
+		store: store,
 	}
-}
-
-type ServiceContext struct {
-	openAI *openai.Client
 }

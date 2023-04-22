@@ -16,23 +16,13 @@ limitations under the License.
 
 package ai
 
-import "github.com/sashabaranov/go-openai"
-
-type Client struct {
-	apiURL string
+type Node struct {
+	id      string
+	docId   string
+	content string
 }
 
-func NewClient(apiURL string) *Client {
-	return &Client{apiURL}
-}
-
-func (client *Client) NewChat(username string) *Chat {
-	return &Chat{
-		client:   client,
-		username: username,
-	}
-}
-
-type ServiceContext struct {
-	openAI *openai.Client
+type EmbeddedNode struct {
+	node      *Node
+	embedding []float64
 }
