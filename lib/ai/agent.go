@@ -49,7 +49,17 @@ type Agent struct {
 	Tools  []Tool
 }
 
-func (a *Agent) createPrompt(systemMessage string, chatHistory []openai.ChatCompletionMessage, humanMessage, agentScratchpad string) []openai.ChatCompletionMessage {
+type AgentAction struct {
+	action      string
+	actionInput string
+	log         string
+}
+
+type AgentFinish struct {
+	output string
+}
+
+func (a *Agent) createPrompt(systemMessage string, chatHistory []openai.ChatCompletionMessage, humanMessage, agentScratchpad []openai.ChatCompletionMessage) []openai.ChatCompletionMessage {
 	prompt := make([]openai.ChatCompletionMessage, 0)
 	prompt = append(prompt, openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleSystem,
@@ -72,20 +82,26 @@ func (a *Agent) createPrompt(systemMessage string, chatHistory []openai.ChatComp
 		Content: newHumanMessage,
 	})
 
-	prompt = append(prompt, openai.ChatCompletionMessage{
-		Role:    "TBA",
-		Content: agentScratchpad,
-	})
+	prompt = append(prompt, agentScratchpad...)
 	return prompt
 }
 
-type AgentAction struct {
-	action      string
-	actionInput string
-}
+func (a *Agent) constructScratchPad(intermediateSteps []AgentAction, observations []string) []openai.ChatCompletionMessage {
+	thoughts := make([]openai.ChatCompletionMessage, 0, len(intermediateSteps))
+	for i, step := range intermediateSteps {
+		thoughts = append(thoughts, openai.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleAssistant,
+			Content: step.log,
+		})
 
-type AgentFinish struct {
-	output string
+		response := fmt.Sprintf(conversationToolResponse, observations[i])
+		thoughts = append(thoughts, openai.ChatCompletionMessage{
+			Role:    openai.ChatMessageRoleUser,
+			Content: response,
+		})
+	}
+
+	return thoughts
 }
 
 func parseConversationOutput(text string) (any, error) {
@@ -170,3 +186,12 @@ USER'S INPUT
 Here is the user's input (remember to respond with a markdown code snippet of a json blob with a single action, and NOTHING else):
 
 %v`
+
+var conversationToolResponse = `TOOL RESPONSE: 
+---------------------
+%v
+
+USER'S INPUT
+--------------------
+
+Okay, so what is the response to my last comment? If using information obtained from the tools you must mention it explicitly without mentioning the tool names - I have forgotten all TOOL RESPONSES! Remember to respond with a markdown code snippet of a json blob with a single action, and NOTHING else."""`
