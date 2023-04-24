@@ -30,14 +30,14 @@ import { useLocks } from './useLocks';
 import { StyledSpinner } from './shared';
 
 import type { Positions } from 'design/SlidePanel/SlidePanel';
-import type { CreateLockData, SelectedLockTarget, TargetValue } from './types';
+import type { CreateLockData, LockTarget, LockValue } from './types';
 import type { ApiError } from 'teleport/services/api/parseError';
 
 type Props = {
   panelPosition: Positions;
   setPanelPosition: (Positions) => void;
-  selectedLockTargets: SelectedLockTarget[];
-  setSelectedLockTargets: (lockTargets: SelectedLockTarget[]) => void;
+  selectedLockTargets: LockTarget[];
+  setSelectedLockTargets: (lockTargets: LockTarget[]) => void;
 };
 
 export function CreateLock({
@@ -59,7 +59,7 @@ export function CreateLock({
     setCreatePending(true);
     selectedLockTargets.forEach(async lockTarget => {
       const lockData: CreateLockData = {
-        targets: { [lockTarget.resource]: lockTarget.targetValue },
+        targets: { [lockTarget.resource]: lockTarget.value },
       };
       const message = messageRef?.current?.value;
       const ttl = ttlRef?.current?.value;
@@ -81,9 +81,9 @@ export function CreateLock({
     });
   }
 
-  function onRemove(targetValue: TargetValue) {
+  function onRemove(targetValue: LockValue) {
     const index = selectedLockTargets.findIndex(
-      target => target.targetValue === targetValue
+      target => target.value === targetValue
     );
     selectedLockTargets.splice(index, 1);
     setSelectedLockTargets([...selectedLockTargets]);
@@ -119,13 +119,13 @@ export function CreateLock({
               isSortable: false,
             },
             {
-              key: 'targetValue',
+              key: 'value',
               headerText: 'Name',
               isSortable: false,
             },
             {
               altKey: 'remove-btn',
-              render: ({ targetValue }) => (
+              render: ({ value: targetValue }) => (
                 <Cell align="right">
                   <Trash
                     fontSize={13}

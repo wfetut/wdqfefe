@@ -23,7 +23,7 @@ import ThemeProvider from 'design/ThemeProvider';
 import { CreateLock } from './CreateLock';
 import { useLocks } from './useLocks';
 
-import type { SelectedLockTarget } from './types';
+import type { LockTarget } from './types';
 
 jest.mock('teleport/useStickyClusterId', () => ({
   __esModule: true,
@@ -38,9 +38,9 @@ jest.mock('./useLocks', () => ({
 
 describe('component: CreateLock', () => {
   it('displays the list of targets to lock', () => {
-    const selectedLockTargets: SelectedLockTarget[] = [
-      { resource: 'user', targetValue: 'worker' },
-      { resource: 'role', targetValue: 'contractor' },
+    const selectedLockTargets: LockTarget[] = [
+      { resource: 'user', value: 'worker' },
+      { resource: 'role', value: 'contractor' },
     ];
     render(
       <ThemeProvider>
@@ -57,9 +57,9 @@ describe('component: CreateLock', () => {
   });
 
   it('can remove a target from the target list', async () => {
-    const selectedLockTargets: SelectedLockTarget[] = [
-      { resource: 'user', targetValue: 'worker' },
-      { resource: 'role', targetValue: 'contractor' },
+    const selectedLockTargets: LockTarget[] = [
+      { resource: 'user', value: 'worker' },
+      { resource: 'role', value: 'contractor' },
     ];
     const cb = jest.fn();
     render(
@@ -79,8 +79,8 @@ describe('component: CreateLock', () => {
   });
 
   it('creates a lock with a message and ttl', async () => {
-    const selectedLockTargets: SelectedLockTarget[] = [
-      { resource: 'user', targetValue: 'worker' },
+    const selectedLockTargets: LockTarget[] = [
+      { resource: 'user', value: 'worker' },
     ];
     render(
       <ThemeProvider>
@@ -113,8 +113,8 @@ describe('component: CreateLock', () => {
   });
 
   it('displays errors when create fails', async () => {
-    const selectedLockTargets: SelectedLockTarget[] = [
-      { resource: 'user', targetValue: 'worker' },
+    const selectedLockTargets: LockTarget[] = [
+      { resource: 'user', value: 'worker' },
     ];
     render(
       <ThemeProvider>

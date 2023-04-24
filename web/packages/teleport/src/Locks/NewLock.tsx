@@ -40,12 +40,12 @@ import {
 
 import type { AdditionalTargets } from './useGetTargetData';
 import type {
-  AllowedTargetResource,
-  LockTargetOption,
+  AllowedResource,
+  AllowedResourceOption,
   OnAdd,
-  SelectedLockTarget,
+  LockTarget,
   TargetListProps,
-  TargetValue,
+  LockValue,
 } from './types';
 import type { TableColumn } from 'design/DataTable/types';
 import type { Positions } from 'design/SlidePanel/SlidePanel';
@@ -64,24 +64,24 @@ export function NewLockContent({
   const { clusterId } = useStickyClusterId();
   const [createPanelPosition, setCreatePanelPosition] =
     useState<Positions>('closed');
-  const [selectedLockTarget, setSelectedLockTarget] =
-    useState<LockTargetOption>({
+  const [selectedResourceOption, setSelectedResourceOption] =
+    useState<AllowedResourceOption>({
       label: 'User',
       value: 'user',
     });
-  const [selectedLockTargets, setSelectedLockTargets] = useState<
-    SelectedLockTarget[]
-  >([]);
+  const [selectedLockTargets, setSelectedLockTargets] = useState<LockTarget[]>(
+    []
+  );
   const targetData = useGetTargetData(
-    selectedLockTarget?.value,
+    selectedResourceOption?.value,
     clusterId,
     additionalTargets
   );
 
-  function onAdd(targetValue: TargetValue) {
+  function onAdd(targetValue: LockValue) {
     selectedLockTargets.push({
-      resource: selectedLockTarget.value,
-      targetValue,
+      resource: selectedResourceOption.value,
+      value: targetValue,
     });
     setSelectedLockTargets([...selectedLockTargets]);
   }
@@ -116,14 +116,16 @@ export function NewLockContent({
       <Flex justifyContent="space-between">
         <Box width="164px" mb={4} data-testid="resource-selector">
           <Select
-            value={selectedLockTarget}
+            value={selectedResourceOption}
             options={lockTargetDropdownOptions}
-            onChange={(o: LockTargetOption) => setSelectedLockTarget(o)}
+            onChange={(o: AllowedResourceOption) =>
+              setSelectedResourceOption(o)
+            }
             label="lock-target-type"
           />
         </Box>
         <QuickAdd
-          selectedResource={selectedLockTarget.value}
+          targetResource={selectedResourceOption.value}
           selectedLockTargets={selectedLockTargets}
           onAdd={onAdd}
         />
@@ -131,7 +133,7 @@ export function NewLockContent({
       <TargetList
         data={targetData}
         onAdd={onAdd}
-        selectedResource={selectedLockTarget.value}
+        targetResource={selectedResourceOption.value}
         selectedLockTargets={selectedLockTargets}
       />
       <Flex
@@ -174,17 +176,17 @@ export function NewLockContent({
 
 function TargetList({
   data,
-  selectedResource,
+  targetResource,
   selectedLockTargets,
   onAdd,
 }: TargetListProps) {
   if (!data) data = [];
 
-  if (selectedResource === 'device') {
+  if (targetResource === 'device') {
     return <Box>Listing Devices not implemented.</Box>;
   }
 
-  if (selectedResource === 'login') {
+  if (targetResource === 'login') {
     return <Box>Unable to list logins, use quick add box.</Box>;
   }
 
@@ -219,8 +221,8 @@ function TargetList({
             data-testid="btn-cell"
             disabled={selectedLockTargets.some(
               target =>
-                target.resource === selectedResource &&
-                target.targetValue === targetValue
+                target.resource === targetResource &&
+                target.value === targetValue
             )}
           >
             + Add
@@ -235,15 +237,15 @@ function TargetList({
 }
 
 function QuickAdd({
-  selectedResource,
+  targetResource,
   selectedLockTargets,
   onAdd,
 }: {
-  selectedResource: AllowedTargetResource;
-  selectedLockTargets: SelectedLockTarget[];
+  targetResource: AllowedResource;
+  selectedLockTargets: LockTarget[];
   onAdd: OnAdd;
 }) {
-  const [targetValue, setTargetValue] = useState<TargetValue>('');
+  const [targetValue, setTargetValue] = useState<LockValue>('');
   return (
     <Flex
       justifyContent="flex-end"
@@ -252,7 +254,7 @@ function QuickAdd({
       mb={4}
     >
       <Input
-        placeholder={`Quick add ${selectedResource}`}
+        placeholder={`Quick add ${targetResource}`}
         width={500}
         value={targetValue}
         onChange={e => setTargetValue(e.currentTarget.value)}
@@ -266,8 +268,7 @@ function QuickAdd({
           !targetValue.length ||
           selectedLockTargets?.some(
             target =>
-              target.resource === selectedResource &&
-              target.targetValue === targetValue
+              target.resource === targetResource && target.value === targetValue
           )
         }
       >

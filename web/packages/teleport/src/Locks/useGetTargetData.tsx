@@ -19,12 +19,12 @@ import { useEffect, useMemo, useState } from 'react';
 import useTeleport from 'teleport/useTeleport';
 
 import type {
-  AllowedTargetResource,
-  LockTargetOption,
+  AllowedResource,
+  AllowedResourceOption,
   TableData,
 } from './types';
 
-export const lockTargetDropdownOptions: LockTargetOption[] = [
+export const lockTargetDropdownOptions: AllowedResourceOption[] = [
   { label: 'User', value: 'user' },
   { label: 'Role', value: 'role' },
   { label: 'Login', value: 'login' },
@@ -37,13 +37,13 @@ export const lockTargetDropdownOptions: LockTargetOption[] = [
 ];
 
 export type UseGetTargetData = (
-  targetType: AllowedTargetResource,
+  targetType: AllowedResource,
   clusterId: string,
   additionalTargets?: AdditionalTargets
 ) => TableData[];
 
 export type AdditionalTargets = Partial<
-  Record<AllowedTargetResource, { fetchData(): Promise<TableData[]> }>
+  Record<AllowedResource, { fetchData(): Promise<TableData[]> }>
 >;
 
 export const useGetTargetData: UseGetTargetData = (
@@ -61,9 +61,7 @@ export const useGetTargetData: UseGetTargetData = (
   } = useTeleport();
 
   const targetDataFilters = useMemo<
-    Partial<
-      Record<AllowedTargetResource, { fetchData(): Promise<TableData[]> }>
-    >
+    Partial<Record<AllowedResource, { fetchData(): Promise<TableData[]> }>>
   >(() => {
     return {
       user: {

@@ -47,9 +47,9 @@ export type LockForTable = {
 };
 
 /**
- * AllowedTargetResource is a type of resource that a lock can be applied to.
+ * AllowedResource is a type of resource that a lock can be applied to.
  */
-export type AllowedTargetResource =
+export type AllowedResource =
   | 'user'
   | 'role'
   | 'login'
@@ -60,18 +60,23 @@ export type AllowedTargetResource =
   | 'device';
 
 /**
- * TargetValue is the value of the target resource that a lock is applied to.
+ * LockValue is the value of the target resource that a lock is applied to.
  * For example, if a TargetResource is 'node', its corresponding TargetValue should be
  * the node's UUID. If a TargetResource is 'role', its corresponding TargetValue should be
  * its name. See the LockTarget proto definition for the canonical mapping of AllowedTargetResource
  * to TargetValue.
  */
-export type TargetValue = string;
+export type LockValue = string;
+
+export type LockTarget = {
+  resource: AllowedResource;
+  value: LockValue;
+};
 
 export type TableData = {
   // targetValue is not displayed in the table, but is the value
   // that will be used when creating the lock target
-  targetValue: TargetValue;
+  targetValue: LockValue;
 
   labels?: AgentLabel[];
 
@@ -79,24 +84,21 @@ export type TableData = {
   [key: string]: any;
 };
 
-export type LockTargetOption = Option<AllowedTargetResource>;
+export type AllowedResourceOption = Option<AllowedResource>;
 
-export type SelectedLockTarget = {
-  resource: AllowedTargetResource;
-  targetValue: TargetValue;
-};
-
-export type OnAdd = (targetValue: TargetValue) => void;
+export type OnAdd = (targetValue: LockValue) => void;
 
 export type TargetListProps = {
   data: TableData[];
   onAdd: OnAdd;
-  selectedResource: AllowedTargetResource;
-  selectedLockTargets: SelectedLockTarget[];
+  targetResource: AllowedResource;
+  selectedLockTargets: LockTarget[];
 };
 
+type LockTargets = { [K in AllowedResource]?: LockValue };
+
 export type CreateLockData = {
-  targets: { [K in AllowedTargetResource]?: TargetValue };
+  targets: LockTargets;
   message?: string;
   ttl?: string;
 };
