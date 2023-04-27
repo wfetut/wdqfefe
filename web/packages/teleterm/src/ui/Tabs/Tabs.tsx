@@ -17,7 +17,7 @@ limitations under the License.
 import React, { Fragment } from 'react';
 import styled from 'styled-components';
 import { typography } from 'design/system';
-import { Box, ButtonIcon } from 'design';
+import { Box, ButtonIcon, Flex } from 'design';
 import * as Icons from 'design/Icon';
 
 import { Document } from 'teleterm/ui/services/workspacesService';
@@ -46,36 +46,48 @@ export function Tabs(props: Props) {
     </>
   );
 
-  const $items = items.length
-    ? items.map((item, index) => {
-        const active = item.uri === activeTab;
-        return (
-          <Fragment key={item.uri}>
-            <TabItem
-              index={index}
-              name={item.title}
-              active={active}
-              onClick={() => onSelect(item)}
-              onClose={() => onClose(item)}
-              onContextMenu={() => onContextMenu(item)}
-              onMoved={onMoved}
-              isLoading={getIsLoading(item)}
-              closeTabTooltip={closeTabTooltip}
-            />
-            <Separator />
-          </Fragment>
-        );
-      })
-    : $emptyTab;
+  const indexOfActive = items.findIndex(i => i.uri === activeTab);
+  const beforeActive = items.slice(0, indexOfActive);
+  const active = [items[indexOfActive]];
+  const afterActive = items.slice(indexOfActive + 1);
+
+  function mapItems(items: Document[]) {
+    return items.map((item, index) => {
+      const active = item.uri === activeTab;
+      return (
+        <Fragment key={item.uri}>
+          <TabItem
+            index={index}
+            name={item.title}
+            active={active}
+            onClick={() => onSelect(item)}
+            onClose={() => onClose(item)}
+            onContextMenu={() => onContextMenu(item)}
+            onMoved={onMoved}
+            isLoading={getIsLoading(item)}
+            closeTabTooltip={closeTabTooltip}
+          />
+          <Separator />
+        </Fragment>
+      );
+    });
+  }
 
   return (
-    <StyledTabs
-      as="nav"
-      typography="h5"
-      bold
-      {...styledProps}
-    >
-      {$items}
+    <StyledTabs as="nav" typography="h5" bold {...styledProps}>
+      {items.length ? (
+        <>
+          {Boolean(beforeActive.length) && (
+            <WithShadow>{mapItems(beforeActive)}</WithShadow>
+          )}
+          {mapItems(active)}
+          {Boolean(afterActive.length) && (
+            <WithShadow>{mapItems(afterActive)}</WithShadow>
+          )}
+        </>
+      ) : (
+        $emptyTab
+      )}
       <ButtonIcon
         ml="1"
         mr="2"
@@ -121,6 +133,15 @@ const Separator = styled.div`
   background: ${props => props.theme.colors.text.muted};
 `;
 
+const WithShadow = styled(Flex)`
+  flex-grow: 1;
+  flex-shrink: 1;
+  align-items: center;
+  min-width: 0;
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),
+    0px 4px 5px 0px rgba(0, 0, 0, 0.14), 0px 2px 4px -1px rgba(0, 0, 0, 0.2);
+`;
+
 const StyledTabs = styled(Box)`
   background-color: ${props => props.theme.colors.levels.surface};
   min-height: 32px;
@@ -128,11 +149,8 @@ const StyledTabs = styled(Box)`
   flex-wrap: nowrap;
   align-items: center;
   flex-shrink: 0;
-  overflow: hidden;
+  width: 100%;
   position: relative;
   z-index: 1;
-  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),
-    0px 4px 5px 0px rgba(0, 0, 0, 0.14),
-    0px 2px 4px -1px rgba(0, 0, 0, 0.2);
   ${typography}
 `;

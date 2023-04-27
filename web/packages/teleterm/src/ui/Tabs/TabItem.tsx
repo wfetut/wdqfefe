@@ -95,8 +95,8 @@ export function TabItem(props: TabItemProps) {
 const StyledTabItem = styled.div(({ theme, active, dragging, canDrag }) => {
   const styles: any = {
     display: 'flex',
-    flexBasis: '0',
     flexGrow: '1',
+    flexShrink: '1',
     opacity: '1',
     color: theme.colors.text.slightlyMuted,
     alignItems: 'center',
