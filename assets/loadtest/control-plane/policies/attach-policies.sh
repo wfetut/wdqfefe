@@ -55,9 +55,11 @@ while read -r ngroup; do
 
     log_info "${mode}ing policies to discovered node role '$noderole_name'..."
 
-    aws iam "$mode-role-policy" \
-        --policy-arn="$dynamo_policy_arn" \
-        --role-name="$noderole_name"
+    if [[ "$TELEPORT_BACKEND" == "dynamo" ]]; then
+        aws iam "$mode-role-policy" \
+            --policy-arn="$dynamo_policy_arn" \
+            --role-name="$noderole_name"
+    fi
 
     aws iam "$mode-role-policy" \
         --policy-arn="$s3_policy_arn" \

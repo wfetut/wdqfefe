@@ -6,11 +6,13 @@ source vars.env
 
 # delete dynamo tables
 
-aws dynamodb delete-table \
-    --table-name "${CLUSTER_NAME}-backend"
+if [[ "$TELEPORT_BACKEND" == "dynamo" ]]; then
+    aws dynamodb delete-table \
+        --table-name "${CLUSTER_NAME}-backend"
 
-aws dynamodb delete-table \
-    --table-name "${CLUSTER_NAME}-events"
+    aws dynamodb delete-table \
+        --table-name "${CLUSTER_NAME}-events"
+fi
 
 # empty the session bucket
 
