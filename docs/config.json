@@ -617,6 +617,20 @@
             }
 	  ]
 	},
+	{
+	  "title": "Configuring your Cluster",
+	  "slug": "/management/configuration/",
+	  "entries": [            
+	    {
+              "title": "Kubernetes Operator (Preview)",
+              "slug": "/management/configuration/teleport-operator/"
+            },
+            {
+              "title": "Terraform Provider",
+              "slug": "/management/configuration/terraform-provider/"
+            }
+	  ]
+	},
         {
           "title": "Joining Teleport Services",
           "slug": "/management/join-services-to-your-cluster/",
