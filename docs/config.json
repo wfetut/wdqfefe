@@ -618,16 +618,16 @@
 	  ]
 	},
 	{
-	  "title": "Configuring your Cluster",
-	  "slug": "/management/configuration/",
+	  "title": "Using Dynamic Configuration Resources",
+	  "slug": "/management/dynamic-configuration/",
 	  "entries": [            
 	    {
               "title": "Kubernetes Operator (Preview)",
-              "slug": "/management/configuration/teleport-operator/"
+              "slug": "/management/dynamic-configuration/teleport-operator/"
             },
             {
               "title": "Terraform Provider",
-              "slug": "/management/configuration/terraform-provider/"
+              "slug": "/management/dynamic-configuration/terraform-provider/"
             }
 	  ]
 	},
