@@ -4,7 +4,7 @@ set -euo pipefail
 
 source vars.env
 
-values_yaml="$STATE_DIR/aws-values.yaml"
+values_yaml="$STATE_DIR/teleport-values.yaml"
 
 mkdir -p "$STATE_DIR"
 

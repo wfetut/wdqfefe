@@ -4,8 +4,8 @@ plan:
 	terraform plan
 
 # apply cluster configuration
-.PHONY: apply
-apply:
+.PHONY: create-cluster
+create-cluster:
 	terraform apply
 
 # authorize kubectl to manage the cluster

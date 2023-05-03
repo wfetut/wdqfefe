@@ -49,6 +49,9 @@ case "$TELEPORT_BACKEND" in
         ./teleport/gen-dynamo-teleport.sh
         ;;
     etcd)
+        log_info "installing etcd..."
+        make -C ../etcd deploy
+
         log_info "generating helm values for etcd-backed control plane..."
         ./teleport/gen-etcd-teleport.sh
         ;;
