@@ -628,7 +628,11 @@
             {
               "title": "Terraform Provider",
               "slug": "/management/dynamic-configuration/terraform-provider/"
-            }
+            },
+	    {
+	      "title": "Spacelift",
+	      "slug": "/management/dynamic-configuration/spacelift/"
+	    }
 	  ]
 	},
         {
