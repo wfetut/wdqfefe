@@ -3,10 +3,12 @@ run-name: Environment Leak Tests (Go) - ${{ github.run_id }} - @${{ github.actor
 
 on:
   pull_request:
+    branches: [ "master" ]
     paths-ignore:
       - 'docs/**'
       - 'examples/**'
   merge_group:
+    branches: [ "master" ]
     paths-ignore:
       - 'docs/**'
       - 'examples/**'
