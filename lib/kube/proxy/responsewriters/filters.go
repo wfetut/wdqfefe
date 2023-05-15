@@ -29,7 +29,7 @@ type FilterObj interface {
 	// After filtering them, the obj is manipulated to hold the filtered information.
 	// The boolean returned indicates if the client is allowed to receive the event
 	// with the object.
-	FilterObj(runtime.Object) (bool, error)
+	FilterObj(runtime.Object) (bool, bool, error)
 }
 
 // FilterBuffer is the interface a Kubernetes Resource response filter must implement.
