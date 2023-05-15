@@ -489,10 +489,6 @@ const (
 	// a generic request.
 	DatabaseSessionElasticsearchRequestEvent = "db.session.elasticsearch.request"
 
-	// DatabaseSessionOpenSearchRequestEvent is emitted when OpenSearch client sends
-	// a request.
-	DatabaseSessionOpenSearchRequestEvent = "db.session.opensearch.request"
-
 	// DatabaseSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
 	// a request via database-access.
 	DatabaseSessionDynamoDBRequestEvent = "db.session.dynamodb.request"
@@ -813,15 +809,16 @@ type StreamEmitter interface {
 	Streamer
 }
 
-// AuditLogSessionStreamer is the primary (and the only external-facing)
-// interface for AuditLogger and SessionStreamer.
-type AuditLogSessionStreamer interface {
-	AuditLogger
-	SessionStreamer
-}
+// IAuditLog is the primary (and the only external-facing) interface for AuditLogger.
+// If you wish to implement a different kind of logger (not filesystem-based), you
+// have to implement this interface
+type IAuditLog interface {
+	// Closer releases connection and resources associated with log if any
+	io.Closer
 
-// SessionStreamer supports streaming session chunks or events.
-type SessionStreamer interface {
+	// EmitAuditEvent emits audit event
+	EmitAuditEvent(context.Context, apievents.AuditEvent) error
+
 	// GetSessionChunk returns a reader which can be used to read a byte stream
 	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 	// beginning) up to maxBytes bytes.
@@ -833,21 +830,7 @@ type SessionStreamer interface {
 	// (oldest first).
 	//
 	// after is used to return events after a specified cursor ID
-	GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error)
-
-	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-	// The event channel is not closed on error to prevent race conditions in downstream select statements.
-	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
-}
-
-// AuditLogger defines which methods need to implemented by audit loggers.
-type AuditLogger interface {
-	// Closer releases connection and resources associated with log if any
-	io.Closer
-
-	// EmitAuditEvent emits audit event
-	EmitAuditEvent(context.Context, apievents.AuditEvent) error
+	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error)
 
 	// SearchEvents is a flexible way to find events.
 	//
@@ -868,6 +851,11 @@ type AuditLogger interface {
 	//
 	// This function may never return more than 1 MiB of event data.
 	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error)
+
+	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
+	// The event channel is not closed on error to prevent race conditions in downstream select statements.
+	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 
 // EventFields instance is attached to every logged event
@@ -880,6 +868,7 @@ func (f EventFields) AsString() string {
 		f.GetString(EventLogin),
 		f.GetInt(EventCursor),
 		f.GetInt(SessionPrintEventBytes))
+
 }
 
 // GetType returns the type (string) of the event

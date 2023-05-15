@@ -42,8 +42,6 @@ export type Props = {
   inputValue?: string;
   filterOption?(): null | boolean;
   onInputChange?(value: string, actionMeta: ActionMeta): void;
-  // Whether or not the element is on an elevated platform (such as a dialog).
-  elevated?: boolean;
 };
 
 export type AsyncProps = Omit<Props, 'options'> & {

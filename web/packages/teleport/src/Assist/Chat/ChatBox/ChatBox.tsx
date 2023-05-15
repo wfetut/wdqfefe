@@ -37,9 +37,9 @@ const Container = styled.div`
 
 const TextArea = styled.textarea`
   width: 100%;
-  background: ${props => props.theme.colors.levels.popout};
-  color: ${props => props.theme.colors.text.main};
-  border: 2px solid ${props => props.theme.colors.spotBackground[1]};
+  background: #4a5688;
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.13);
   border-radius: 10px;
   resize: none;
   padding: 20px 20px 5px 30px;
@@ -49,16 +49,16 @@ const TextArea = styled.textarea`
 
   &:focus {
     outline: none;
-    border-color: ${props => props.theme.colors.spotBackground[2]};
+    border-color: rgba(255, 255, 255, 0.18);
   }
 
   ::placeholder {
-    color: ${props => props.theme.colors.text.muted};
+    color: rgba(255, 255, 255, 0.54);
   }
 `;
 
 const ErrorMessage = styled.div`
-  color: ${p => p.theme.colors.error.main};
+  color: #ff6257;
   font-weight: 700;
   margin-bottom: 5px;
 `;

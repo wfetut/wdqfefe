@@ -71,14 +71,8 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	ctx := context.Background()
-	if args.timeout != 0 {
-		log.Printf("Setting %v timeout", args.timeout)
-
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, args.timeout)
-		defer cancel()
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), args.timeout)
+	defer cancel()
 
 	installationID, err := lookupInstallationID(ctx, args)
 	if err != nil {

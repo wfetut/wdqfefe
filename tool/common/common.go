@@ -54,27 +54,18 @@ type SessionsCollection struct {
 func (e *SessionsCollection) WriteText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"ID", "Type", "Participants", "Hostname", "Timestamp"})
 	for _, event := range e.SessionEvents {
-		var id, typ, participants, hostname, timestamp string
-
-		switch session := event.(type) {
-		case *events.SessionEnd:
-			id = session.GetSessionID()
-			typ = session.Protocol
-			participants = strings.Join(session.Participants, ", ")
-			hostname = session.ServerAddr
-			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
-		case *events.WindowsDesktopSessionEnd:
-			id = session.GetSessionID()
-			typ = "windows"
-			participants = strings.Join(session.Participants, ", ")
-			hostname = session.DesktopName
-			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
-		default:
-			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd or WindowsDesktopSessionEnd: got: %T", event))
+		session, ok := event.(*events.SessionEnd)
+		if !ok {
+			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd: got: %T", event))
 			continue
 		}
-
-		t.AddRow([]string{id, typ, participants, hostname, timestamp})
+		t.AddRow([]string{
+			session.GetSessionID(),
+			session.Protocol,
+			strings.Join(session.Participants, ", "),
+			session.ServerHostname,
+			session.GetTime().Format(constants.HumanDateFormatSeconds),
+		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

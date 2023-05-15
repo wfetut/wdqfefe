@@ -259,18 +259,12 @@ func (f PNG2Frame) Encode() ([]byte, error) {
 	// nature of AuditWriter. Copying into a new buffer here is
 	// a temporary hack that fixes that.
 	//
-	// TODO(isaiah, zmb3): remove this once a buffer pool
+	// TODO(isaiah, zmb3, LKozlowski): remove this once a buffer pool
 	// is added.
 	b := make([]byte, len(f))
 	copy(b, f)
 	return b, nil
 }
-
-func (f PNG2Frame) Left() uint32   { return binary.BigEndian.Uint32(f[5:9]) }
-func (f PNG2Frame) Top() uint32    { return binary.BigEndian.Uint32(f[9:13]) }
-func (f PNG2Frame) Right() uint32  { return binary.BigEndian.Uint32(f[13:17]) }
-func (f PNG2Frame) Bottom() uint32 { return binary.BigEndian.Uint32(f[17:21]) }
-func (f PNG2Frame) Data() []byte   { return f[21:] }
 
 // MouseMove is the mouse movement message.
 // | message type (3) | x uint32 | y uint32 |
@@ -667,8 +661,6 @@ type SharedDirectoryAnnounce struct {
 func (s SharedDirectoryAnnounce) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeSharedDirectoryAnnounce))
-	// TODO(isaiah): The discard here allows fuzz tests to succeed, it should eventually be done away with.
-	writeUint32(buf, 0) // discard
 	writeUint32(buf, s.DirectoryID)
 	if err := encodeString(buf, s.Name); err != nil {
 		return nil, trace.Wrap(err)
@@ -677,16 +669,8 @@ func (s SharedDirectoryAnnounce) Encode() ([]byte, error) {
 }
 
 func decodeSharedDirectoryAnnounce(in io.Reader) (SharedDirectoryAnnounce, error) {
-	// TODO(isaiah): The discard here is a copy-paste error, but we need to keep it
-	// for now in order that the proxy stay compatible with previous versions of the wds.
-	var discard uint32
-	err := binary.Read(in, binary.BigEndian, &discard)
-	if err != nil {
-		return SharedDirectoryAnnounce{}, trace.Wrap(err)
-	}
-
 	var directoryID uint32
-	err = binary.Read(in, binary.BigEndian, &directoryID)
+	err := binary.Read(in, binary.BigEndian, &directoryID)
 	if err != nil {
 		return SharedDirectoryAnnounce{}, trace.Wrap(err)
 	}

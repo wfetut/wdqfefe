@@ -39,9 +39,10 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
+	toolcommon "github.com/gravitational/teleport/tool/common"
 )
 
 const (
@@ -80,7 +81,7 @@ type GlobalCLIFlags struct {
 type CLICommand interface {
 	// Initialize allows a caller-defined command to plug itself into CLI
 	// argument parsing
-	Initialize(*kingpin.Application, *servicecfg.Config)
+	Initialize(*kingpin.Application, *service.Config)
 
 	// TryRun is executed after the CLI parsing is done. The command must
 	// determine if selectedCommand belongs to it and return match=true
@@ -94,7 +95,7 @@ type CLICommand interface {
 func Run(commands []CLICommand) {
 	err := TryRun(commands, os.Args[1:])
 	if err != nil {
-		var exitError *common.ExitCodeError
+		var exitError *toolcommon.ExitCodeError
 		if errors.As(err, &exitError) {
 			os.Exit(exitError.Code)
 		}
@@ -112,7 +113,7 @@ func TryRun(commands []CLICommand, args []string) error {
 
 	// cfg (teleport auth server configuration) is going to be shared by all
 	// commands
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	// each command will add itself to the CLI parser:
@@ -167,13 +168,6 @@ func TryRun(commands []CLICommand, args []string) error {
 		return trace.Wrap(err)
 	}
 
-	// Identity files do not currently contain a proxy address. When loading an
-	// Identity file, an auth server address must be passed on the command line
-	// as well.
-	if ccf.IdentityFilePath != "" && len(ccf.AuthServerAddr) == 0 {
-		return trace.BadParameter("tctl --identity also requires --auth-server")
-	}
-
 	// "version" command?
 	if selectedCmd == ver.FullCommand() {
 		utils.PrintVersion()
@@ -200,7 +194,7 @@ func TryRun(commands []CLICommand, args []string) error {
 		}
 		log.Errorf("Cannot connect to the auth server. Is the auth server running on %q? %v",
 			cfg.AuthServerAddresses()[0].Addr, err)
-		return trace.NewAggregate(&common.ExitCodeError{Code: 1}, err)
+		return trace.NewAggregate(&toolcommon.ExitCodeError{Code: 1}, err)
 	}
 
 	// execute whatever is selected:
@@ -226,11 +220,11 @@ func TryRun(commands []CLICommand, args []string) error {
 }
 
 // ApplyConfig takes configuration values from the config file and applies them
-// to 'servicecfg.Config' object.
+// to 'service.Config' object.
 //
 // The returned authclient.Config has the credentials needed to dial the auth
 // server.
-func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
+func ApplyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
 	// --debug flag
 	if ccf.Debug {
 		cfg.Debug = ccf.Debug
@@ -341,7 +335,7 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Confi
 }
 
 // LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
-func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
+func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *service.Config) (*authclient.Config, error) {
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
 		proxyAddr = ccf.AuthServerAddr[0]

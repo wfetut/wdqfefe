@@ -98,7 +98,7 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 		CmdClause: parent.Command("join", "Join an active Kubernetes session."),
 	}
 
-	c.Flag("mode", "Mode of joining the session, valid modes are observer, moderator and peer.").Short('m').Default("observer").EnumVar(&c.mode, "observer", "moderator", "peer")
+	c.Flag("mode", "Mode of joining the session, valid modes are observer and moderator").Short('m').Default("moderator").StringVar(&c.mode)
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Arg("session", "The ID of the target session.").Required().StringVar(&c.session)
 	return c
@@ -146,7 +146,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	// Loaded existing credentials and have a cert for this cluster? Return it
 	// right away.
 	if err == nil {
-		crt, err := k.KubeX509Cert(kubeCluster)
+		crt, err := k.KubeTLSCertificate(kubeCluster)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -313,10 +313,6 @@ type ExecOptions struct {
 	GetPodTimeout                  time.Duration
 	Config                         *restclient.Config
 	displayParticipantRequirements bool
-	// invited is a list of users that are invited to the session
-	invited []string
-	// reason is the reason for the session
-	reason string
 }
 
 // Run executes a validated remote execution against a pod.
@@ -386,9 +382,7 @@ func (p *ExecOptions) Run(ctx context.Context) error {
 			Name(pod.Name).
 			Namespace(pod.Namespace).
 			SubResource("exec").
-			Param(teleport.KubeSessionDisplayParticipantRequirementsQueryParam, strconv.FormatBool(p.displayParticipantRequirements)).
-			Param(teleport.KubeSessionInvitedQueryParam, strings.Join(p.invited, ",")).
-			Param(teleport.KubeSessionReasonQueryParam, p.reason)
+			Param("displayParticipantRequirements", strconv.FormatBool(p.displayParticipantRequirements))
 		req.VersionedParams(&corev1.PodExecOptions{
 			Container: containerName,
 			Command:   p.Command,
@@ -460,8 +454,6 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 	p.restClientGetter = f
 	p.Executor = &DefaultRemoteExecutor{}
 	p.displayParticipantRequirements = c.displayParticipantRequirements
-	p.invited = strings.Split(c.invited, ",")
-	p.reason = c.reason
 	p.Namespace, p.EnforceNamespace, err = f.ToRawKubeConfigLoader().Namespace()
 	if err != nil {
 		return trace.Wrap(err)
@@ -620,8 +612,8 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	// Loaded existing credentials and have a cert for this cluster? Return it
 	// right away.
 	if err == nil {
-		_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/KubeX509Cert")
-		crt, err := k.KubeX509Cert(c.kubeCluster)
+		_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/KubeTLSCertificate")
+		crt, err := k.KubeTLSCertificate(c.kubeCluster)
 		span.End()
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -708,7 +700,7 @@ func checkIfCertHasKubeGroupsAndUsers(certB []byte) (bool, error) {
 }
 
 func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, key *client.Key, kubeClusterName string) error {
-	crt, err := key.KubeX509Cert(kubeClusterName)
+	crt, err := key.KubeTLSCertificate(kubeClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1230,7 +1222,13 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string, overr
 		return trace.Wrap(err)
 	}
 
-	path = getKubeConfigPath(cf, path)
+	// cf.kubeConfigPath is used in tests to allow Teleport to run tsh login commands
+	// in parallel. If defined, it should take precedence over kubeconfig.PathFromEnv().
+	if path == "" && cf.kubeConfigPath != "" {
+		path = cf.kubeConfigPath
+	} else if path == "" {
+		path = kubeconfig.PathFromEnv()
+	}
 
 	// If this is a profile specific kubeconfig, we only need
 	// to put the selected kube cluster into the kubeconfig.
@@ -1246,17 +1244,6 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string, overr
 	}
 
 	return trace.Wrap(kubeconfig.Update(path, *values, tc.LoadAllCAs))
-}
-
-func getKubeConfigPath(cf *CLIConf, path string) string {
-	// cf.kubeConfigPath is used in tests to allow Teleport to run tsh login commands
-	// in parallel. If defined, it should take precedence over kubeconfig.PathFromEnv().
-	if path == "" && cf.kubeConfigPath != "" {
-		path = cf.kubeConfigPath
-	} else if path == "" {
-		path = kubeconfig.PathFromEnv()
-	}
-	return path
 }
 
 // Required magic boilerplate to use the k8s encoder.

@@ -148,6 +148,7 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 func (b *Bot) generateIdentity(
 	ctx context.Context,
 	currentIdentity *identity.Identity,
+	expires time.Time,
 	destCfg *config.DestinationConfig,
 	defaultRoles []string,
 	configurator identityConfigurator,
@@ -175,7 +176,7 @@ func (b *Bot) generateIdentity(
 	req := proto.UserCertsRequest{
 		PublicKey:      publicKey,
 		Username:       currentIdentity.X509Cert.Subject.CommonName,
-		Expires:        time.Now().Add(b.cfg.CertificateTTL),
+		Expires:        expires,
 		RoleRequests:   roleRequests,
 		RouteToCluster: currentIdentity.ClusterName,
 
@@ -369,11 +370,12 @@ func (b *Bot) getRouteToApp(ctx context.Context, client auth.ClientI, appCfg *co
 // may not behave as expected when used to interact with the Teleport API
 func (b *Bot) generateImpersonatedIdentity(
 	ctx context.Context,
+	expires time.Time,
 	destCfg *config.DestinationConfig,
 	defaultRoles []string,
 ) (routedIdentity *identity.Identity, unroutedIdentity *identity.Identity, err error) {
 	unroutedIdentity, err = b.generateIdentity(
-		ctx, b.ident(), destCfg, defaultRoles, nil,
+		ctx, b.ident(), expires, destCfg, defaultRoles, nil,
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -398,7 +400,7 @@ func (b *Bot) generateImpersonatedIdentity(
 		// so we'll request the database access identity using the main bot
 		// identity (having gathered the necessary info for RouteToDatabase
 		// using the correct impersonated unroutedIdentity.)
-		routedIdentity, err := b.generateIdentity(ctx, unroutedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		routedIdentity, err := b.generateIdentity(ctx, unroutedIdentity, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		})
 		if err != nil {
@@ -412,7 +414,7 @@ func (b *Bot) generateImpersonatedIdentity(
 		// Note: the Teleport server does attempt to verify k8s cluster names
 		// and will fail to generate certs if the cluster doesn't exist or is
 		// offline.
-		routedIdentity, err := b.generateIdentity(ctx, unroutedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		routedIdentity, err := b.generateIdentity(ctx, unroutedIdentity, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.KubernetesCluster = destCfg.KubernetesCluster.ClusterName
 		})
 		if err != nil {
@@ -434,7 +436,7 @@ func (b *Bot) generateImpersonatedIdentity(
 			return nil, nil, trace.Wrap(err)
 		}
 
-		routedIdentity, err := b.generateIdentity(ctx, unroutedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		routedIdentity, err := b.generateIdentity(ctx, unroutedIdentity, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.RouteToApp = routeToApp
 		})
 		if err != nil {
@@ -446,7 +448,7 @@ func (b *Bot) generateImpersonatedIdentity(
 		return routedIdentity, unroutedIdentity, nil
 	} else if destCfg.Cluster != "" {
 		routedIdentity, err := b.generateIdentity(
-			ctx, unroutedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+			ctx, unroutedIdentity, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
 				req.RouteToCluster = destCfg.Cluster
 			},
 		)
@@ -630,6 +632,7 @@ func (b *Bot) renew(
 	}
 
 	// Next, generate impersonated certs
+	expires := newIdentity.X509Cert.NotAfter
 	for _, dest := range b.cfg.Destinations {
 		destImpl, err := dest.GetDestination()
 		if err != nil {
@@ -651,7 +654,7 @@ func (b *Bot) renew(
 			return trace.Wrap(err, "Could not write to destination %s, aborting.", destImpl)
 		}
 
-		routedIdentity, unroutedIdentity, err := b.generateImpersonatedIdentity(ctx, dest, defaultRoles)
+		routedIdentity, unroutedIdentity, err := b.generateImpersonatedIdentity(ctx, expires, dest, defaultRoles)
 		if err != nil {
 			return trace.Wrap(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
 		}

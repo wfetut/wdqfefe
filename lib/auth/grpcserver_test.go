@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -87,7 +88,7 @@ func TestMFADeviceManagement(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, _, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"}, nil)
+	user, _, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"})
 	require.NoError(t, err)
 	cl, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
@@ -664,7 +665,7 @@ func TestDeleteLastMFADevice(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, _, err := CreateUserAndRole(auth, "mfa-user", []string{"role"}, nil)
+	user, _, err := CreateUserAndRole(auth, "mfa-user", []string{"role"})
 	require.NoError(t, err)
 	cl, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
@@ -756,7 +757,7 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 	authServer := testServer.Auth()
 
 	// Create an user for testing.
-	user, _, err := CreateUserAndRole(authServer, "llama", []string{"llama"}, nil)
+	user, _, err := CreateUserAndRole(authServer, "llama", []string{"llama"})
 	require.NoError(t, err, "CreateUserAndRole failed")
 
 	// Register an application.
@@ -840,7 +841,7 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 	testServer := newTestTLSServer(t)
 
 	// Create an user for testing.
-	user, _, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"}, nil)
+	user, _, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"})
 	require.NoError(t, err, "CreateUserAndRole failed")
 
 	_, pub, err := testauthority.New().GenerateKeyPair()
@@ -921,7 +922,7 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 	authServer := testServer.Auth()
 
 	// Create a user for testing.
-	user, role, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"}, nil)
+	user, role, err := CreateUserAndRole(testServer.Auth(), "llama", []string{"llama"})
 	require.NoError(t, err, "CreateUserAndRole failed")
 	username := user.GetName()
 
@@ -1166,11 +1167,6 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 }
 
 func TestGenerateUserSingleUseCert(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise, // required for IP pinning.
-		TestFeatures:  modules.GetModules().Features(),
-	})
-
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 	clock := srv.Clock()
@@ -1241,7 +1237,7 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 	require.NoError(t, srv.Auth().CreateRemoteCluster(leaf))
 
 	// Create a fake user.
-	user, role, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"}, nil)
+	user, role, err := CreateUserAndRole(srv.Auth(), "mfa-user", []string{"role"})
 	require.NoError(t, err)
 	// Make sure MFA is required for this user.
 	roleOpt := role.GetOptions()
@@ -1308,18 +1304,15 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 				authHandler:  registered.webAuthHandler,
 				checkAuthErr: require.NoError,
 				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					sshCertBytes := c.GetSSH()
-					require.NotEmpty(t, sshCertBytes)
+					crt := c.GetSSH()
+					require.NotEmpty(t, crt)
 
-					cert, err := sshutils.ParseCertificate(sshCertBytes)
+					cert, err := sshutils.ParseCertificate(crt)
 					require.NoError(t, err)
 
 					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
 					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionLoginIP]).IsLoopback())
-					pinnedIP, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]
-					require.True(t, ok)
-					require.Equal(t, "127.0.0.1/32", pinnedIP)
 					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
 				},
 			},
@@ -1390,7 +1383,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
 					require.Equal(t, "kube-a", identity.KubernetesCluster)
-					require.Equal(t, "127.0.0.1", identity.PinnedIP)
 				},
 			},
 		},
@@ -1430,7 +1422,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
-					require.Equal(t, "127.0.0.1", identity.PinnedIP)
 				},
 			},
 		},
@@ -1471,83 +1462,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-a")
-				},
-			},
-		},
-		{
-			desc: "kube with ttl limit disabled",
-			opts: generateUserSingleUseCertTestOpts{
-				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					// This expiry should *not* be adjusted to single user cert TTL,
-					// since ttl limiting is disabled when requester is a local proxy.
-					// It *should* be adjusted to the user cert ttl though.
-					Expires:           clock.Now().Add(1000 * time.Hour),
-					Usage:             proto.UserCertsRequest_Kubernetes,
-					KubernetesCluster: "kube-a",
-					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
-				},
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
-				checkInitErr: require.NoError,
-				authHandler:  registered.webAuthHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetTLS()
-					require.NotEmpty(t, crt)
-
-					cert, err := tlsca.ParseCertificatePEM(crt)
-					require.NoError(t, err)
-					require.Equal(t, userCertExpires, cert.NotAfter)
-
-					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-					require.NoError(t, err)
-					require.Equal(t, webDevID, identity.MFAVerified)
-					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
-					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
-					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
-					require.Equal(t, identity.KubernetesCluster, "kube-a")
-				},
-			},
-		},
-		{
-			desc: "desktops",
-			opts: generateUserSingleUseCertTestOpts{
-				initReq: &proto.UserCertsRequest{
-					PublicKey: pub,
-					Username:  user.GetName(),
-					// This expiry is longer than allowed, should be
-					// automatically adjusted.
-					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:   proto.UserCertsRequest_WindowsDesktop,
-					RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
-						WindowsDesktop: "desktop",
-						Login:          "role",
-					},
-				},
-				checkInitErr: require.NoError,
-				mfaRequiredHandler: func(t *testing.T, required proto.MFARequired) {
-					require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, required)
-				},
-				authHandler:  registered.webAuthHandler,
-				checkAuthErr: require.NoError,
-				validateCert: func(t *testing.T, c *proto.SingleUseUserCert) {
-					crt := c.GetTLS()
-					require.NotEmpty(t, crt)
-
-					cert, err := tlsca.ParseCertificatePEM(crt)
-					require.NoError(t, err)
-					require.Equal(t, cert.NotAfter, clock.Now().Add(teleport.UserSingleUseCertTTL))
-
-					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-					require.NoError(t, err)
-					require.Equal(t, webDevID, identity.MFAVerified)
-					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
-					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
-					require.Equal(t, []string{teleport.UsageWindowsDesktopOnly}, identity.Usage)
-					require.Equal(t, "127.0.0.1", identity.PinnedIP)
 				},
 			},
 		},
@@ -1622,10 +1536,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 
 					sshCert, err := sshutils.ParseCertificate(sshRaw)
 					require.NoError(t, err, "ParseCertificate failed")
-					pinnedIP, ok := sshCert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]
-					require.True(t, ok, "missing 'source-address' critical option from SSH certificate")
-					require.Equal(t, "127.0.0.1/32", pinnedIP, "pinned IP mismatch on SSH certificate")
-
 					gotSSH := tlsca.DeviceExtensions{
 						DeviceID:     sshCert.Extensions[teleport.CertExtensionDeviceID],
 						AssetTag:     sshCert.Extensions[teleport.CertExtensionDeviceAssetTag],
@@ -1683,8 +1593,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					if diff := cmp.Diff(wantDeviceExtensions, gotTLS, protocmp.Transform()); diff != "" {
 						t.Errorf("TLS DeviceExtensions mismatch (-want +got)\n%s", diff)
 					}
-					require.Equal(t, "127.0.0.1", singleUseIdentity.PinnedIP,
-						"missing pinned IP on single use identity")
 				},
 			},
 		},
@@ -1767,7 +1675,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
 					require.Equal(t, "kube-b", identity.KubernetesCluster)
-					require.Equal(t, "127.0.0.1", identity.PinnedIP)
 				},
 			},
 		},
@@ -1808,7 +1715,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
 					require.Equal(t, []string{teleport.UsageDatabaseOnly}, identity.Usage)
 					require.Equal(t, identity.RouteToDatabase.ServiceName, "db-b")
-					require.Equal(t, "127.0.0.1", identity.PinnedIP)
 				},
 			},
 		},
@@ -1842,9 +1748,6 @@ func TestGenerateUserSingleUseCert(t *testing.T) {
 					require.Equal(t, webDevID, cert.Extensions[teleport.CertExtensionMFAVerified])
 					require.Equal(t, userCertExpires.Format(time.RFC3339), cert.Extensions[teleport.CertExtensionPreviousIdentityExpires])
 					require.True(t, net.ParseIP(cert.Extensions[teleport.CertExtensionLoginIP]).IsLoopback())
-					pinnedIP, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]
-					require.True(t, ok)
-					require.Equal(t, "127.0.0.1/32", pinnedIP)
 					require.Equal(t, uint64(clock.Now().Add(teleport.UserSingleUseCertTTL).Unix()), cert.ValidBefore)
 				},
 			},
@@ -1934,7 +1837,7 @@ func TestIsMFARequired(t *testing.T) {
 
 	// Register an SSH node.
 	node := &types.ServerV2{
-		Kind:    types.KindNode,
+		Kind:    types.KindKubeService,
 		Version: types.V2,
 		Metadata: types.Metadata{
 			Name: uuid.NewString(),
@@ -1947,7 +1850,7 @@ func TestIsMFARequired(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a fake user.
-	user, role, err := CreateUserAndRole(srv.Auth(), "no-mfa-user", []string{"no-mfa-user"}, nil)
+	user, role, err := CreateUserAndRole(srv.Auth(), "no-mfa-user", []string{"no-mfa-user"})
 	require.NoError(t, err)
 
 	for _, authPrefRequireMFAType := range requireMFATypes {
@@ -2042,7 +1945,7 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 	_, err = srv.Auth().UpsertNode(ctx, node2)
 	require.NoError(t, err)
 
-	user, role, err := CreateUserAndRole(srv.Auth(), "alice", []string{"alice"}, nil)
+	user, role, err := CreateUserAndRole(srv.Auth(), "alice", []string{"alice"})
 	require.NoError(t, err)
 
 	// Require MFA.
@@ -2078,6 +1981,123 @@ func TestIsMFARequiredUnauthorized(t *testing.T) {
 	// When unauthorized, expect a silent `false`.
 	require.NoError(t, err)
 	require.False(t, resp.Required)
+}
+
+// TestRoleVersions tests that downgraded V6 roles are returned to older
+// clients, and V6 roles are returned to newer clients.
+func TestRoleVersions(t *testing.T) {
+	srv := newTestTLSServer(t)
+
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name: "test_role",
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					types.NewRule(types.KindRole, services.RO()),
+					types.NewRule(types.KindEvent, services.RW()),
+				},
+			},
+		},
+	}
+	user, err := CreateUser(srv.Auth(), "test_user", role)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	testCases := []struct {
+		desc                string
+		clientVersion       string
+		disableMetadata     bool
+		expectedRoleVersion string
+		assertErr           require.ErrorAssertionFunc
+	}{
+		{
+			desc:                "old",
+			clientVersion:       "11.1.1",
+			expectedRoleVersion: types.V5,
+			assertErr:           require.NoError,
+		},
+		{
+			desc:                "old v9",
+			clientVersion:       "9.0.0",
+			expectedRoleVersion: types.V5,
+			assertErr:           require.NoError,
+		},
+		{
+			desc:                "alpha",
+			clientVersion:       "11.2.4-alpha.0",
+			expectedRoleVersion: types.V5,
+			assertErr:           require.NoError,
+		},
+		{
+			desc:                "greater than 12",
+			clientVersion:       "12.0.0-beta",
+			expectedRoleVersion: types.V6,
+			assertErr:           require.NoError,
+		},
+		{
+			desc:                "12",
+			clientVersion:       "12.0.0",
+			expectedRoleVersion: types.V6,
+			assertErr:           require.NoError,
+		},
+		{
+			desc:          "empty version",
+			clientVersion: "",
+			assertErr:     require.Error,
+		},
+		{
+			desc:          "invalid version",
+			clientVersion: "foo",
+			assertErr:     require.Error,
+		},
+		{
+			desc:                "no version metadata",
+			disableMetadata:     true,
+			expectedRoleVersion: types.V5,
+			assertErr:           require.NoError,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			// setup client metadata
+			ctx := context.Background()
+			if tc.disableMetadata {
+				ctx = context.WithValue(ctx, metadata.DisableInterceptors{}, struct{}{})
+			} else {
+				ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+					metadata.VersionKey: tc.clientVersion,
+				})
+			}
+
+			// test GetRole
+			gotRole, err := client.GetRole(ctx, role.GetName())
+			tc.assertErr(t, err)
+			if err == nil {
+				require.Equal(t, tc.expectedRoleVersion, gotRole.GetVersion())
+			}
+
+			// test GetRoles
+			gotRoles, err := client.GetRoles(ctx)
+			tc.assertErr(t, err)
+			if err == nil {
+				foundTestRole := false
+				for _, gotRole := range gotRoles {
+					if gotRole.GetName() == role.GetName() {
+						require.Equal(t, tc.expectedRoleVersion, gotRole.GetVersion())
+						foundTestRole = true
+					}
+				}
+				require.True(t, foundTestRole)
+			}
+		})
+	}
 }
 
 func TestIsMFARequired_NodeMatch(t *testing.T) {
@@ -2182,7 +2202,7 @@ func testOriginDynamicStored(t *testing.T, setWithOrigin func(*Client, string) e
 	srv := newTestTLSServer(t)
 
 	// Create a fake user.
-	user, _, err := CreateUserAndRole(srv.Auth(), "configurer", []string{}, nil)
+	user, _, err := CreateUserAndRole(srv.Auth(), "configurer", []string{})
 	require.NoError(t, err)
 	cl, err := srv.NewClient(TestUser(user.GetName()))
 	require.NoError(t, err)
@@ -2518,8 +2538,6 @@ func TestLocksCRUD(t *testing.T) {
 		Expires: &now,
 	})
 	require.NoError(t, err)
-	lock1.SetCreatedBy(string(types.RoleAdmin))
-	lock1.SetCreatedAt(now)
 
 	lock2, err := types.NewLock("lock2", types.LockSpecV2{
 		Target: types.LockTarget{
@@ -2528,8 +2546,6 @@ func TestLocksCRUD(t *testing.T) {
 		Message: "node compromised",
 	})
 	require.NoError(t, err)
-	lock2.SetCreatedBy(string(types.RoleAdmin))
-	lock2.SetCreatedAt(now)
 
 	t.Run("CreateLock", func(t *testing.T) {
 		// Initially expect no locks to be returned.
@@ -3243,25 +3259,18 @@ func TestListResources(t *testing.T) {
 				return err
 			},
 		},
-		"KubeServer": {
-			resourceType: types.KindKubeServer,
+		"KubeService": {
+			resourceType: types.KindKubeService,
 			createResource: func(name string, clt *Client) error {
-				kube, err := types.NewKubernetesClusterV3(
-					types.Metadata{
-						Name:   name,
-						Labels: map[string]string{"name": name},
+				server, err := types.NewServer(name, types.KindKubeService, types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{
+						{Name: name, StaticLabels: map[string]string{"name": name}},
 					},
-					types.KubernetesClusterSpecV3{},
-				)
+				})
 				if err != nil {
 					return err
 				}
-
-				kubeServer, err := types.NewKubernetesServerV3FromCluster(kube, "_", "_")
-				if err != nil {
-					return err
-				}
-				_, err = clt.UpsertKubernetesServer(ctx, kubeServer)
+				_, err = clt.UpsertKubeServiceV2(ctx, server)
 				return err
 			},
 		},
@@ -3333,7 +3342,7 @@ func TestListResources(t *testing.T) {
 			require.Empty(t, resp.TotalCount)
 
 			// Test types.KindKubernetesCluster
-			if test.resourceType == types.KindKubeServer {
+			if test.resourceType == types.KindKubeService {
 				test.resourceType = types.KindKubernetesCluster
 				resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 					ResourceType: test.resourceType,
@@ -3344,8 +3353,10 @@ func TestListResources(t *testing.T) {
 				require.Len(t, resp.Resources, 2)
 				require.Empty(t, resp.NextKey)
 				require.Equal(t, 2, resp.TotalCount)
-			} else {
-				// Test listing with NeedTotalCount flag.
+			}
+
+			// Test listing with NeedTotalCount flag.
+			if test.resourceType != types.KindKubeService {
 				resp, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 					ResourceType:   test.resourceType,
 					Limit:          100,
@@ -3387,7 +3398,7 @@ func TestCustomRateLimiting(t *testing.T) {
 		},
 		{
 			name:  "RPC CreateAuthenticateChallenge",
-			burst: defaults.LimiterBurst,
+			burst: defaults.LimiterPasswordlessBurst,
 			fn: func(clt *Client) error {
 				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
 				return err
@@ -3715,13 +3726,12 @@ func TestExport(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 			// Create a fake user.
-			_, _, err = CreateUserAndRole(srv.Auth(), user, []string{"role"}, nil)
+			_, _, err = CreateUserAndRole(srv.Auth(), user, []string{"role"})
 			require.NoError(t, err)
 
 			// Setup the server
 			if tt.authorizer != nil {
 				srv.TLSServer.grpcServer.Authorizer = tt.authorizer
-				require.NoError(t, err)
 			}
 
 			// Get a client for the test identity
@@ -3737,180 +3747,6 @@ func TestExport(t *testing.T) {
 			tt.uploadedAssertion(t, tt.mockTraceClient.spans)
 		})
 	}
-}
-
-// TestGRPCServer_CreateToken tests the handler of the deprecated CreateToken
-// RPC.
-func TestGRPCServer_CreateToken(t *testing.T) {
-	ctx := context.Background()
-	server := newTestTLSServer(t)
-
-	// Allow us to directly invoke the deprecated gRPC methods with
-	// authentication.
-	user := TestAdmin()
-	ctx = authz.ContextWithUser(ctx, user.I)
-
-	// Test default expiry is applied.
-	t.Run("undefined-expiry", func(t *testing.T) {
-		tokenName := "undefined-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			time.Time{},
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.CreateToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		ttl := token.Expiry().Sub(server.Clock().Now())
-		defaultTTL := defaults.ProvisioningTokenTTL
-		require.LessOrEqual(t, ttl, defaultTTL)
-		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
-	})
-
-	// Test set expiry is applied.
-	t.Run("set-expiry", func(t *testing.T) {
-		tokenName := "set-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		ttl := time.Hour * 24
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			server.Clock().Now().Add(ttl),
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.CreateToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		actualTTL := token.Expiry().Sub(server.Clock().Now())
-		require.LessOrEqual(t, actualTTL, ttl)
-		require.GreaterOrEqual(t, actualTTL, ttl-(time.Second*10))
-	})
-
-	// Test expiry in past is changed to default
-	t.Run("past-expiry", func(t *testing.T) {
-		tokenName := "past-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			server.Clock().Now().Add(-1*time.Hour),
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.CreateToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		ttl := token.Expiry().Sub(server.Clock().Now())
-		defaultTTL := defaults.ProvisioningTokenTTL
-		require.LessOrEqual(t, ttl, defaultTTL)
-		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
-	})
-}
-
-// TestGRPCServer_UpsertToken tests the handler of the deprecated CreateToken
-// RPC.
-func TestGRPCServer_UpsertToken(t *testing.T) {
-	ctx := context.Background()
-	server := newTestTLSServer(t)
-
-	// Allow us to directly invoke the deprecated gRPC methods with
-	// authentication.
-	user := TestAdmin()
-	ctx = authz.ContextWithUser(ctx, user.I)
-
-	// Test default expiry is applied.
-	t.Run("undefined-expiry", func(t *testing.T) {
-		tokenName := "undefined-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			time.Time{},
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.UpsertToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		ttl := token.Expiry().Sub(server.Clock().Now())
-		defaultTTL := defaults.ProvisioningTokenTTL
-		require.LessOrEqual(t, ttl, defaultTTL)
-		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
-	})
-
-	// Test set expiry is applied.
-	t.Run("set-expiry", func(t *testing.T) {
-		tokenName := "set-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		ttl := time.Hour * 24
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			server.Clock().Now().Add(ttl),
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.UpsertToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		actualTTL := token.Expiry().Sub(server.Clock().Now())
-		require.LessOrEqual(t, actualTTL, ttl)
-		require.GreaterOrEqual(t, actualTTL, ttl-(time.Second*10))
-	})
-
-	// Test expiry in past is changed to default
-	t.Run("past-expiry", func(t *testing.T) {
-		tokenName := "past-expiry"
-		roles := types.SystemRoles{types.RoleNode}
-		token, err := types.NewProvisionToken(
-			tokenName,
-			roles,
-			server.Clock().Now().Add(-1*time.Hour),
-		)
-		require.NoError(t, err)
-		_, err = server.TLSServer.grpcServer.UpsertToken(
-			ctx, token.(*types.ProvisionTokenV2),
-		)
-		require.NoError(t, err)
-		token, err = server.TLSServer.grpcServer.GetToken(
-			ctx, &types.ResourceRequest{Name: tokenName},
-		)
-		require.NoError(t, err)
-		require.Equal(t, tokenName, token.GetName())
-		ttl := token.Expiry().Sub(server.Clock().Now())
-		defaultTTL := defaults.ProvisioningTokenTTL
-		require.LessOrEqual(t, ttl, defaultTTL)
-		require.GreaterOrEqual(t, ttl, defaultTTL-(time.Second*10))
-	})
 }
 
 // TestSAMLValidation tests that SAML validation does not perform an HTTP
@@ -4096,4 +3932,5 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 			require.Equal(t, tc.expectedInstallers, outputInstallers)
 		})
 	}
+
 }

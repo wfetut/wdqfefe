@@ -58,15 +58,15 @@ interface HintBoxProps {
 export function HintBox(props: React.PropsWithChildren<HintBoxProps>) {
   return (
     <HintBoxContainer>
-      <Text color="warning.main">
+      <Text color="warning">
         <Flex alignItems="center" mb={2}>
           <TextIcon
-            color="warning.main"
+            color="warning"
             css={`
               white-space: pre;
             `}
           >
-            <Icons.Warning fontSize={4} color="warning.main" />
+            <Icons.Warning fontSize={4} color="warning" />
           </TextIcon>
           {props.header}
         </Flex>

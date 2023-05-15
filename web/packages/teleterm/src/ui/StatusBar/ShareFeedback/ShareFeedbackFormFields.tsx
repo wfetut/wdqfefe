@@ -52,7 +52,6 @@ export function ShareFeedbackFormFields({
         readonly={disabled}
         css={`
           input {
-            background: inherit;
             font-size: 14px;
           }
         `}
@@ -65,7 +64,6 @@ export function ShareFeedbackFormFields({
         readonly={disabled}
         css={`
           input {
-            background: inherit;
             font-size: 14px;
           }
         `}
@@ -75,7 +73,7 @@ export function ShareFeedbackFormFields({
       <FieldTextArea
         label="Suggestions"
         textAreaCss={`
-            font-size: 14px;
+          font-size: 14px;
         `}
         rule={requiredField('Suggestions are required')}
         readOnly={disabled}

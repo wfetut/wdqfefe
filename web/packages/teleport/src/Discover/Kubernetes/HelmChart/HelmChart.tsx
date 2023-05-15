@@ -288,7 +288,7 @@ const StepTwo = ({
       {error && (
         <Box>
           <TextIcon mt={3}>
-            <Icons.Warning ml={1} color="error.main" />
+            <Icons.Warning ml={1} color="danger" />
             Encountered Error: {error.message}
           </TextIcon>
         </Box>

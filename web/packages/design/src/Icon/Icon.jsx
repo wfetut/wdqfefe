@@ -16,17 +16,19 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { space, fontSize, width, color, lineHeight } from 'styled-system';
+import { space, fontSize, width, color } from 'styled-system';
 import '../assets/icomoon/style.css';
 
 const Icon = styled.span`
   display: inline-block;
   transition: color 0.3s;
-  color: ${props => props.theme.colors.text.main};
-  ${space} ${width} ${color} ${fontSize} ${lineHeight};
+  ${space} ${width} ${color} ${fontSize}
 `;
 
 Icon.displayName = `Icon`;
+Icon.defaultProps = {
+  color: 'light',
+};
 
 function makeFontIcon(name, iconClassName) {
   const iconClass = `icon ${iconClassName}`;
@@ -193,7 +195,6 @@ export const Lock = makeFontIcon('Lock', 'icon-lock');
 export const Magnifier = makeFontIcon('Magnifier', 'icon-magnifier');
 export const MasterCard = makeFontIcon('MasterCard', 'icon-cc-mastercard');
 export const Memory = makeFontIcon('Memory', 'icon-memory');
-export const Moon = makeFontIcon('Moon', 'icon-moon');
 export const MoreHoriz = makeFontIcon('MoreHoriz', 'icon-more_horiz');
 export const MoreVert = makeFontIcon('MoreVert', 'icon-more_vert');
 export const Mute = makeFontIcon('Mute', 'icon-mute');
@@ -251,7 +252,6 @@ export const Speed = makeFontIcon('Speed', 'icon-speed-fast');
 export const Spinner = makeFontIcon('Spinner', 'icon-spinner8');
 export const Stars = makeFontIcon('Stars', 'icon-stars');
 export const Stripe = makeFontIcon('Stripe', 'icon-cc-stripe');
-export const Sun = makeFontIcon('Sun', 'icon-sun');
 export const SyncAlt = makeFontIcon('SyncAlt', 'icon-sync2');
 export const Tablet = makeFontIcon('Tablet', 'icon-tablet2');
 export const Tags = makeFontIcon('Tags', 'icon-tags');

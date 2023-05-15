@@ -1,13 +1,13 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`loaded 1`] = `
-.c23 {
+.c18 {
   box-sizing: border-box;
   width: 80px;
   text-align: center;
 }
 
-.c24 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -26,148 +26,66 @@ exports[`loaded 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
 }
 
-.c24:hover,
-.c24:focus {
-  background: rgba(255,255,255,0.07);
+.c19:active {
+  opacity: 0.56;
 }
 
-.c24:active {
-  background: rgba(255,255,255,0.13);
+.c19:hover,
+.c19:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
 }
 
-.c24:disabled {
+.c19:active {
+  opacity: 0.24;
+}
+
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
+}
+
+.c13 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c16 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
 }
 
 .c17 {
   display: inline-block;
   transition: color 0.3s;
-  color: #FFFFFF;
-  font-size: 16px;
-}
-
-.c21 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-}
-
-.c22 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
   margin-right: 16px;
   padding: 4px;
+  color: #FFFFFF;
   font-size: 16px;
 }
 
-.c25 {
+.c20 {
   display: inline-block;
   transition: color 0.3s;
-  color: #FFFFFF;
   margin-left: 4px;
   color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
-.c14 {
-  align-items: center;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  outline: none;
-  border-radius: 50%;
-  overflow: visible;
-  justify-content: center;
-  text-align: center;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  font-size: 16px;
-  height: 32px;
-  width: 32px;
-  margin-left: 0px;
-  margin-right: 0px;
-}
-
-.c14 .c16 {
-  color: inherit;
-}
-
-.c14:disabled {
-  color: rgba(255,255,255,0.36);
-}
-
-.c14:disabled {
-  color: rgba(255,255,255,0.36);
-  cursor: default;
-}
-
-.c14:hover:enabled,
-.c14:focus:enabled {
-  background: rgba(255,255,255,0.13);
-}
-
-.c14:active:enabled {
-  background: rgba(255,255,255,0.18);
-}
-
-.c18 {
-  align-items: center;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  outline: none;
-  border-radius: 50%;
-  overflow: visible;
-  justify-content: center;
-  text-align: center;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  font-size: 16px;
-  height: 32px;
-  width: 32px;
-  margin-left: 0px;
-}
-
-.c18 .c16 {
-  color: inherit;
-}
-
-.c18:disabled {
-  color: rgba(255,255,255,0.36);
-}
-
-.c18:disabled {
-  color: rgba(255,255,255,0.36);
-  cursor: default;
-}
-
-.c18:hover:enabled,
-.c18:focus:enabled {
-  background: rgba(255,255,255,0.13);
-}
-
-.c18:active:enabled {
-  background: rgba(255,255,255,0.18);
-}
-
-.c12 {
+.c9 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -178,21 +96,21 @@ exports[`loaded 1`] = `
   color: #FFFFFF;
 }
 
-.c10 {
+.c7 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
   justify-content: flex-end;
 }
 
-.c11 {
+.c8 {
   box-sizing: border-box;
   margin-right: 8px;
   display: flex;
   align-items: center;
 }
 
-.c13 {
+.c10 {
   box-sizing: border-box;
   display: flex;
 }
@@ -204,7 +122,7 @@ exports[`loaded 1`] = `
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+  border-bottom: 1px solid #1C254D;
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -237,11 +155,11 @@ exports[`loaded 1`] = `
   padding-bottom: 24px;
 }
 
-.c19 {
+.c14 {
   background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
-  border-style: hidden;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -250,40 +168,40 @@ exports[`loaded 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c19 > thead > tr > th,
-.c19 > tbody > tr > th,
-.c19 > tfoot > tr > th,
-.c19 > thead > tr > td,
-.c19 > tbody > tr > td,
-.c19 > tfoot > tr > td {
+.c14 > thead > tr > th,
+.c14 > tbody > tr > th,
+.c14 > tfoot > tr > th,
+.c14 > thead > tr > td,
+.c14 > tbody > tr > td,
+.c14 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c19 > thead > tr > th:first-child,
-.c19 > tbody > tr > th:first-child,
-.c19 > tfoot > tr > th:first-child,
-.c19 > thead > tr > td:first-child,
-.c19 > tbody > tr > td:first-child,
-.c19 > tfoot > tr > td:first-child {
+.c14 > thead > tr > th:first-child,
+.c14 > tbody > tr > th:first-child,
+.c14 > tfoot > tr > th:first-child,
+.c14 > thead > tr > td:first-child,
+.c14 > tbody > tr > td:first-child,
+.c14 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c19 > thead > tr > th:last-child,
-.c19 > tbody > tr > th:last-child,
-.c19 > tfoot > tr > th:last-child,
-.c19 > thead > tr > td:last-child,
-.c19 > tbody > tr > td:last-child,
-.c19 > tfoot > tr > td:last-child {
+.c14 > thead > tr > th:last-child,
+.c14 > tbody > tr > th:last-child,
+.c14 > tfoot > tr > th:last-child,
+.c14 > thead > tr > td:last-child,
+.c14 > tbody > tr > td:last-child,
+.c14 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c19 > tbody > tr > td {
+.c14 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c19 > thead > tr > th {
-  background: rgba(255,255,255,0.07);
+.c14 > thead > tr > th {
+  background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
@@ -296,26 +214,26 @@ exports[`loaded 1`] = `
   white-space: nowrap;
 }
 
-.c19 > thead > tr > th .c16 {
+.c14 > thead > tr > th .c12 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c19 > tbody > tr > td {
-  color: #FFFFFF;
+.c14 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c19 tbody tr {
-  border-bottom: 1px solid rgb(49,58,100);
+.c14 tbody tr {
+  border-bottom: 1px solid #1C254D;
 }
 
-.c19 tbody tr:hover {
-  background-color: rgba(255,255,255,0.07);
+.c14 tbody tr:hover {
+  background-color: rgb(37,49,98);
 }
 
-.c4 {
+.c3 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -323,62 +241,57 @@ exports[`loaded 1`] = `
   align-items: center;
   justify-content: space-between;
   background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
 }
 
-.c3 {
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
-  overflow: hidden;
-  border-radius: 8px;
+.c11 {
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 
-.c15 .c16 {
+.c11 .c12 {
   font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
 }
 
-.c15 .c16:before {
-  padding-left: 1px;
+.c11:hover .c12,
+.c11:focus .c12 {
+  opacity: 1;
 }
 
-.c9 {
-  position: relative;
-  height: 100%;
-  right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255,255,255,0.07);
-  border-radius: 200px;
+.c11:disabled {
+  cursor: default;
 }
 
-.c8 {
+.c11:disabled .c12 {
+  opacity: 0.1;
+}
+
+.c6 {
   position: absolute;
   height: 100%;
   right: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #222C59;
+  background: #2C3A73;
   border-radius: 200px;
 }
 
-.c6 {
+.c4 {
   position: relative;
   display: flex;
   overflow: hidden;
   width: 100%;
   border-radius: 200px;
   height: 32px;
-  background: transparent;
+  background: #111B48;
 }
 
 .c5 {
-  background: #0C143D;
-  border-radius: 200px;
-  width: 100%;
-  height: 32px;
-}
-
-.c7 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -388,24 +301,25 @@ exports[`loaded 1`] = `
   transition: all 0.2s;
   padding-left: 16px;
   padding-right: 16px;
-  color: #FFFFFF;
-  background: #0C143D;
+  color: rgba(255,255,255,0.87);
+  background: #111B48;
   padding-right: 184px;
 }
 
-.c7:hover,
-.c7:focus,
-.c7:active {
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+.c5:hover,
+.c5:focus,
+.c5:active {
+  background: #1C254D;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(255,255,255,0.87);
 }
 
-.c7::placeholder {
+.c5::placeholder {
   color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
-.c20 tbody > tr > td {
+.c15 tbody > tr > td {
   vertical-align: middle;
 }
 
@@ -421,355 +335,271 @@ exports[`loaded 1`] = `
       Active Sessions
     </div>
   </div>
-  <div
+  <nav
     class="c3"
   >
-    <nav
+    <div
       class="c4"
     >
-      <div
+      <input
         class="c5"
+        placeholder="SEARCH..."
+        value=""
+      />
+      <div
+        class="c6"
+      />
+    </div>
+    <div
+      class="c7"
+      width="100%"
+    >
+      <div
+        class="c8"
       >
         <div
-          class="c6"
+          class="c9"
+          color="text.contrast"
+          style="white-space: nowrap; text-transform: uppercase;"
         >
-          <input
-            class="c7"
-            placeholder="SEARCH..."
-            value=""
-          />
-          <div
-            class="c8"
-          >
-            <div
-              class="c9"
-            />
-          </div>
+          Showing 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            5
+          </strong>
+           of
+           
+          <strong>
+            5
+          </strong>
         </div>
       </div>
       <div
         class="c10"
-        width="100%"
       >
-        <div
+        <button
           class="c11"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c12 c13 icon icon-arrow-left-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+        <button
+          class="c11"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c12 c13 icon icon-arrow-right-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+      </div>
+    </div>
+  </nav>
+  <table
+    class="c14 c15"
+  >
+    <thead>
+      <tr>
+        <th>
+          <a>
+            Type
+            <span
+              class="c12 c16 icon icon-chevrons-expand-vertical "
+              color="light"
+              title="sort items"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            Name
+            <span
+              class="c12 c16 icon icon-chevrons-expand-vertical "
+              color="light"
+              title="sort items"
+            />
+          </a>
+        </th>
+        <th
+          style="cursor: default;"
+        >
+          Session ID
+        </th>
+        <th
+          style="cursor: default;"
+        >
+          Users
+        </th>
+        <th>
+          <a>
+            Duration
+            <span
+              class="c12 c16 icon icon-chevron-up "
+              color="light"
+              title="sort items asc"
+            />
+          </a>
+        </th>
+        <th
+          style="cursor: default;"
+        />
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <span
+            class="c12 c17 icon icon-kubernetes c12 c17"
+            color="light"
+            font-size="3"
+          />
+        </td>
+        <td>
+          minikube
+        </td>
+        <td>
+          7174aded-340a-4863-b661-7ba52aeb22c8
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          59 minutes
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c12 c17 icon icon-terminal c12 c17"
+            color="light"
+            font-size="3"
+          />
+        </td>
+        <td>
+          im-a-nodename
+        </td>
+        <td>
+          c7befbb4-3885-4d08-a466-de832a73c3d4
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          5 seconds
+        </td>
+        <td
+          align="right"
+          height="26px"
         >
           <div
-            class="c12"
-            color="text.main"
-            style="white-space: nowrap; text-transform: uppercase;"
+            class="c18"
+            width="80px"
           >
-            Showing 
-            <strong>
-              1
-            </strong>
-             - 
-            <strong>
-              7
-            </strong>
-             of
-             
-            <strong>
-              7
-            </strong>
+            <button
+              class="c19"
+              kind="border"
+            >
+              Join
+              <span
+                class="c12 c20 icon icon-caret-down "
+                color="text.slightlyMuted"
+                font-size="2"
+              />
+            </button>
           </div>
-        </div>
-        <div
-          class="c13"
-        >
-          <button
-            class="c14 c15"
-            disabled=""
-            title="Previous page"
-          >
-            <span
-              class="c16 c17 icon icon-arrow-left-circle "
-              font-size="3"
-            />
-          </button>
-          <button
-            class="c18 c15"
-            disabled=""
-            title="Next page"
-          >
-            <span
-              class="c16 c17 icon icon-arrow-right-circle "
-              font-size="3"
-            />
-          </button>
-        </div>
-      </div>
-    </nav>
-    <table
-      class="c19 c20"
-    >
-      <thead>
-        <tr>
-          <th>
-            <a>
-              Type
-              <span
-                class="c16 c21 icon icon-chevrons-expand-vertical "
-                title="sort items"
-              />
-            </a>
-          </th>
-          <th>
-            <a>
-              Name
-              <span
-                class="c16 c21 icon icon-chevrons-expand-vertical "
-                title="sort items"
-              />
-            </a>
-          </th>
-          <th
-            style="cursor: default;"
-          >
-            Session ID
-          </th>
-          <th
-            style="cursor: default;"
-          >
-            Users
-          </th>
-          <th>
-            <a>
-              Duration
-              <span
-                class="c16 c21 icon icon-chevron-up "
-                title="sort items asc"
-              />
-            </a>
-          </th>
-          <th
-            style="cursor: default;"
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c12 c17 icon icon-desktop c12 c17"
+            color="light"
+            font-size="3"
           />
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>
-            <span
-              class="c16 c22 icon icon-kubernetes c16 c22"
-              font-size="3"
-            />
-          </td>
-          <td>
-            minikube
-          </td>
-          <td>
-            7174aded-340a-4863-b661-7ba52aeb22c8
-          </td>
-          <td>
-            lisa2
-          </td>
-          <td>
-            59 minutes
-          </td>
-          <td
-            align="right"
-            height="26px"
+        </td>
+        <td>
+          desktop-2
+        </td>
+        <td>
+          acacfbb4-3885-4d08-a466-de832a73ffac
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          5 seconds
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c12 c17 icon icon-database c12 c17"
+            color="light"
+            font-size="3"
           />
-        </tr>
-        <tr>
-          <td>
-            <span
-              class="c16 c22 icon icon-terminal c16 c22"
-              font-size="3"
-            />
-          </td>
-          <td>
-            im-a-nodename
-          </td>
-          <td>
-            c7befbb4-3885-4d08-a466-de832a73c3d4
-          </td>
-          <td>
-            lisa2
-          </td>
-          <td>
-            5 seconds
-          </td>
-          <td
-            align="right"
-            height="26px"
-          >
-            <div
-              class="c23"
-              width="80px"
-            >
-              <button
-                class="c24"
-                kind="border"
-              >
-                Join
-                <span
-                  class="c16 c25 icon icon-caret-down "
-                  color="text.slightlyMuted"
-                  font-size="2"
-                />
-              </button>
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <span
-              class="c16 c22 icon icon-terminal c16 c22"
-              font-size="3"
-            />
-          </td>
-          <td>
-            im-a-nodename-2
-          </td>
-          <td>
-            b204924e-6b74-5d92-89ea-d95043a969f1
-          </td>
-          <td>
-            lisa3
-          </td>
-          <td>
-            5 seconds
-          </td>
-          <td
-            align="right"
-            height="26px"
-          >
-            <div
-              class="c23"
-              width="80px"
-            >
-              <button
-                class="c24"
-                kind="border"
-              >
-                Join
-                <span
-                  class="c16 c25 icon icon-caret-down "
-                  color="text.slightlyMuted"
-                  font-size="2"
-                />
-              </button>
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <span
-              class="c16 c22 icon icon-terminal c16 c22"
-              font-size="3"
-            />
-          </td>
-          <td>
-            im-a-nodename-3
-          </td>
-          <td>
-            8830cfe5-369e-5485-9c3d-19cc50e6f548
-          </td>
-          <td>
-            lisa2
-          </td>
-          <td>
-            5 seconds
-          </td>
-          <td
-            align="right"
-            height="26px"
-          >
-            <div
-              class="c23"
-              width="80px"
-            >
-              <button
-                class="c24"
-                kind="border"
-              >
-                Join
-                <span
-                  class="c16 c25 icon icon-caret-down "
-                  color="text.slightlyMuted"
-                  font-size="2"
-                />
-              </button>
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <span
-              class="c16 c22 icon icon-desktop c16 c22"
-              font-size="3"
-            />
-          </td>
-          <td>
-            desktop-2
-          </td>
-          <td>
-            acacfbb4-3885-4d08-a466-de832a73ffac
-          </td>
-          <td>
-            lisa2
-          </td>
-          <td>
-            5 seconds
-          </td>
-          <td
-            align="right"
-            height="26px"
+        </td>
+        <td>
+          databse-32
+        </td>
+        <td>
+          2314fbb4-3885-4d08-a466-de832a731222
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          3 minutes
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c12 c17 icon icon-new-tab c12 c17"
+            color="light"
+            font-size="3"
           />
-        </tr>
-        <tr>
-          <td>
-            <span
-              class="c16 c22 icon icon-database c16 c22"
-              font-size="3"
-            />
-          </td>
-          <td>
-            databse-32
-          </td>
-          <td>
-            2314fbb4-3885-4d08-a466-de832a731222
-          </td>
-          <td>
-            lisa2
-          </td>
-          <td>
-            3 minutes
-          </td>
-          <td
-            align="right"
-            height="26px"
-          />
-        </tr>
-        <tr>
-          <td>
-            <span
-              class="c16 c22 icon icon-new-tab c16 c22"
-              font-size="3"
-            />
-          </td>
-          <td>
-            grafana
-          </td>
-          <td>
-            cafefbb4-3885-4d08-a466-de832a7313131
-          </td>
-          <td>
-            lisa2
-          </td>
-          <td>
-            13 minutes
-          </td>
-          <td
-            align="right"
-            height="26px"
-          />
-        </tr>
-      </tbody>
-    </table>
-  </div>
+        </td>
+        <td>
+          grafana
+        </td>
+        <td>
+          cafefbb4-3885-4d08-a466-de832a7313131
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          13 minutes
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
+      </tr>
+    </tbody>
+  </table>
 </div>
 `;
 
@@ -779,7 +609,7 @@ exports[`loaded with CTA 1`] = `
   width: 340px;
 }
 
-.c27 {
+.c23 {
   box-sizing: border-box;
   width: 80px;
   text-align: center;
@@ -804,33 +634,33 @@ exports[`loaded with CTA 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
-  padding-top: 12px;
-  padding-bottom: 12px;
-  width: 100%;
   height: 36px;
+}
+
+.c4:active {
+  opacity: 0.56;
 }
 
 .c4:hover,
 .c4:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c4:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c4:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
-.c28 {
+.c24 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -849,148 +679,66 @@ exports[`loaded with CTA 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0);
-  border: 1px solid rgba(255,255,255,0.36);
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
 }
 
-.c28:hover,
-.c28:focus {
-  background: rgba(255,255,255,0.07);
+.c24:active {
+  opacity: 0.56;
 }
 
-.c28:active {
-  background: rgba(255,255,255,0.13);
+.c24:hover,
+.c24:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
 }
 
-.c28:disabled {
+.c24:active {
+  opacity: 0.24;
+}
+
+.c24:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
-.c7 {
+.c8 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
+}
+
+.c19 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 16px;
 }
 
 .c22 {
   display: inline-block;
   transition: color 0.3s;
-  color: #FFFFFF;
-  font-size: 16px;
-}
-
-.c26 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
   margin-right: 16px;
   padding: 4px;
+  color: #FFFFFF;
   font-size: 16px;
 }
 
-.c29 {
+.c25 {
   display: inline-block;
   transition: color 0.3s;
-  color: #FFFFFF;
   margin-left: 4px;
   color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
-.c20 {
-  align-items: center;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  outline: none;
-  border-radius: 50%;
-  overflow: visible;
-  justify-content: center;
-  text-align: center;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  font-size: 16px;
-  height: 32px;
-  width: 32px;
-  margin-left: 0px;
-  margin-right: 0px;
-}
-
-.c20 .c6 {
-  color: inherit;
-}
-
-.c20:disabled {
-  color: rgba(255,255,255,0.36);
-}
-
-.c20:disabled {
-  color: rgba(255,255,255,0.36);
-  cursor: default;
-}
-
-.c20:hover:enabled,
-.c20:focus:enabled {
-  background: rgba(255,255,255,0.13);
-}
-
-.c20:active:enabled {
-  background: rgba(255,255,255,0.18);
-}
-
-.c23 {
-  align-items: center;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  outline: none;
-  border-radius: 50%;
-  overflow: visible;
-  justify-content: center;
-  text-align: center;
-  flex: 0 0 auto;
-  background: transparent;
-  color: inherit;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  font-size: 16px;
-  height: 32px;
-  width: 32px;
-  margin-left: 0px;
-}
-
-.c23 .c6 {
-  color: inherit;
-}
-
-.c23:disabled {
-  color: rgba(255,255,255,0.36);
-}
-
-.c23:disabled {
-  color: rgba(255,255,255,0.36);
-  cursor: default;
-}
-
-.c23:hover:enabled,
-.c23:focus:enabled {
-  background: rgba(255,255,255,0.13);
-}
-
-.c23:active:enabled {
-  background: rgba(255,255,255,0.18);
-}
-
-.c18 {
+.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -1001,27 +749,27 @@ exports[`loaded with CTA 1`] = `
   color: #FFFFFF;
 }
 
-.c5 {
+.c6 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
 }
 
-.c16 {
+.c14 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
   justify-content: flex-end;
 }
 
-.c17 {
+.c15 {
   box-sizing: border-box;
   margin-right: 8px;
   display: flex;
   align-items: center;
 }
 
-.c19 {
+.c17 {
   box-sizing: border-box;
   display: flex;
 }
@@ -1033,7 +781,7 @@ exports[`loaded with CTA 1`] = `
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255,255,255,0.07);
+  border-bottom: 1px solid #1C254D;
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -1066,18 +814,26 @@ exports[`loaded with CTA 1`] = `
   padding-bottom: 24px;
 }
 
-.c8 {
+.c5 {
+  text-transform: none;
+  width: 100%;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  font-size: 12px;
+}
+
+.c9 {
   color: inherit;
   font-weight: 500;
   font-size: 15px;
   margin-right: 4px;
 }
 
-.c24 {
+.c20 {
   background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
-  border-style: hidden;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -1086,40 +842,40 @@ exports[`loaded with CTA 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c24 > thead > tr > th,
-.c24 > tbody > tr > th,
-.c24 > tfoot > tr > th,
-.c24 > thead > tr > td,
-.c24 > tbody > tr > td,
-.c24 > tfoot > tr > td {
+.c20 > thead > tr > th,
+.c20 > tbody > tr > th,
+.c20 > tfoot > tr > th,
+.c20 > thead > tr > td,
+.c20 > tbody > tr > td,
+.c20 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th:first-child,
-.c24 > tbody > tr > th:first-child,
-.c24 > tfoot > tr > th:first-child,
-.c24 > thead > tr > td:first-child,
-.c24 > tbody > tr > td:first-child,
-.c24 > tfoot > tr > td:first-child {
+.c20 > thead > tr > th:first-child,
+.c20 > tbody > tr > th:first-child,
+.c20 > tfoot > tr > th:first-child,
+.c20 > thead > tr > td:first-child,
+.c20 > tbody > tr > td:first-child,
+.c20 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c24 > thead > tr > th:last-child,
-.c24 > tbody > tr > th:last-child,
-.c24 > tfoot > tr > th:last-child,
-.c24 > thead > tr > td:last-child,
-.c24 > tbody > tr > td:last-child,
-.c24 > tfoot > tr > td:last-child {
+.c20 > thead > tr > th:last-child,
+.c20 > tbody > tr > th:last-child,
+.c20 > tfoot > tr > th:last-child,
+.c20 > thead > tr > td:last-child,
+.c20 > tbody > tr > td:last-child,
+.c20 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c24 > tbody > tr > td {
+.c20 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c24 > thead > tr > th {
-  background: rgba(255,255,255,0.07);
+.c20 > thead > tr > th {
+  background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
@@ -1132,23 +888,23 @@ exports[`loaded with CTA 1`] = `
   white-space: nowrap;
 }
 
-.c24 > thead > tr > th .c6 {
+.c20 > thead > tr > th .c7 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c24 > tbody > tr > td {
-  color: #FFFFFF;
+.c20 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c24 tbody tr {
-  border-bottom: 1px solid rgb(49,58,100);
+.c20 tbody tr {
+  border-bottom: 1px solid #1C254D;
 }
 
-.c24 tbody tr:hover {
-  background-color: rgba(255,255,255,0.07);
+.c20 tbody tr:hover {
+  background-color: rgb(37,49,98);
 }
 
 .c10 {
@@ -1159,62 +915,57 @@ exports[`loaded with CTA 1`] = `
   align-items: center;
   justify-content: space-between;
   background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
 }
 
-.c9 {
-  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
-  overflow: hidden;
-  border-radius: 8px;
+.c18 {
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 
-.c21 .c6 {
+.c18 .c7 {
   font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
 }
 
-.c21 .c6:before {
-  padding-left: 1px;
+.c18:hover .c7,
+.c18:focus .c7 {
+  opacity: 1;
 }
 
-.c15 {
-  position: relative;
-  height: 100%;
-  right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255,255,255,0.07);
-  border-radius: 200px;
+.c18:disabled {
+  cursor: default;
 }
 
-.c14 {
+.c18:disabled .c7 {
+  opacity: 0.1;
+}
+
+.c13 {
   position: absolute;
   height: 100%;
   right: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #222C59;
+  background: #2C3A73;
   border-radius: 200px;
 }
 
-.c12 {
+.c11 {
   position: relative;
   display: flex;
   overflow: hidden;
   width: 100%;
   border-radius: 200px;
   height: 32px;
-  background: transparent;
+  background: #111B48;
 }
 
-.c11 {
-  background: #0C143D;
-  border-radius: 200px;
-  width: 100%;
-  height: 32px;
-}
-
-.c13 {
+.c12 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -1224,24 +975,25 @@ exports[`loaded with CTA 1`] = `
   transition: all 0.2s;
   padding-left: 16px;
   padding-right: 16px;
-  color: #FFFFFF;
-  background: #0C143D;
+  color: rgba(255,255,255,0.87);
+  background: #111B48;
   padding-right: 184px;
 }
 
-.c13:hover,
-.c13:focus,
-.c13:active {
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+.c12:hover,
+.c12:focus,
+.c12:active {
+  background: #1C254D;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(255,255,255,0.87);
 }
 
-.c13::placeholder {
+.c12::placeholder {
   color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
-.c25 tbody > tr > td {
+.c21 tbody > tr > td {
   vertical-align: middle;
 }
 
@@ -1260,374 +1012,287 @@ exports[`loaded with CTA 1`] = `
       class="c3"
       width="340px"
     >
-      <a
-        class="c4"
+      <button
+        class="c4 c5"
         height="36px"
-        href="https://goteleport.com/r/upgrade-team?4.4.0-dev&campaign=CTA_ACTIVE_SESSIONS"
         kind="primary"
-        style="text-transform: none;"
-        target="blank"
-        width="100%"
       >
         <div
-          class="c5"
+          class="c6"
         >
           <span
-            class="c6 c7 icon icon-unlock c8"
+            class="c7 c8 icon icon-unlock c9"
+            color="light"
           />
           Join Active Sessions With Teleport Enterprise
         </div>
-      </a>
+      </button>
     </div>
   </div>
-  <div
-    class="c9"
+  <nav
+    class="c10"
   >
-    <nav
-      class="c10"
+    <div
+      class="c11"
+    >
+      <input
+        class="c12"
+        placeholder="SEARCH..."
+        value=""
+      />
+      <div
+        class="c13"
+      />
+    </div>
+    <div
+      class="c14"
+      width="100%"
     >
       <div
-        class="c11"
+        class="c15"
       >
         <div
-          class="c12"
+          class="c16"
+          color="text.contrast"
+          style="white-space: nowrap; text-transform: uppercase;"
         >
-          <input
-            class="c13"
-            placeholder="SEARCH..."
-            value=""
-          />
-          <div
-            class="c14"
-          >
-            <div
-              class="c15"
-            />
-          </div>
+          Showing 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            5
+          </strong>
+           of
+           
+          <strong>
+            5
+          </strong>
         </div>
       </div>
       <div
-        class="c16"
-        width="100%"
+        class="c17"
       >
-        <div
-          class="c17"
+        <button
+          class="c18"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c7 c19 icon icon-arrow-left-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+        <button
+          class="c18"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c7 c19 icon icon-arrow-right-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+      </div>
+    </div>
+  </nav>
+  <table
+    class="c20 c21"
+  >
+    <thead>
+      <tr>
+        <th>
+          <a>
+            Type
+            <span
+              class="c7 c8 icon icon-chevrons-expand-vertical "
+              color="light"
+              title="sort items"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            Name
+            <span
+              class="c7 c8 icon icon-chevrons-expand-vertical "
+              color="light"
+              title="sort items"
+            />
+          </a>
+        </th>
+        <th
+          style="cursor: default;"
+        >
+          Session ID
+        </th>
+        <th
+          style="cursor: default;"
+        >
+          Users
+        </th>
+        <th>
+          <a>
+            Duration
+            <span
+              class="c7 c8 icon icon-chevron-up "
+              color="light"
+              title="sort items asc"
+            />
+          </a>
+        </th>
+        <th
+          style="cursor: default;"
+        />
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <span
+            class="c7 c22 icon icon-kubernetes c7 c22"
+            color="light"
+            font-size="3"
+          />
+        </td>
+        <td>
+          minikube
+        </td>
+        <td>
+          7174aded-340a-4863-b661-7ba52aeb22c8
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          59 minutes
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c7 c22 icon icon-terminal c7 c22"
+            color="light"
+            font-size="3"
+          />
+        </td>
+        <td>
+          im-a-nodename
+        </td>
+        <td>
+          c7befbb4-3885-4d08-a466-de832a73c3d4
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          5 seconds
+        </td>
+        <td
+          align="right"
+          height="26px"
         >
           <div
-            class="c18"
-            color="text.main"
-            style="white-space: nowrap; text-transform: uppercase;"
+            class="c23"
+            width="80px"
           >
-            Showing 
-            <strong>
-              1
-            </strong>
-             - 
-            <strong>
-              7
-            </strong>
-             of
-             
-            <strong>
-              7
-            </strong>
+            <button
+              class="c24"
+              kind="border"
+            >
+              Join
+              <span
+                class="c7 c25 icon icon-caret-down "
+                color="text.slightlyMuted"
+                font-size="2"
+              />
+            </button>
           </div>
-        </div>
-        <div
-          class="c19"
-        >
-          <button
-            class="c20 c21"
-            disabled=""
-            title="Previous page"
-          >
-            <span
-              class="c6 c22 icon icon-arrow-left-circle "
-              font-size="3"
-            />
-          </button>
-          <button
-            class="c23 c21"
-            disabled=""
-            title="Next page"
-          >
-            <span
-              class="c6 c22 icon icon-arrow-right-circle "
-              font-size="3"
-            />
-          </button>
-        </div>
-      </div>
-    </nav>
-    <table
-      class="c24 c25"
-    >
-      <thead>
-        <tr>
-          <th>
-            <a>
-              Type
-              <span
-                class="c6 c7 icon icon-chevrons-expand-vertical "
-                title="sort items"
-              />
-            </a>
-          </th>
-          <th>
-            <a>
-              Name
-              <span
-                class="c6 c7 icon icon-chevrons-expand-vertical "
-                title="sort items"
-              />
-            </a>
-          </th>
-          <th
-            style="cursor: default;"
-          >
-            Session ID
-          </th>
-          <th
-            style="cursor: default;"
-          >
-            Users
-          </th>
-          <th>
-            <a>
-              Duration
-              <span
-                class="c6 c7 icon icon-chevron-up "
-                title="sort items asc"
-              />
-            </a>
-          </th>
-          <th
-            style="cursor: default;"
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c7 c22 icon icon-desktop c7 c22"
+            color="light"
+            font-size="3"
           />
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>
-            <span
-              class="c6 c26 icon icon-kubernetes c6 c26"
-              font-size="3"
-            />
-          </td>
-          <td>
-            minikube
-          </td>
-          <td>
-            7174aded-340a-4863-b661-7ba52aeb22c8
-          </td>
-          <td>
-            lisa2
-          </td>
-          <td>
-            59 minutes
-          </td>
-          <td
-            align="right"
-            height="26px"
+        </td>
+        <td>
+          desktop-2
+        </td>
+        <td>
+          acacfbb4-3885-4d08-a466-de832a73ffac
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          5 seconds
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c7 c22 icon icon-database c7 c22"
+            color="light"
+            font-size="3"
           />
-        </tr>
-        <tr>
-          <td>
-            <span
-              class="c6 c26 icon icon-terminal c6 c26"
-              font-size="3"
-            />
-          </td>
-          <td>
-            im-a-nodename
-          </td>
-          <td>
-            c7befbb4-3885-4d08-a466-de832a73c3d4
-          </td>
-          <td>
-            lisa2
-          </td>
-          <td>
-            5 seconds
-          </td>
-          <td
-            align="right"
-            height="26px"
-          >
-            <div
-              class="c27"
-              width="80px"
-            >
-              <button
-                class="c28"
-                kind="border"
-              >
-                Join
-                <span
-                  class="c6 c29 icon icon-caret-down "
-                  color="text.slightlyMuted"
-                  font-size="2"
-                />
-              </button>
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <span
-              class="c6 c26 icon icon-terminal c6 c26"
-              font-size="3"
-            />
-          </td>
-          <td>
-            im-a-nodename-2
-          </td>
-          <td>
-            b204924e-6b74-5d92-89ea-d95043a969f1
-          </td>
-          <td>
-            lisa3
-          </td>
-          <td>
-            5 seconds
-          </td>
-          <td
-            align="right"
-            height="26px"
-          >
-            <div
-              class="c27"
-              width="80px"
-            >
-              <button
-                class="c28"
-                kind="border"
-              >
-                Join
-                <span
-                  class="c6 c29 icon icon-caret-down "
-                  color="text.slightlyMuted"
-                  font-size="2"
-                />
-              </button>
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <span
-              class="c6 c26 icon icon-terminal c6 c26"
-              font-size="3"
-            />
-          </td>
-          <td>
-            im-a-nodename-3
-          </td>
-          <td>
-            8830cfe5-369e-5485-9c3d-19cc50e6f548
-          </td>
-          <td>
-            lisa2
-          </td>
-          <td>
-            5 seconds
-          </td>
-          <td
-            align="right"
-            height="26px"
-          >
-            <div
-              class="c27"
-              width="80px"
-            >
-              <button
-                class="c28"
-                kind="border"
-              >
-                Join
-                <span
-                  class="c6 c29 icon icon-caret-down "
-                  color="text.slightlyMuted"
-                  font-size="2"
-                />
-              </button>
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <span
-              class="c6 c26 icon icon-desktop c6 c26"
-              font-size="3"
-            />
-          </td>
-          <td>
-            desktop-2
-          </td>
-          <td>
-            acacfbb4-3885-4d08-a466-de832a73ffac
-          </td>
-          <td>
-            lisa2
-          </td>
-          <td>
-            5 seconds
-          </td>
-          <td
-            align="right"
-            height="26px"
+        </td>
+        <td>
+          databse-32
+        </td>
+        <td>
+          2314fbb4-3885-4d08-a466-de832a731222
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          3 minutes
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c7 c22 icon icon-new-tab c7 c22"
+            color="light"
+            font-size="3"
           />
-        </tr>
-        <tr>
-          <td>
-            <span
-              class="c6 c26 icon icon-database c6 c26"
-              font-size="3"
-            />
-          </td>
-          <td>
-            databse-32
-          </td>
-          <td>
-            2314fbb4-3885-4d08-a466-de832a731222
-          </td>
-          <td>
-            lisa2
-          </td>
-          <td>
-            3 minutes
-          </td>
-          <td
-            align="right"
-            height="26px"
-          />
-        </tr>
-        <tr>
-          <td>
-            <span
-              class="c6 c26 icon icon-new-tab c6 c26"
-              font-size="3"
-            />
-          </td>
-          <td>
-            grafana
-          </td>
-          <td>
-            cafefbb4-3885-4d08-a466-de832a7313131
-          </td>
-          <td>
-            lisa2
-          </td>
-          <td>
-            13 minutes
-          </td>
-          <td
-            align="right"
-            height="26px"
-          />
-        </tr>
-      </tbody>
-    </table>
-  </div>
+        </td>
+        <td>
+          grafana
+        </td>
+        <td>
+          cafefbb4-3885-4d08-a466-de832a7313131
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          13 minutes
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
+      </tr>
+    </tbody>
+  </table>
 </div>
 `;

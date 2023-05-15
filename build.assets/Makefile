@@ -51,7 +51,7 @@ include images.mk
 BUILDBOX_NAME=$(BUILDBOX)
 BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
 
-DOCSBOX=ghcr.io/gravitational/docs
+DOCSBOX=public.ecr.aws/gravitational/docs
 
 ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
@@ -328,11 +328,6 @@ integration-root: buildbox
 	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-root"
 
-.PHONY:integration-kube
-integration-kube: buildbox
-	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
-		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-kube"
-
 #
 # Runs linters on new changes inside a build container.
 #
@@ -366,16 +361,8 @@ enter-root: buildbox
 # Starts shell inside the centos7 container
 #
 .PHONY:enter/centos7
-enter/centos7: buildbox-centos7
+enter/centos7: buildbox
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
-		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
-
-#
-# Starts a root shell inside the centos7 container
-#
-.PHONY:enter-root/centos7
-enter-root/centos7: buildbox-centos7
-	docker run $(DOCKERFLAGS) -ti \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
 
 #
@@ -420,6 +407,49 @@ release-amd64-centos7-fips: buildbox-centos7-fips
 .PHONY: release-arm64
 release-arm64: buildbox-arm
 	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
+
+# #############################################################################
+# GHA release build targets
+# #############################################################################
+
+#
+# The `release-oss` and `release-enterprise` make targets are for building OSS
+# and Enterprise releases from GitHub actions. These make targets execute in a
+# container based on a caller-supplied `BUILDBOX` image.
+#
+# Unlike the other release targets, these release targets do not attempt to
+# automatically construct the buildbox image at build time - the build box
+# image *must* be pre-built and the tag supplied via `BUILDBOX=...` on the
+# make command line
+#
+# Separating the construction of build environment from the actual build itself
+# allows us to use the appropriate GHA actions to pre-build the buildbox
+# image, so that the image construction works nicely with GHA.
+#
+
+define RELEASE_RECIPE
+		docker run \
+			--rm \
+			--platform linux/$(ARCH) \
+			--memory-swap -1 \
+			-h buildbox \
+			-e GOMODCACHE=$(GOMODCACHE) \
+			-e GOCACHE=$(GOCACHE) \
+			-v "/tmp:/tmp" \
+			-v "$(WORKSPACE):/go/teleport" \
+			-w /go/teleport \
+			-u 1000:1000 \
+			$(BUILDBOX) \
+		make $(1) ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+endef
+
+.PHONY: release-oss
+release-oss:
+	$(call RELEASE_RECIPE,full build-archive)
+
+.PHONY: release-enterprise
+release-enterprise:
+	$(call RELEASE_RECIPE,release-unix-only)
 
 # #############################################################################
 
@@ -516,74 +546,3 @@ build-centos7-assets:
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--tag $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
 		-f Dockerfile-centos7-assets .
-
-#################################################################################
-# Multiarch build steps
-#################################################################################
-
-GCC_VERSION ?= 10.4.0
-CLANG_BPF_VERSION ?= 10.0.1
-CLANG_FIPS_VERSION ?= 7.0.1
-BUILDBOX_PREFIX ?= ghcr.io/gravitational
-
-#
-# Build Dockerfile-multiarch-base on GHA
-#
-.PHONY:build-multiarch-base
-build-multiarch-base: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-base:$(BUILDBOX_VERSION)-$(ARCH)
-build-multiarch-base:
-	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
-		--cache-from type=gha \
-		--build-arg GCC_VERSION=$(GCC_VERSION) \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
-		--tag $(BUILDBOX) \
-		--file Dockerfile-multiarch-base .
-
-#
-# Build Dockerfile-multiarch-clang on GHA with clang-10, based on -base
-#
-.PHONY:build-multiarch-clang10
-build-multiarch-clang10: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-clang10:$(BUILDBOX_VERSION)-$(ARCH)
-build-multiarch-clang10:
-	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
-		--cache-from type=gha \
-		--build-arg CLANG_VERSION=$(CLANG_BPF_VERSION) \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
-		--tag $(BUILDBOX) \
-		--file Dockerfile-multiarch-clang .
-
-#
-# Build Dockerfile-multiarch-clang on GHA with clang-7, based on -base
-#
-.PHONY:build-multiarch-clang7
-build-multiarch-clang7: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-clang7:$(BUILDBOX_VERSION)-$(ARCH)
-build-multiarch-clang7:
-	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
-		--cache-from type=gha \
-		--build-arg CLANG_VERSION=$(CLANG_FIPS_VERSION) \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
-		--tag $(BUILDBOX) \
-		--file Dockerfile-multiarch-clang .
-
-#
-# Build Dockerfile-multiarch on GHA, based on -base
-#
-.PHONY:build-multiarch
-build-multiarch: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch:$(BUILDBOX_VERSION)-$(ARCH)
-build-multiarch:
-	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
-		--cache-from type=gha \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
-		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
-		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
-		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg NODE_VERSION=$(NODE_VERSION) \
-		--build-arg UID=$(shell id -u) \
-		--build-arg GID=$(shell id -g) \
-		--tag $(BUILDBOX) \
-		--file Dockerfile-multiarch .

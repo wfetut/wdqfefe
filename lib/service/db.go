@@ -100,7 +100,6 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
-		Logger:      log,
 	})
 	if err != nil {
 		return trace.Wrap(err)

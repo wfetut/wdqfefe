@@ -37,7 +37,7 @@ export const ChatItemAvatarImage = styled.div<{ backgroundImage: string }>`
 `;
 
 export const ChatItemAvatarTeleport = styled.div`
-  background: ${props => props.theme.colors.brand};
+  background: #9f85ff;
   padding: 4px;
   border-radius: 10px;
   left: 0;

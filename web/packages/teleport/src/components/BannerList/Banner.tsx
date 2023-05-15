@@ -57,7 +57,7 @@ export function Banner({
 
   let backgroundColor;
   if (severity === 'danger') {
-    backgroundColor = 'error.main';
+    backgroundColor = 'danger';
   } else if (severity === 'warning') {
     backgroundColor = 'warning.main';
   } else {
@@ -72,7 +72,7 @@ export function Banner({
           <Link
             href={link}
             target="_blank"
-            color="text.primaryInverse"
+            color="light"
             style={{ fontWeight: 'bold' }}
             onClick={() =>
               userEventService.captureUserEvent({

@@ -5,6 +5,18 @@ exports[`support Cloud 1`] = `
   box-sizing: border-box;
 }
 
+.c9 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  padding-left: 32px;
+  padding-right: 32px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  border: 1px solid;
+  border-radius: 8px;
+  border-color: #222C59;
+}
+
 .c6 {
   display: inline-block;
   transition: color 0.3s;
@@ -18,7 +30,7 @@ exports[`support Cloud 1`] = `
   padding-left: 32px;
   padding-right: 32px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -71,6 +83,18 @@ exports[`support Cloud 1`] = `
   flex-wrap: wrap;
 }
 
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+  border-bottom: 1px solid;
+  border-color: #111B48;
+  display: flex;
+  align-items: center;
+}
+
 .c11 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -93,17 +117,6 @@ exports[`support Cloud 1`] = `
   padding-bottom: 24px;
 }
 
-.c9 {
-  box-sizing: border-box;
-  margin-top: 24px;
-  padding-left: 32px;
-  padding-right: 32px;
-  padding-top: 24px;
-  padding-bottom: 24px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.13);
-}
-
 .c8 {
   display: block;
   color: #FFFFFF;
@@ -119,18 +132,7 @@ exports[`support Cloud 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: rgba(255,255,255,0.07);
-}
-
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  margin-top: 24px;
-  padding-bottom: 8px;
-  width: 210px;
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid rgba(255,255,255,0.18);
+  background: #2C3A73;
 }
 
 <div
@@ -155,6 +157,7 @@ exports[`support Cloud 1`] = `
           >
             <span
               class="c6 icon icon-local_play "
+              color="light"
             />
           </div>
           <h5
@@ -201,6 +204,7 @@ exports[`support Cloud 1`] = `
           >
             <span
               class="c6 icon icon-list3 "
+              color="light"
             />
           </div>
           <h5
@@ -263,6 +267,7 @@ exports[`support Cloud 1`] = `
           >
             <span
               class="c6 icon icon-graph "
+              color="light"
             />
           </div>
           <h5
@@ -293,6 +298,7 @@ exports[`support Cloud 1`] = `
           >
             <span
               class="c6 icon icon-notifications_active "
+              color="light"
             />
           </div>
           <h5
@@ -386,6 +392,18 @@ exports[`support Enterprise 1`] = `
   box-sizing: border-box;
 }
 
+.c9 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  padding-left: 32px;
+  padding-right: 32px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  border: 1px solid;
+  border-radius: 8px;
+  border-color: #222C59;
+}
+
 .c6 {
   display: inline-block;
   transition: color 0.3s;
@@ -399,7 +417,7 @@ exports[`support Enterprise 1`] = `
   padding-left: 32px;
   padding-right: 32px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -452,6 +470,18 @@ exports[`support Enterprise 1`] = `
   flex-wrap: wrap;
 }
 
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+  border-bottom: 1px solid;
+  border-color: #111B48;
+  display: flex;
+  align-items: center;
+}
+
 .c11 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -474,17 +504,6 @@ exports[`support Enterprise 1`] = `
   padding-bottom: 24px;
 }
 
-.c9 {
-  box-sizing: border-box;
-  margin-top: 24px;
-  padding-left: 32px;
-  padding-right: 32px;
-  padding-top: 24px;
-  padding-bottom: 24px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.13);
-}
-
 .c8 {
   display: block;
   color: #FFFFFF;
@@ -500,18 +519,7 @@ exports[`support Enterprise 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: rgba(255,255,255,0.07);
-}
-
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  margin-top: 24px;
-  padding-bottom: 8px;
-  width: 210px;
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid rgba(255,255,255,0.18);
+  background: #2C3A73;
 }
 
 <div
@@ -536,6 +544,7 @@ exports[`support Enterprise 1`] = `
           >
             <span
               class="c6 icon icon-local_play "
+              color="light"
             />
           </div>
           <h5
@@ -590,6 +599,7 @@ exports[`support Enterprise 1`] = `
           >
             <span
               class="c6 icon icon-list3 "
+              color="light"
             />
           </div>
           <h5
@@ -652,6 +662,7 @@ exports[`support Enterprise 1`] = `
           >
             <span
               class="c6 icon icon-graph "
+              color="light"
             />
           </div>
           <h5
@@ -682,6 +693,7 @@ exports[`support Enterprise 1`] = `
           >
             <span
               class="c6 icon icon-notifications_active "
+              color="light"
             />
           </div>
           <h5
@@ -775,6 +787,18 @@ exports[`support Enterprise with CTA 1`] = `
   box-sizing: border-box;
 }
 
+.c13 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  padding-left: 32px;
+  padding-right: 32px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  border: 1px solid;
+  border-radius: 8px;
+  border-color: #222C59;
+}
+
 .c9 {
   line-height: 1.5;
   margin: 0;
@@ -794,29 +818,29 @@ exports[`support Enterprise with CTA 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
-  padding-top: 12px;
-  padding-bottom: 12px;
-  width: 100%;
+}
+
+.c9:active {
+  opacity: 0.56;
 }
 
 .c9:hover,
 .c9:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c9:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c6 {
@@ -832,7 +856,7 @@ exports[`support Enterprise with CTA 1`] = `
   padding-left: 32px;
   padding-right: 32px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -851,7 +875,7 @@ exports[`support Enterprise with CTA 1`] = `
   margin: 0px;
 }
 
-.c13 {
+.c14 {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -860,7 +884,7 @@ exports[`support Enterprise with CTA 1`] = `
   font-weight: 600;
 }
 
-.c15 {
+.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
@@ -869,7 +893,7 @@ exports[`support Enterprise with CTA 1`] = `
   margin: 0px;
 }
 
-.c16 {
+.c17 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -885,13 +909,25 @@ exports[`support Enterprise with CTA 1`] = `
   flex-wrap: wrap;
 }
 
-.c10 {
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+  border-bottom: 1px solid;
+  border-color: #111B48;
+  display: flex;
+  align-items: center;
+}
+
+.c11 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
 }
 
-.c14 {
+.c15 {
   box-sizing: border-box;
   margin-bottom: 16px;
   display: flex;
@@ -913,22 +949,19 @@ exports[`support Enterprise with CTA 1`] = `
   padding-bottom: 24px;
 }
 
-.c11 {
+.c10 {
+  text-transform: none;
+  width: 100%;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  font-size: 12px;
+}
+
+.c12 {
   color: inherit;
   font-weight: 500;
   font-size: 15px;
   margin-right: 4px;
-}
-
-.c12 {
-  box-sizing: border-box;
-  margin-top: 24px;
-  padding-left: 32px;
-  padding-right: 32px;
-  padding-top: 24px;
-  padding-bottom: 24px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.13);
 }
 
 .c8 {
@@ -946,18 +979,7 @@ exports[`support Enterprise with CTA 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: rgba(255,255,255,0.07);
-}
-
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  margin-top: 24px;
-  padding-bottom: 8px;
-  width: 210px;
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid rgba(255,255,255,0.18);
+  background: #2C3A73;
 }
 
 <div
@@ -982,6 +1004,7 @@ exports[`support Enterprise with CTA 1`] = `
           >
             <span
               class="c6 icon icon-local_play "
+              color="light"
             />
           </div>
           <h5
@@ -1014,23 +1037,20 @@ exports[`support Enterprise with CTA 1`] = `
         >
           Send Product Feedback
         </a>
-        <a
-          class="c9"
-          href="https://goteleport.com/r/upgrade-team?4.4.0-dev&campaign=CTA_PREMIUM_SUPPORT"
+        <button
+          class="c9 c10"
           kind="primary"
-          style="text-transform: none;"
-          target="blank"
-          width="100%"
         >
           <div
-            class="c10"
+            class="c11"
           >
             <span
-              class="c6 icon icon-unlock c11"
+              class="c6 icon icon-unlock c12"
+              color="light"
             />
             Unlock Premium Support w/Enterprise
           </div>
-        </a>
+        </button>
       </div>
       <div
         class="c3"
@@ -1045,6 +1065,7 @@ exports[`support Enterprise with CTA 1`] = `
           >
             <span
               class="c6 icon icon-list3 "
+              color="light"
             />
           </div>
           <h5
@@ -1107,6 +1128,7 @@ exports[`support Enterprise with CTA 1`] = `
           >
             <span
               class="c6 icon icon-graph "
+              color="light"
             />
           </div>
           <h5
@@ -1137,6 +1159,7 @@ exports[`support Enterprise with CTA 1`] = `
           >
             <span
               class="c6 icon icon-notifications_active "
+              color="light"
             />
           </div>
           <h5
@@ -1165,58 +1188,58 @@ exports[`support Enterprise with CTA 1`] = `
     </div>
   </div>
   <div
-    class="c12"
+    class="c13"
   >
     <h5
-      class="c13"
+      class="c14"
       font-weight="bold"
     >
       Cluster Information
     </h5>
     <div
-      class="c14"
+      class="c15"
     >
       <div
-        class="c15"
+        class="c16"
         style="width: 130px;"
       >
         Cluster Name
         :
       </div>
       <div
-        class="c16"
+        class="c17"
       >
         test
       </div>
     </div>
     <div
-      class="c14"
+      class="c15"
     >
       <div
-        class="c15"
+        class="c16"
         style="width: 130px;"
       >
         Teleport Version
         :
       </div>
       <div
-        class="c16"
+        class="c17"
       >
         4.4.0-dev
       </div>
     </div>
     <div
-      class="c14"
+      class="c15"
     >
       <div
-        class="c15"
+        class="c16"
         style="width: 130px;"
       >
         Public Address
         :
       </div>
       <div
-        class="c16"
+        class="c17"
       >
         localhost:3080
       </div>
@@ -1228,6 +1251,18 @@ exports[`support Enterprise with CTA 1`] = `
 exports[`support OSS 1`] = `
 .c3 {
   box-sizing: border-box;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  padding-left: 32px;
+  padding-right: 32px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  border: 1px solid;
+  border-radius: 8px;
+  border-color: #222C59;
 }
 
 .c6 {
@@ -1243,7 +1278,7 @@ exports[`support OSS 1`] = `
   padding-left: 32px;
   padding-right: 32px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -1296,6 +1331,18 @@ exports[`support OSS 1`] = `
   flex-wrap: wrap;
 }
 
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+  border-bottom: 1px solid;
+  border-color: #111B48;
+  display: flex;
+  align-items: center;
+}
+
 .c11 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -1318,17 +1365,6 @@ exports[`support OSS 1`] = `
   padding-bottom: 24px;
 }
 
-.c9 {
-  box-sizing: border-box;
-  margin-top: 24px;
-  padding-left: 32px;
-  padding-right: 32px;
-  padding-top: 24px;
-  padding-bottom: 24px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.13);
-}
-
 .c8 {
   display: block;
   color: #FFFFFF;
@@ -1344,18 +1380,7 @@ exports[`support OSS 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: rgba(255,255,255,0.07);
-}
-
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  margin-top: 24px;
-  padding-bottom: 8px;
-  width: 210px;
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid rgba(255,255,255,0.18);
+  background: #2C3A73;
 }
 
 <div
@@ -1380,6 +1405,7 @@ exports[`support OSS 1`] = `
           >
             <span
               class="c6 icon icon-local_play "
+              color="light"
             />
           </div>
           <h5
@@ -1426,6 +1452,7 @@ exports[`support OSS 1`] = `
           >
             <span
               class="c6 icon icon-list3 "
+              color="light"
             />
           </div>
           <h5
@@ -1488,6 +1515,7 @@ exports[`support OSS 1`] = `
           >
             <span
               class="c6 icon icon-graph "
+              color="light"
             />
           </div>
           <h5
@@ -1518,6 +1546,7 @@ exports[`support OSS 1`] = `
           >
             <span
               class="c6 icon icon-notifications_active "
+              color="light"
             />
           </div>
           <h5

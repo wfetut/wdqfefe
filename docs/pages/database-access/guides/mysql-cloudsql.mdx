@@ -137,7 +137,7 @@ a single Cloud SQL MySQL database. Save this file as `/etc/teleport.yaml`:
 ```yaml
 version: v3
 teleport:
-  data_dir: /var/lib/teleport-db
+  data_dir: /var/lib/teleport
   nodename: test
   # Proxy address to connect to. Note that it has to be the proxy address
   # because the Database Service always connects to the cluster over a reverse
@@ -181,7 +181,7 @@ proxy_service:
 ```yaml
 version: v3
 teleport:
-  data_dir: /var/lib/teleport-db
+  data_dir: /var/lib/teleport
   nodename: test
   # Proxy address to connect to. Use your Teleport Cloud tenant address.
   proxy_server: mytenant.teleport.sh:443

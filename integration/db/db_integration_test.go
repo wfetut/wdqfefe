@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
@@ -59,14 +58,13 @@ import (
 func TestDatabaseAccess(t *testing.T) {
 	pack := SetupDatabaseTest(t,
 		// set tighter rotation intervals
-		WithLeafConfig(func(config *servicecfg.Config) {
+		WithLeafConfig(func(config *service.Config) {
 			config.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
 		}),
-		WithRootConfig(func(config *servicecfg.Config) {
+		WithRootConfig(func(config *service.Config) {
 			config.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
-			config.Proxy.MySQLServerVersion = "8.0.1"
 		}),
 	)
 	pack.WaitForLeaf(t)
@@ -462,9 +460,6 @@ func (p *DatabasePack) testMySQLRootCluster(t *testing.T) {
 	require.Equal(t, wantRootQueryCount, p.Root.mysql.QueryCount())
 	require.Equal(t, wantLeafQueryCount, p.Leaf.mysql.QueryCount())
 
-	// Check if default Proxy MYSQL Engine Version was overridden the proxy settings.
-	require.Equal(t, "8.0.1", client.GetServerVersion())
-
 	// Disconnect.
 	err = client.Close()
 	require.NoError(t, err)
@@ -627,9 +622,6 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 		idleTimeout = time.Minute
 	)
 
-	rootAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
-	leafAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
-
 	mkMySQLLeafDBClient := func(t *testing.T) *client.Conn {
 		// Connect to the database service in leaf cluster via root cluster.
 		client, err := mysql.MakeTestClient(common.TestClientConfig{
@@ -778,7 +770,7 @@ func (p *DatabasePack) testPostgresSeparateListener(t *testing.T) {
 func TestDatabaseAccessPostgresSeparateListenerTLSDisabled(t *testing.T) {
 	pack := SetupDatabaseTest(t,
 		WithListenerSetupDatabaseTest(helpers.SeparatePostgresPortSetup),
-		WithRootConfig(func(config *servicecfg.Config) {
+		WithRootConfig(func(config *service.Config) {
 			config.Proxy.DisableTLS = true
 		}),
 	)
@@ -932,7 +924,7 @@ func (p *DatabasePack) testAgentState(t *testing.T) {
 	}{
 		"WithStaticDatabases": {
 			agentParams: databaseAgentStartParams{
-				databases: []servicecfg.Database{
+				databases: []service.Database{
 					{Name: "mysql", Protocol: defaults.ProtocolMySQL, URI: "localhost:3306"},
 					{Name: "pg", Protocol: defaults.ProtocolPostgres, URI: "localhost:5432"},
 				},

@@ -19,7 +19,6 @@ package authz
 import (
 	"context"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -59,7 +58,6 @@ type AuthorizerOpts struct {
 	ClusterName string
 	AccessPoint AuthorizerAccessPoint
 	LockWatcher *services.LockWatcher
-	Logger      logrus.FieldLogger
 
 	// DisableDeviceAuthorization disables device authorization via [Authorizer].
 	// It is meant for services that do explicit device authorization, like the
@@ -75,15 +73,10 @@ func NewAuthorizer(opts AuthorizerOpts) (Authorizer, error) {
 	if opts.AccessPoint == nil {
 		return nil, trace.BadParameter("missing parameter accessPoint")
 	}
-	logger := opts.Logger
-	if logger == nil {
-		logger = logrus.WithFields(logrus.Fields{trace.Component: "authorizer"})
-	}
 	return &authorizer{
 		clusterName:                opts.ClusterName,
 		accessPoint:                opts.AccessPoint,
 		lockWatcher:                opts.LockWatcher,
-		logger:                     logger,
 		disableDeviceAuthorization: opts.DisableDeviceAuthorization,
 	}, nil
 }
@@ -117,10 +110,10 @@ type AuthorizerAccessPoint interface {
 	GetUser(name string, withSecrets bool) (types.User, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -138,7 +131,6 @@ type authorizer struct {
 	accessPoint                AuthorizerAccessPoint
 	lockWatcher                *services.LockWatcher
 	disableDeviceAuthorization bool
-	logger                     logrus.FieldLogger
 }
 
 // Context is authorization context
@@ -238,11 +230,6 @@ func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	if err := CheckIPPinning(ctx, authContext.Identity.GetIdentity(), authContext.Checker.PinSourceIP(), a.logger); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Enforce applicable locks.
 	authPref, err := a.accessPoint.GetAuthPreference(ctx)
 	if err != nil {
@@ -300,45 +287,6 @@ func (a *authorizer) fromUser(ctx context.Context, userI interface{}) (*Context,
 	default:
 		return nil, trace.AccessDenied("unsupported context type %T", userI)
 	}
-}
-
-// ErrIPPinningMissing is returned when user cert should be pinned but isn't.
-var ErrIPPinningMissing = trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
-
-// ErrIPPinningMismatch is returned when user's pinned IP doesn't match observed IP.
-var ErrIPPinningMismatch = trace.AccessDenied("pinned IP doesn't match observed client IP")
-
-// CheckIPPinning verifies IP pinning for the identity, using the client IP taken from context.
-// Check is considered successful if no error is returned.
-func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool, log logrus.FieldLogger) error {
-	if identity.PinnedIP == "" {
-		if pinSourceIP {
-			return ErrIPPinningMissing
-		}
-		return nil
-	}
-
-	clientSrcAddr, err := ClientAddrFromContext(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	clientIP, _, err := net.SplitHostPort(clientSrcAddr.String())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if clientIP != identity.PinnedIP {
-		if log != nil {
-			log.WithFields(logrus.Fields{
-				"client_ip": clientIP,
-				"pinned_ip": identity.PinnedIP,
-			}).Debug("Pinned IP and client IP mismatch")
-		}
-		return ErrIPPinningMismatch
-	}
-
-	return nil
 }
 
 // authorizeLocalUser returns authz context based on the username
@@ -424,7 +372,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		UserType:          u.Identity.UserType,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
-		return nil, ErrIPPinningMissing
+		return nil, trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
 	}
 
 	return &Context{
@@ -473,6 +421,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 					types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 					types.NewRule(types.KindClusterAuthPreference, services.RO()),
+					types.NewRule(types.KindKubeService, services.RO()),
 					types.NewRule(types.KindKubeServer, services.RO()),
 					types.NewRule(types.KindInstaller, services.RO()),
 					types.NewRule(types.KindUIConfig, services.RO()),
@@ -561,6 +510,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindAppServer, services.RO()),
 				types.NewRule(types.KindWebSession, services.RW()),
 				types.NewRule(types.KindWebToken, services.RW()),
+				types.NewRule(types.KindKubeService, services.RW()),
 				types.NewRule(types.KindKubeServer, services.RW()),
 				types.NewRule(types.KindDatabaseServer, services.RO()),
 				types.NewRule(types.KindLock, services.RO()),
@@ -598,6 +548,18 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 								services.ResourceNameExpr,
 								builder.String(clusterName),
 							),
+						),
+					).String(),
+				},
+				// this rule allows the local proxy to read the local SAML IdP CA.
+				{
+					Resources: []string{types.KindCertAuthority},
+					Verbs:     []string{types.VerbRead},
+					Where: builder.And(
+						builder.Equals(services.CertAuthorityTypeExpr, builder.String(string(types.SAMLIDPCA))),
+						builder.Equals(
+							services.ResourceNameExpr,
+							builder.String(clusterName),
 						),
 					).String(),
 				},
@@ -730,11 +692,17 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 				},
 			})
 	case types.RoleProxy:
-		// to support connecting to Agentless nodes, proxy needs to be
-		// able to generate host certificates.
+		// if in recording mode, return a different set of permissions than regular
+		// mode. recording proxy needs to be able to generate host certificates.
+		if services.IsRecordAtProxy(recConfig.GetMode()) {
+			return services.RoleFromSpec(
+				role.String(),
+				roleSpecForProxyWithRecordAtProxy(clusterName),
+			)
+		}
 		return services.RoleFromSpec(
 			role.String(),
-			roleSpecForProxyWithRecordAtProxy(clusterName),
+			roleSpecForProxy(clusterName),
 		)
 	case types.RoleSignup:
 		return services.RoleFromSpec(
@@ -789,6 +757,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Namespaces:       []string{types.Wildcard},
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
+						types.NewRule(types.KindKubeService, services.RW()),
 						types.NewRule(types.KindKubeServer, services.RW()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
@@ -1077,9 +1046,6 @@ func ConvertAuthorizerError(ctx context.Context, log logrus.FieldLogger, err err
 	case trace.IsNotFound(err):
 		// user not found, wrap error with access denied
 		return trace.Wrap(err, "access denied")
-	case errors.Is(err, ErrIPPinningMissing) || errors.Is(err, ErrIPPinningMismatch):
-		log.Warn(err)
-		return trace.Wrap(err)
 	case trace.IsAccessDenied(err):
 		// don't print stack trace, just log the warning
 		log.Warn(err)
@@ -1230,12 +1196,6 @@ type RemoteBuiltinRole struct {
 // GetIdentity returns client identity
 func (r RemoteBuiltinRole) GetIdentity() tlsca.Identity {
 	return r.Identity
-}
-
-// IsRemoteServer returns true if the primary role is either RoleRemoteProxy, or one of
-// the local service roles (e.g. proxy) from the remote cluster.
-func (r RemoteBuiltinRole) IsRemoteServer() bool {
-	return r.Role == types.RoleInstance || r.Role == types.RoleRemoteProxy || r.Role.IsLocalService()
 }
 
 // RemoteUser defines encoded remote user.

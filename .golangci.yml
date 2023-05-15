@@ -9,7 +9,7 @@ issues:
     # TODO(hugoShaka): Remove once https://github.com/dominikh/go-tools/issues/1294 is fixed
     - linters:
       - unused
-      path: 'integrations/operator/controllers/resources/(.+)_controller_test\.go'
+      path: 'operator/controllers/resources/(.+)_controller_test\.go'
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -65,7 +65,7 @@ output:
   uniq-by-line: false
 
 run:
-  go: '1.20'
+  go: '1.19'
   skip-dirs:
     - (^|/)node_modules/
     - ^api/gen/

@@ -43,7 +43,7 @@ import (
 type APIConfig struct {
 	PluginRegistry plugin.Registry
 	AuthServer     *Server
-	AuditLog       events.AuditLogSessionStreamer
+	AuditLog       events.IAuditLog
 	Authorizer     authz.Authorizer
 	Emitter        apievents.Emitter
 	// KeepAlivePeriod defines period between keep alives
@@ -509,9 +509,6 @@ func (s *APIServer) upsertUser(auth ClientI, w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	if err := services.ValidateUserRoles(r.Context(), user, auth); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	err = auth.UpsertUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -621,9 +618,6 @@ type upsertCertAuthorityRawReq struct {
 	TTL time.Duration   `json:"ttl"`
 }
 
-// upsertCertAuthority creates or updates a cert authority.
-// Deprecated: Replaced by teleport.v1.trust.TrustService/UpsertCertAuthority
-// DELETE IN 14.0.0
 func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	var req *upsertCertAuthorityRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -636,8 +630,10 @@ func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	if req.TTL != 0 {
 		ca.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
-
-	if err := auth.UpsertCertAuthority(r.Context(), ca); err != nil {
+	if err = services.ValidateCertAuthority(ca); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.UpsertCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -662,9 +658,6 @@ func (s *APIServer) rotateExternalCertAuthority(auth ClientI, w http.ResponseWri
 	return message("ok"), nil
 }
 
-// getCertAuthorities returns all cert authorities that match the provided type.
-// Deprecated: Replaced by teleport.v1.trust.TrustService/GetCertAuthorities
-// DELETE IN 14.0.0
 func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
 	if err != nil {
@@ -685,9 +678,6 @@ func (s *APIServer) getCertAuthorities(auth ClientI, w http.ResponseWriter, r *h
 	return items, nil
 }
 
-// getCertAuthority returns a single matching cert authority.
-// Deprecated: Replaced by teleport.v1.trust.TrustService/GetCertAuthority
-// DELETE IN 14.0.0
 func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	loadKeys, _, err := httplib.ParseBool(r.URL.Query(), "load_keys")
 	if err != nil {
@@ -704,15 +694,12 @@ func (s *APIServer) getCertAuthority(auth ClientI, w http.ResponseWriter, r *htt
 	return rawMessage(services.MarshalCertAuthority(ca, services.WithVersion(version), services.PreserveResourceID()))
 }
 
-// deleteCertAuthority removes the matching cert authority.
-// Deprecated: Replaced by teleport.v1.trust.TrustService/DeleteCertAuthority.
-// DELETE IN 14.0.0
 func (s *APIServer) deleteCertAuthority(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	id := types.CertAuthID{
 		DomainName: p.ByName("domain"),
 		Type:       types.CertAuthType(p.ByName("type")),
 	}
-	if err := auth.DeleteCertAuthority(r.Context(), id); err != nil {
+	if err := auth.DeleteCertAuthority(id); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message(fmt.Sprintf("cert '%v' deleted", id)), nil
@@ -928,8 +915,12 @@ func (s *APIServer) getSessionEvents(auth ClientI, w http.ResponseWriter, r *htt
 	if err != nil {
 		afterN = 0
 	}
+	includePrintEvents, err := strconv.ParseBool(r.URL.Query().Get("print"))
+	if err != nil {
+		includePrintEvents = false
+	}
 
-	return auth.GetSessionEvents(namespace, *sid, afterN)
+	return auth.GetSessionEvents(namespace, *sid, afterN, includePrintEvents)
 }
 
 type upsertNamespaceReq struct {
@@ -1187,7 +1178,7 @@ func (s *APIServer) getRemoteCluster(auth ClientI, w http.ResponseWriter, r *htt
 
 // deleteRemoteCluster deletes remote cluster by name
 func (s *APIServer) deleteRemoteCluster(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	err := auth.DeleteRemoteCluster(r.Context(), p.ByName("cluster"))
+	err := auth.DeleteRemoteCluster(p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

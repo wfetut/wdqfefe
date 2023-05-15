@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
@@ -42,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -70,7 +68,7 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 	for _, v := range opts {
 		v(&options)
 	}
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 
 	var ccf GlobalCLIFlags
 	ccf.ConfigString = mustGetBase64EncFileConfig(t, fc)
@@ -96,12 +94,12 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 }
 
 type cliCommand interface {
-	Initialize(app *kingpin.Application, cfg *servicecfg.Config)
+	Initialize(app *kingpin.Application, cfg *service.Config)
 	TryRun(ctx context.Context, cmd string, client auth.ClientI) (bool, error)
 }
 
 func runCommand(t *testing.T, fc *config.FileConfig, cmd cliCommand, args []string, opts ...optionsFunc) error {
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -122,12 +120,6 @@ func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts
 		stdout: &stdoutBuff,
 	}
 	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
-}
-
-func runLockCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
-	command := &LockCommand{}
-	args = append([]string{"lock"}, args...)
-	return runCommand(t, fc, command, args, opts...)
 }
 
 func runTokensCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
@@ -190,8 +182,7 @@ func mustWriteIdentityFile(t *testing.T, fc *config.FileConfig, username string)
 
 type testServerOptions struct {
 	fileConfig      *config.FileConfig
-	fileDescriptors []servicecfg.FileDescriptor
-	fakeClock       clockwork.FakeClock
+	fileDescriptors []service.FileDescriptor
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -202,15 +193,9 @@ func withFileConfig(fc *config.FileConfig) testServerOptionFunc {
 	}
 }
 
-func withFileDescriptors(fds []servicecfg.FileDescriptor) testServerOptionFunc {
+func withFileDescriptors(fds []service.FileDescriptor) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.fileDescriptors = fds
-	}
-}
-
-func withFakeClock(fakeClock clockwork.FakeClock) testServerOptionFunc {
-	return func(options *testServerOptions) {
-		options.fakeClock = fakeClock
 	}
 }
 
@@ -221,7 +206,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	}
 
 	var err error
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.FileDescriptors = options.fileDescriptors
 	if options.fileConfig != nil {
@@ -232,11 +217,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
-	if options.fakeClock != nil {
-		cfg.Clock = options.fakeClock
-	}
 	auth, err = service.NewTeleport(cfg)
-
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
 
@@ -263,7 +244,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	return auth
 }
 
-func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
+func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service.Database) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
@@ -293,7 +274,7 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service
 }
 
 func newDynamicServiceAddr(t *testing.T) *dynamicServiceAddr {
-	var fds []servicecfg.FileDescriptor
+	var fds []service.FileDescriptor
 	webAddr := helpers.NewListener(t, service.ListenerProxyWeb, &fds)
 	tunnelAddr := helpers.NewListener(t, service.ListenerProxyTunnel, &fds)
 	authAddr := helpers.NewListener(t, service.ListenerAuth, &fds)
@@ -313,5 +294,5 @@ type dynamicServiceAddr struct {
 	webAddr     string
 	tunnelAddr  string
 	authAddr    string
-	descriptors []servicecfg.FileDescriptor
+	descriptors []service.FileDescriptor
 }

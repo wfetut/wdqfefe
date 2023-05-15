@@ -266,7 +266,6 @@ func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Applica
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		apps, err = tc.ListApps(cf.Context, &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
-			ResourceType:        types.KindAppServer,
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, cf.AppName),
 		})
 		return trace.Wrap(err)
@@ -494,32 +493,17 @@ func removeAppLocalFiles(profile *client.ProfileStatus, appName string) {
 // loadAppSelfSignedCA loads self-signed CA for provided app, or tries to
 // generate a new CA if first load fails.
 func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) (tls.Certificate, error) {
-	appCerts, err := loadAppCertificate(tc, appName)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	appCertsExpireAt, err := getTLSCertExpireTime(appCerts)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
+	caPath := profile.AppLocalCAPath(appName)
+	keyPath := profile.KeyPath()
 
-	cert, err := loadSelfSignedCA(profile.AppLocalCAPath(appName), profile.KeyPath(), appCertsExpireAt, "localhost")
-	return cert, trace.Wrap(err)
-}
-
-func loadSelfSignedCA(caPath, keyPath string, validUntil time.Time, dnsNames ...string) (tls.Certificate, error) {
 	caTLSCert, err := keys.LoadX509KeyPair(caPath, keyPath)
 	if err == nil {
-		if expire, err := getTLSCertExpireTime(caTLSCert); err == nil && time.Now().Before(expire) {
-			return caTLSCert, nil
-		}
-	}
-	if err != nil && !trace.IsNotFound(err) {
-		log.WithError(err).Debugf("Failed to load certificate from %v.", caPath)
+		return caTLSCert, trace.Wrap(err)
 	}
 
 	// Generate and load again.
-	if err = generateSelfSignedCA(caPath, keyPath, validUntil, dnsNames...); err != nil {
+	log.WithError(err).Debugf("Failed to load certificate from %v. Generating local self signed CA.", caPath)
+	if err = generateAppSelfSignedCA(profile, tc, appName); err != nil {
 		return tls.Certificate{}, err
 	}
 
@@ -530,11 +514,20 @@ func loadSelfSignedCA(caPath, keyPath string, validUntil time.Time, dnsNames ...
 	return caTLSCert, nil
 }
 
-// generateSelfSignedCA generates a new self-signed CA for provided dnsNames
-// and saves/overwrites the local CA file in the profile directory.
-func generateSelfSignedCA(caPath, keyPath string, validUntil time.Time, dnsNames ...string) error {
-	log.Debugf("Generating local self signed CA at %v", caPath)
-	keyPem, err := utils.ReadPath(keyPath)
+// generateAppSelfSignedCA generates a new self-signed CA for provided app and
+// saves/overwrites the local CA file in the profile directory.
+func generateAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) error {
+	appCerts, err := loadAppCertificate(tc, appName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	appCertsExpireAt, err := getTLSCertExpireTime(appCerts)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keyPem, err := utils.ReadPath(profile.KeyPath())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -550,20 +543,16 @@ func generateSelfSignedCA(caPath, keyPath string, validUntil time.Time, dnsNames
 			Organization: []string{"Teleport"},
 		},
 		Signer:      key,
-		DNSNames:    dnsNames,
+		DNSNames:    []string{"localhost"},
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
-		TTL:         time.Until(validUntil),
+		TTL:         time.Until(appCertsExpireAt),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if _, err := utils.EnsureLocalPath(caPath, "", ""); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// WriteFile truncates existing file before writing.
-	if err = os.WriteFile(caPath, certPem, 0600); err != nil {
+	if err = os.WriteFile(profile.AppLocalCAPath(appName), certPem, 0600); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 	return nil

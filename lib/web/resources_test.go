@@ -58,7 +58,6 @@ metadata:
 }
 
 func TestCheckResourceUpsert(t *testing.T) {
-	ctx := context.Background()
 	tests := []struct {
 		desc                string
 		httpMethod          string
@@ -149,7 +148,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.desc, func(t *testing.T) {
-			err := CheckResourceUpsert(ctx, tc.httpMethod, tc.httpParams, tc.payloadResourceName, tc.get)
+			err := CheckResourceUpsert(context.TODO(), tc.httpMethod, tc.httpParams, tc.payloadResourceName, tc.get)
 			tc.assertErr(t, err)
 		})
 	}
@@ -627,7 +626,15 @@ func TestListResources(t *testing.T) {
 			httpReq, err := http.NewRequest("", tc.url, nil)
 			require.NoError(t, err)
 
-			_, err = convertListResourcesRequest(httpReq, types.KindNode)
+			m := &mockedResourceAPIGetter{}
+			m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+				if !tc.wantBadParamErr {
+					require.Equal(t, tc.expected, req)
+				}
+				return nil, nil
+			}
+
+			_, err = listResources(m, httpReq, types.KindNode)
 			if tc.wantBadParamErr {
 				require.True(t, trace.IsBadParameter(err))
 			} else {

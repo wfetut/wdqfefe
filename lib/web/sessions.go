@@ -48,7 +48,6 @@ import (
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -291,20 +290,12 @@ func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunn
 }
 
 // clusterDialer returns DialContext function using cluster's dial function
-func clusterDialer(remoteCluster reversetunnel.RemoteSite, src, dst net.Addr) apiclient.ContextDialer {
+func clusterDialer(remoteCluster reversetunnel.RemoteSite) apiclient.ContextDialer {
 	return apiclient.ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
-		dialParams := reversetunnel.DialParams{
-			From:                  src,
-			OriginalClientDstAddr: dst,
-		}
-
+		dialParams := reversetunnel.DialParams{}
 		clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(in)
-		if dialParams.From == nil && clientSrcAddr != nil {
-			dialParams.From = clientSrcAddr
-		}
-		if dialParams.OriginalClientDstAddr == nil && clientDstAddr != nil {
-			dialParams.OriginalClientDstAddr = clientSrcAddr
-		}
+		dialParams.From = clientSrcAddr
+		dialParams.OriginalClientDstAddr = clientDstAddr
 
 		return remoteCluster.DialAuthServer(dialParams)
 	})
@@ -392,11 +383,9 @@ func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reverse
 		return nil, trace.Wrap(err)
 	}
 
-	clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(ctx)
-
 	return auth.NewClient(apiclient.Config{
 		Context: ctx,
-		Dialer:  clusterDialer(cluster, clientSrcAddr, clientDstAddr),
+		Dialer:  clusterDialer(cluster),
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
@@ -614,8 +603,6 @@ type sessionCacheOptions struct {
 	// sessionLingeringThreshold specifies the time the session will linger
 	// in the cache before getting purged after it has expired
 	sessionLingeringThreshold time.Duration
-	// proxySigner is used to sign PROXY header and securely propagate client's real IP
-	proxySigner multiplexer.PROXYHeaderSigner
 }
 
 // newSessionCache creates a [sessionCache] from the provided [config] and
@@ -643,7 +630,6 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 		log:                       newPackageLogger(),
 		clock:                     config.clock,
 		sessionLingeringThreshold: config.sessionLingeringThreshold,
-		proxySigner:               config.proxySigner,
 	}
 
 	// periodically close expired and unused sessions
@@ -683,9 +669,6 @@ type sessionCache struct {
 	// is either explicitly invalidated (e.g. during logout) or the
 	// resources are themselves closing
 	resources map[string]*sessionResources
-
-	// proxySigner is used to sign PROXY header and securely propagate client's real IP
-	proxySigner multiplexer.PROXYHeaderSigner
 }
 
 // Close closes all allocated resources and stops goroutines
@@ -959,12 +942,10 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	userClient, err := auth.NewClient(apiclient.Config{
 		Addrs:                utils.NetAddrsToStrings(s.authServers),
 		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
-		PROXYHeaderGetter:    client.CreatePROXYHeaderGetter(ctx, s.proxySigner),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

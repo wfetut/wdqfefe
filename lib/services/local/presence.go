@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -137,84 +136,6 @@ func (s *PresenceService) DeleteNamespace(namespace string) error {
 		}
 	}
 	return trace.Wrap(err)
-}
-
-// GetServerInfos returns a stream of ServerInfos.
-func (s *PresenceService) GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo] {
-	startKey := backend.ExactKey(serverInfoPrefix)
-	endKey := backend.RangeEnd(startKey)
-	items := backend.StreamRange(ctx, s, startKey, endKey, apidefaults.DefaultChunkSize)
-	return stream.FilterMap(items, func(item backend.Item) (types.ServerInfo, bool) {
-		si, err := services.UnmarshalServerInfo(
-			item.Value,
-			services.WithResourceID(item.ID),
-			services.WithExpires(item.Expires),
-		)
-		if err != nil {
-			s.log.Warnf("Skipping server info at %s, failed to unmarshal: %v", item.Key, err)
-			return nil, false
-		}
-		return si, true
-	})
-}
-
-// GetServerInfo returns a ServerInfo by name.
-func (s *PresenceService) GetServerInfo(ctx context.Context, name string) (types.ServerInfo, error) {
-	if name == "" {
-		return nil, trace.BadParameter("missing server info name")
-	}
-	item, err := s.Get(ctx, backend.Key(serverInfoPrefix, name))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("server info %q is not found", name)
-		}
-		return nil, trace.Wrap(err)
-	}
-	si, err := services.UnmarshalServerInfo(
-		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires),
-	)
-	return si, trace.Wrap(err)
-}
-
-// DeleteAllServerInfos deletes all ServerInfos.
-func (s *PresenceService) DeleteAllServerInfos(ctx context.Context) error {
-	startKey := backend.ExactKey(serverInfoPrefix)
-	return trace.Wrap(s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
-}
-
-// UpsertServerInfo upserts a ServerInfo.
-func (s *PresenceService) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
-	if err := si.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	value, err := services.MarshalServerInfo(si)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(serverInfoPrefix, si.GetName()),
-		Value:   value,
-		Expires: si.Expiry(),
-		ID:      si.GetResourceID(),
-	}
-
-	_, err = s.Put(ctx, item)
-	return trace.Wrap(err)
-}
-
-// DeleteServerInfo deletes a ServerInfo by name.
-func (s *PresenceService) DeleteServerInfo(ctx context.Context, name string) error {
-	if name == "" {
-		return trace.BadParameter("missing server info name")
-	}
-	err := s.Delete(ctx, backend.Key(serverInfoPrefix, name))
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("server info %q is not found", name)
-		}
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) ([]types.Server, error) {
@@ -741,11 +662,11 @@ func (s *PresenceService) GetRemoteCluster(clusterName string) (types.RemoteClus
 }
 
 // DeleteRemoteCluster deletes remote cluster by name
-func (s *PresenceService) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
+func (s *PresenceService) DeleteRemoteCluster(clusterName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
-	return s.Delete(ctx, backend.Key(remoteClustersPrefix, clusterName))
+	return s.Delete(context.TODO(), backend.Key(remoteClustersPrefix, clusterName))
 }
 
 // DeleteAllRemoteClusters deletes all remote clusters
@@ -759,10 +680,8 @@ func (s *PresenceService) DeleteAllRemoteClusters() error {
 // in backoff between 1ms and 2000ms depending on jitter.  tests are in
 // place to verify that this is sufficient to resolve a 20-lease contention
 // event, which is worse than should ever occur in practice.
-const (
-	baseBackoff              = time.Millisecond * 400
-	leaseRetryAttempts int64 = 6
-)
+const baseBackoff = time.Millisecond * 400
+const leaseRetryAttempts int64 = 6
 
 // AcquireSemaphore attempts to acquire the specified semaphore.  AcquireSemaphore will automatically handle
 // retry on contention.  If the semaphore has already reached MaxLeases, or there is too much contention,
@@ -1064,6 +983,67 @@ func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter types.Sema
 	return trace.Wrap(s.Delete(ctx, backend.Key(semaphoresPrefix, filter.SemaphoreKind, filter.SemaphoreName)))
 }
 
+// UpsertKubeService registers kubernetes service presence.
+// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2.
+func (s *PresenceService) UpsertKubeService(ctx context.Context, server types.Server) error {
+	// TODO(awly): verify that no other KubeService has the same kubernetes
+	// cluster names with different labels to avoid RBAC check confusion.
+	return s.upsertServer(ctx, kubeServicesPrefix, server)
+}
+
+// UpsertKubeServiceV2 registers kubernetes service presence.
+func (s *PresenceService) UpsertKubeServiceV2(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lease, err := s.Put(ctx, backend.Item{
+		Key: backend.Key(kubeServicesPrefix,
+			server.GetName()),
+		Value:   value,
+		Expires: server.Expiry(),
+		ID:      server.GetResourceID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if server.Expiry().IsZero() {
+		return &types.KeepAlive{}, nil
+	}
+	return &types.KeepAlive{
+		Type:    types.KeepAlive_KUBERNETES,
+		LeaseID: lease.ID,
+		Name:    server.GetName(),
+	}, nil
+}
+
+// GetKubeServices returns a list of registered kubernetes services.
+func (s *PresenceService) GetKubeServices(ctx context.Context) ([]types.Server, error) {
+	return s.getServers(ctx, types.KindKubeService, kubeServicesPrefix)
+}
+
+// DeleteKubeService deletes a named kubernetes service.
+// DELETE IN 13.0. Deprecated, use DeleteKubernetesServer.
+func (s *PresenceService) DeleteKubeService(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("no name specified for kubernetes service deletion")
+	}
+	return trace.Wrap(s.Delete(ctx, backend.Key(kubeServicesPrefix, name)))
+}
+
+// DeleteAllKubeServices deletes all registered kubernetes services.
+// DELETE IN 13.0. Deprecated, use DeleteAllKubernetesServers.
+func (s *PresenceService) DeleteAllKubeServices(ctx context.Context) error {
+	return trace.Wrap(s.DeleteRange(
+		ctx,
+		backend.Key(kubeServicesPrefix),
+		backend.RangeEnd(backend.Key(kubeServicesPrefix)),
+	))
+}
+
 // UpsertKubernetesServer registers an kubernetes server.
 func (s *PresenceService) UpsertKubernetesServer(ctx context.Context, server types.KubeServer) (*types.KeepAlive, error) {
 	if err := server.CheckAndSetDefaults(); err != nil {
@@ -1122,7 +1102,14 @@ func (s *PresenceService) DeleteAllKubernetesServers(ctx context.Context) error 
 // GetKubernetesServers returns all registered kubernetes servers.
 func (s *PresenceService) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
 	servers, err := s.getKubernetesServers(ctx)
-	return servers, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	legacyServers, err := s.getKubernetesServersLegacy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(servers, legacyServers...), nil
 }
 
 func (s *PresenceService) getKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
@@ -1141,6 +1128,26 @@ func (s *PresenceService) getKubernetesServers(ctx context.Context) ([]types.Kub
 			return nil, trace.Wrap(err)
 		}
 		servers[i] = server
+	}
+	return servers, nil
+}
+
+// getKubernetesServersLegacy fetches legacy kubernetes servers that are
+// represented by types.Server and adapts them to the types.KubeServer type.
+//
+// DELETE IN 13.0.
+func (s *PresenceService) getKubernetesServersLegacy(ctx context.Context) ([]types.KubeServer, error) {
+	legacyServers, err := s.GetKubeServices(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var servers []types.KubeServer
+	for _, legacyServer := range legacyServers {
+		kubeServers, err := types.NewKubeServersV3FromServer(legacyServer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers = append(servers, kubeServers...)
 	}
 	return servers, nil
 }
@@ -1335,7 +1342,11 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 	case constants.KeepAliveWindowsDesktopService:
 		key = backend.Key(windowsDesktopServicesPrefix, h.Name)
 	case constants.KeepAliveKube:
-		key = backend.Key(kubeServersPrefix, h.HostID, h.Name)
+		if h.HostID != "" {
+			key = backend.Key(kubeServersPrefix, h.HostID, h.Name)
+		} else { // DELETE IN 13.0. Legacy kube server is heartbeating back.
+			key = backend.Key(kubeServicesPrefix, h.Name)
+		}
 	case constants.KeepAliveDatabaseService:
 		key = backend.Key(databaseServicePrefix, h.Name)
 	default:
@@ -1516,6 +1527,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindWindowsDesktopService:
 		keyPrefix = []string{windowsDesktopServicesPrefix}
 		unmarshalItemFunc = backendItemToWindowsDesktopService
+	case types.KindKubeService:
+		keyPrefix = []string{kubeServicesPrefix}
+		unmarshalItemFunc = backendItemToServer(types.KindKubeService)
 	case types.KindKubeServer:
 		keyPrefix = []string{kubeServersPrefix}
 		unmarshalItemFunc = backendItemToKubernetesServer
@@ -1817,7 +1831,7 @@ const (
 	authServersPrefix            = "authservers"
 	proxiesPrefix                = "proxies"
 	semaphoresPrefix             = "semaphores"
+	kubeServicesPrefix           = "kubeServices"
 	windowsDesktopServicesPrefix = "windowsDesktopServices"
 	loginTimePrefix              = "hostuser_interaction_time"
-	serverInfoPrefix             = "serverInfos"
 )

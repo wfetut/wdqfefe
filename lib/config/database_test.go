@@ -232,27 +232,25 @@ func TestMakeDatabaseConfig(t *testing.T) {
 			},
 			"AWSKeyspaces": {
 				flags: DatabaseSampleFlags{
-					StaticDatabaseName:       "sample",
-					StaticDatabaseProtocol:   "cassandra",
-					StaticDatabaseURI:        "cassandra.us-west-1.amazonaws.com",
-					DatabaseCACertFile:       pemfile,
-					DatabaseAWSRegion:        "us-west-1",
-					DatabaseAWSAccountID:     "123456789012",
-					DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-					DatabaseAWSExternalID:    "externalID123",
+					StaticDatabaseName:     "sample",
+					StaticDatabaseProtocol: "cassandra",
+					StaticDatabaseURI:      "cassandra.us-west-1.amazonaws.com",
+					DatabaseCACertFile:     pemfile,
+					DatabaseAWSRegion:      "us-west-1",
+					DatabaseAWSAccountID:   "123456789012",
+					DatabaseAWSExternalID:  "1234567890",
 				},
 				requireFn: require.NoError,
 			},
 			"AWSKeyspacesDeriveURIFromAWSRegion": {
 				flags: DatabaseSampleFlags{
-					StaticDatabaseName:       "sample",
-					StaticDatabaseProtocol:   "cassandra",
-					StaticDatabaseURI:        "",
-					DatabaseCACertFile:       pemfile,
-					DatabaseAWSRegion:        "us-west-1",
-					DatabaseAWSAccountID:     "123456789012",
-					DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-					DatabaseAWSExternalID:    "externalID123",
+					StaticDatabaseName:     "sample",
+					StaticDatabaseProtocol: "cassandra",
+					StaticDatabaseURI:      "",
+					DatabaseCACertFile:     pemfile,
+					DatabaseAWSRegion:      "us-west-1",
+					DatabaseAWSAccountID:   "123456789012",
+					DatabaseAWSExternalID:  "1234567890",
 				},
 				requireFn: require.NoError,
 			},
@@ -263,8 +261,6 @@ func TestMakeDatabaseConfig(t *testing.T) {
 					StaticDatabaseURI:            "redshift-cluster-1.abcdefghijklmnop.us-west-1.redshift.amazonaws.com:5439",
 					DatabaseAWSRegion:            "us-west-1",
 					DatabaseAWSRedshiftClusterID: "redshift-cluster-1",
-					DatabaseAWSAssumeRoleARN:     "arn:aws:iam::123456789012:role/DBDiscoverer",
-					DatabaseAWSExternalID:        "externalID123",
 				},
 				requireFn: require.NoError,
 			},
@@ -275,20 +271,16 @@ func TestMakeDatabaseConfig(t *testing.T) {
 					StaticDatabaseURI:        "rds-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
 					DatabaseAWSRegion:        "us-west-1",
 					DatabaseAWSRDSInstanceID: "rsd-instance-1",
-					DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-					DatabaseAWSExternalID:    "externalID123",
 				},
 				requireFn: require.NoError,
 			},
 			"AWSRDSCluster": {
 				flags: DatabaseSampleFlags{
-					StaticDatabaseName:       "sample",
-					StaticDatabaseProtocol:   "postgres",
-					StaticDatabaseURI:        "aurora-cluster-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-					DatabaseAWSRegion:        "us-west-1",
-					DatabaseAWSRDSClusterID:  "aurora-cluster-1",
-					DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-					DatabaseAWSExternalID:    "externalID123",
+					StaticDatabaseName:      "sample",
+					StaticDatabaseProtocol:  "postgres",
+					StaticDatabaseURI:       "aurora-cluster-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+					DatabaseAWSRegion:       "us-west-1",
+					DatabaseAWSRDSClusterID: "aurora-cluster-1",
 				},
 				requireFn: require.NoError,
 			},
@@ -299,8 +291,6 @@ func TestMakeDatabaseConfig(t *testing.T) {
 					StaticDatabaseURI:              "clustercfg.my-memorydb.xxxxxx.memorydb.us-east-1.amazonaws.com:6379",
 					DatabaseAWSRegion:              "us-west-1",
 					DatabaseAWSMemoryDBClusterName: "my-memorydb",
-					DatabaseAWSAssumeRoleARN:       "arn:aws:iam::123456789012:role/DBDiscoverer",
-					DatabaseAWSExternalID:          "externalID123",
 				},
 				requireFn: require.NoError,
 			},
@@ -311,8 +301,6 @@ func TestMakeDatabaseConfig(t *testing.T) {
 					StaticDatabaseURI:             "master.redis-cluster-example.abcdef.usw1.cache.amazonaws.com:6379",
 					DatabaseAWSRegion:             "us-west-1",
 					DatabaseAWSElastiCacheGroupID: "redis-cluster-example",
-					DatabaseAWSAssumeRoleARN:      "arn:aws:iam::123456789012:role/DBDiscoverer",
-					DatabaseAWSExternalID:         "externalID123",
 				},
 				requireFn: require.NoError,
 			},
@@ -339,12 +327,10 @@ func TestMakeDatabaseConfig(t *testing.T) {
 			},
 			"DynamoDBDeriveURIFromAWSRegion": {
 				flags: DatabaseSampleFlags{
-					StaticDatabaseName:       "sample",
-					StaticDatabaseProtocol:   "dynamodb",
-					DatabaseAWSAccountID:     "123456789012",
-					DatabaseAWSRegion:        "us-west-1",
-					DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-					DatabaseAWSExternalID:    "externalID123",
+					StaticDatabaseName:     "sample",
+					StaticDatabaseProtocol: "dynamodb",
+					DatabaseAWSAccountID:   "123456789012",
+					DatabaseAWSRegion:      "us-west-1",
 				},
 				requireFn: require.NoError,
 			},
@@ -399,54 +385,6 @@ func TestMakeDatabaseConfig(t *testing.T) {
 				},
 				requireFn: require.Error,
 			},
-			"AWSExternalIDMissingAWSRoleARN": {
-				flags: DatabaseSampleFlags{
-					StaticDatabaseName:       "sample",
-					StaticDatabaseProtocol:   "postgres",
-					StaticDatabaseURI:        "aurora-cluster-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-					DatabaseAWSRegion:        "us-west-1",
-					DatabaseAWSRDSClusterID:  "aurora-cluster-1",
-					DatabaseAWSAssumeRoleARN: "", // missing role arn raises error because external id is set.
-					DatabaseAWSExternalID:    "externalID123",
-				},
-				requireFn: require.Error,
-			},
-			"MissingAWSRoleARNName": {
-				flags: DatabaseSampleFlags{
-					StaticDatabaseName:       "sample",
-					StaticDatabaseProtocol:   "postgres",
-					StaticDatabaseURI:        "aurora-cluster-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-					DatabaseAWSRegion:        "us-west-1",
-					DatabaseAWSRDSClusterID:  "aurora-cluster-1",
-					DatabaseAWSAssumeRoleARN: "arn:aws:iam::123456789012:role", // missing role name
-					DatabaseAWSExternalID:    "externalID123",
-				},
-				requireFn: require.Error,
-			},
-			"InvalidAWSRoleARNFormat": {
-				flags: DatabaseSampleFlags{
-					StaticDatabaseName:       "sample",
-					StaticDatabaseProtocol:   "postgres",
-					StaticDatabaseURI:        "aurora-cluster-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-					DatabaseAWSRegion:        "us-west-1",
-					DatabaseAWSRDSClusterID:  "aurora-cluster-1",
-					DatabaseAWSAssumeRoleARN: "foobar",
-					DatabaseAWSExternalID:    "externalID123",
-				},
-				requireFn: require.Error,
-			},
-			"InvalidAWSRoleARNResourceService": {
-				flags: DatabaseSampleFlags{
-					StaticDatabaseName:       "sample",
-					StaticDatabaseProtocol:   "postgres",
-					StaticDatabaseURI:        "aurora-cluster-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
-					DatabaseAWSRegion:        "us-west-1",
-					DatabaseAWSRDSClusterID:  "aurora-cluster-1",
-					DatabaseAWSAssumeRoleARN: "arn:aws:sts::123456789012:federated-user/Alice", // sts != iam
-					DatabaseAWSExternalID:    "externalID123",
-				},
-				requireFn: require.Error,
-			},
 		}
 
 		for name, tt := range tests {
@@ -473,7 +411,6 @@ func TestMakeDatabaseConfig(t *testing.T) {
 				require.ElementsMatch(t, tt.wantCommandLabels, got.DynamicLabels)
 				require.Equal(t, tt.flags.DatabaseAWSRegion, got.AWS.Region)
 				require.Equal(t, tt.flags.DatabaseAWSAccountID, got.AWS.AccountID)
-				require.Equal(t, tt.flags.DatabaseAWSAssumeRoleARN, got.AWS.AssumeRoleARN)
 				require.Equal(t, tt.flags.DatabaseAWSExternalID, got.AWS.ExternalID)
 				require.Equal(t, tt.flags.DatabaseAWSRedshiftClusterID, got.AWS.Redshift.ClusterID)
 				require.Equal(t, tt.flags.DatabaseAWSRDSClusterID, got.AWS.RDS.ClusterID)

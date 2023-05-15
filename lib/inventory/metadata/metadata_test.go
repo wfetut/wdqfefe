@@ -255,10 +255,11 @@ func TestFetchContainerOrchestrator(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			c := &fetchConfig{
-				getenv: tc.getenv,
-				httpDo: tc.httpDo,
+				context: context.Background(),
+				getenv:  tc.getenv,
+				httpDo:  tc.httpDo,
 			}
-			require.Equal(t, tc.expected, c.fetchContainerOrchestrator(context.Background()))
+			require.Equal(t, tc.expected, c.fetchContainerOrchestrator())
 		})
 	}
 }
@@ -351,9 +352,10 @@ func TestFetchCloudEnvironment(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			c := &fetchConfig{
-				httpDo: tc.httpDo,
+				context: context.Background(),
+				httpDo:  tc.httpDo,
 			}
-			require.Equal(t, tc.expected, c.fetchCloudEnvironment(context.Background()))
+			require.Equal(t, tc.expected, c.fetchCloudEnvironment())
 		})
 	}
 }

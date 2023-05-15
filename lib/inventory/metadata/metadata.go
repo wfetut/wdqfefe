@@ -59,6 +59,7 @@ type Metadata struct {
 
 // fetchConfig contains the configuration used by the FetchMetadata method.
 type fetchConfig struct {
+	context context.Context
 	// getenv is the method called to retrieve an environment
 	// variable.
 	// It is configurable so that it can be mocked in tests.
@@ -78,6 +79,9 @@ type fetchConfig struct {
 // commands, performing http requests, etc.
 // Having these methods configurable allows us to mock them in tests.
 func (c *fetchConfig) setDefaults() {
+	if c.context == nil {
+		c.context = context.Background()
+	}
 	if c.getenv == nil {
 		c.getenv = os.Getenv
 	}
@@ -112,7 +116,7 @@ func (c *fetchConfig) setDefaults() {
 }
 
 // fetch fetches all metadata.
-func (c *fetchConfig) fetch(ctx context.Context) *Metadata {
+func (c *fetchConfig) fetch() *Metadata {
 	return &Metadata{
 		OS:                    c.fetchOS(),
 		OSVersion:             c.fetchOSVersion(),
@@ -120,8 +124,8 @@ func (c *fetchConfig) fetch(ctx context.Context) *Metadata {
 		GlibcVersion:          c.fetchGlibcVersion(),
 		InstallMethods:        c.fetchInstallMethods(),
 		ContainerRuntime:      c.fetchContainerRuntime(),
-		ContainerOrchestrator: c.fetchContainerOrchestrator(ctx),
-		CloudEnvironment:      c.fetchCloudEnvironment(ctx),
+		ContainerOrchestrator: c.fetchContainerOrchestrator(),
+		CloudEnvironment:      c.fetchCloudEnvironment(),
 	}
 }
 
@@ -196,7 +200,7 @@ func (c *fetchConfig) fetchContainerRuntime() string {
 // running on kubernetes.
 // This function performs the equivalent of the following:
 // curl -k https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT/version | jq .gitVersion
-func (c *fetchConfig) fetchContainerOrchestrator(ctx context.Context) string {
+func (c *fetchConfig) fetchContainerOrchestrator() string {
 	host := c.getenv("KUBERNETES_SERVICE_HOST")
 	port := c.getenv("KUBERNETES_SERVICE_PORT")
 	if host == "" || port == "" {
@@ -204,7 +208,7 @@ func (c *fetchConfig) fetchContainerOrchestrator(ctx context.Context) string {
 	}
 
 	url := fmt.Sprintf("https://%s:%s/version", host, port)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
 		return ""
 	}
@@ -236,36 +240,15 @@ func (c *fetchConfig) fetchContainerOrchestrator(ctx context.Context) string {
 
 // fetchCloudEnvironment returns aws, gpc or azure if the instance is running on
 // such cloud environments.
-func (c *fetchConfig) fetchCloudEnvironment(ctx context.Context) string {
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	// kick off 3 checks in parallel, at most 1 will succeed
-	checks := []struct {
-		env string
-		f   func(context.Context) bool
-	}{
-		{"aws", c.awsHTTPGetSuccess},
-		{"gcp", c.gcpHTTPGetSuccess},
-		{"azure", c.azureHTTPGetSuccess},
+func (c *fetchConfig) fetchCloudEnvironment() string {
+	if c.awsHTTPGetSuccess() {
+		return "aws"
 	}
-
-	cloudEnv := make(chan string, len(checks))
-	for _, check := range checks {
-		check := check
-		go func() {
-			if check.f(ctx) {
-				cloudEnv <- check.env
-			} else {
-				cloudEnv <- ""
-			}
-		}()
+	if c.gcpHTTPGetSuccess() {
+		return "gcp"
 	}
-
-	for range checks {
-		if env := <-cloudEnv; env != "" {
-			return env
-		}
+	if c.azureHTTPGetSuccess() {
+		return "azure"
 	}
 	return ""
 }
@@ -273,9 +256,9 @@ func (c *fetchConfig) fetchCloudEnvironment(ctx context.Context) string {
 // awsHTTPGetSuccess hits the AWS metadata endpoint in order to detect whether
 // the instance is running on AWS.
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instancedata-data-retrieval.html
-func (c *fetchConfig) awsHTTPGetSuccess(ctx context.Context) bool {
+func (c *fetchConfig) awsHTTPGetSuccess() bool {
 	url := "http://169.254.169.254/latest/meta-data/"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
 		return false
 	}
@@ -286,9 +269,9 @@ func (c *fetchConfig) awsHTTPGetSuccess(ctx context.Context) bool {
 // gcpHTTPGetSuccess hits the GCP metadata endpoint in order to detect whether
 // the instance is running on GCP.
 // https://cloud.google.com/compute/docs/metadata/overview#parts-of-a-request
-func (c *fetchConfig) gcpHTTPGetSuccess(ctx context.Context) bool {
+func (c *fetchConfig) gcpHTTPGetSuccess() bool {
 	url := "http://metadata.google.internal/computeMetadata/v1"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
 		return false
 	}
@@ -300,9 +283,9 @@ func (c *fetchConfig) gcpHTTPGetSuccess(ctx context.Context) bool {
 // azureHTTPGetSuccess hits the Azure metadata endpoint in order to detect whether
 // the instance is running on Azure.
 // https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service
-func (c *fetchConfig) azureHTTPGetSuccess(ctx context.Context) bool {
+func (c *fetchConfig) azureHTTPGetSuccess() bool {
 	url := "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
 		return false
 	}

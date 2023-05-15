@@ -100,7 +100,7 @@ export function Roles(props: State) {
             <Text>
               Learn more in{' '}
               <Link
-                color="text.main"
+                color="light"
                 target="_blank"
                 href="https://goteleport.com/docs/access-controls/guides/role-templates/"
               >
@@ -140,7 +140,7 @@ function Directions() {
     <>
       WARNING Roles are defined using{' '}
       <Link
-        color="text.main"
+        color="light"
         target="_blank"
         href="https://en.wikipedia.org/wiki/YAML"
       >

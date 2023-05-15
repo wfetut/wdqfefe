@@ -98,10 +98,6 @@ type userACL struct {
 	Plugins access `json:"plugins"`
 	// Integrations defines whether the user has access to manage integrations.
 	Integrations access `json:"integrations"`
-	// DeviceTrust defines access to device trust.
-	DeviceTrust access `json:"deviceTrust"`
-	// Locks defines access to locking resources.
-	Locks access `json:"lock"`
 	// Assist defines access to assist feature.
 	Assist access `json:"assist"`
 }
@@ -219,9 +215,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	directorySharing := userRoles.DesktopDirectorySharing()
 	download := newAccess(userRoles, ctx, types.KindDownload)
 	license := newAccess(userRoles, ctx, types.KindLicense)
-	deviceTrust := newAccess(userRoles, ctx, types.KindDevice)
 	integrationsAccess := newAccess(userRoles, ctx, types.KindIntegration)
-	lockAccess := newAccess(userRoles, ctx, types.KindLock)
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
@@ -248,8 +242,6 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		License:                 license,
 		Plugins:                 pluginsAccess,
 		Integrations:            integrationsAccess,
-		DeviceTrust:             deviceTrust,
-		Locks:                   lockAccess,
 		Assist:                  assistAccess,
 	}
 

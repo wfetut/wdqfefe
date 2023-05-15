@@ -316,7 +316,7 @@ const TestContainer: React.FC = ({ children }) => (
       css={`
         width: 450px;
         border: 1px solid ${props => props.theme.colors.levels.elevated};
-        background: ${props => props.theme.colors.levels.surface};
+        background: ${props => props.theme.colors.levels.surfaceSecondary};
       `}
     >
       {children}

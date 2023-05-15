@@ -1,6 +1,54 @@
 # Changelog
 
+## 12.3.3 (05/08/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Access Management UI
+  * Added new AWS integration and RDS database enrollment flow. [#25604](https://github.com/gravitational/teleport/pull/25604), [#25594](https://github.com/gravitational/teleport/pull/25594)
+* API client
+  * Improve API client connection failure feedback. [#25563](https://github.com/gravitational/teleport/pull/25563)
+* Server Access
+  * Improved `InvalidInstanceID` error feedback during EC2 discovery. [#25641](https://github.com/gravitational/teleport/pull/25641)
+* Web UI
+  * Fixed incorrect error message when connecting to a node that is offline. [#25661](https://github.com/gravitational/teleport/pull/25661)
+  * Fixed issue with connecting to resources in leaf clusters with per-session MFA. [#25862](https://github.com/gravitational/teleport/pull/25862)
+
+## 12.3.2 (05/04/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Auth server
+  * Fixed panic when cluster has access requests. [teleport.e#1298](https://github.com/gravitational/teleport.e/pull/1298)
+* Application Access
+  * Improved error message when Proxy is using untrusted certificate. [#25606](https://github.com/gravitational/teleport/pull/25606)
+* Database Access
+  * Fixed issue with Postgres listener not supporting IP pinning. [#25529](https://github.com/gravitational/teleport/pull/25529)
+* Desktop Access
+  * Fixed issue with automatic user provisioning for local users
+    preventing existing local users passwordless login on first usage. [#1284](https://github.com/gravitational/teleport.e/pull/1284)
+
+## 12.3.1 (05/02/23)
+
+*Warning: This release has a regression issue that can lead to auth server panic on clusters with access requests.*
+*We strongly recommend upgrading to 12.3.2 or newer instead.*
+
+This release of Teleport contains a security Go upgrade as well as multiple improvements and bug fixes.
+
+* Security
+  * Updated Go to `1.20.4` to fix `CVE-2023-24539`, `CVE-2023-24540` and `CVE-2023-29400`. [#25506](https://github.com/gravitational/teleport/pull/25506)
+* CLI
+  * Follow up fix for MFA permission denied error from `tsh` for non-SSH protocols. [#25486](https://github.com/gravitational/teleport/pull/25486)
+  * Improved `tsh ssh` error when session fails due to active lock. [#25482](https://github.com/gravitational/teleport/pull/25482)
+* SAML IdP
+  * Fixed issue with SAML IdP routes not working. [#25474](https://github.com/gravitational/teleport/pull/25474)
+* Proxy
+  * Fixed issue with missing `Connection` header for ALPN connection upgrade. [#25411](https://github.com/gravitational/teleport/pull/25411)
+
 ## 12.3.0 (05/01/23)
+
+*Warning: This release has a regression issue that can lead to auth server panic on clusters with access requests.*
+*We strongly recommend upgrading to 12.3.2 or newer instead.*
 
 This release of Teleport contains multiple improvements and bug fixes.
 
@@ -14,6 +62,9 @@ This release of Teleport contains multiple improvements and bug fixes.
   * Updated device trust audit events to have descriptive types. [#25320](https://github.com/gravitational/teleport/pull/25320)
 
 ## 12.2.5 (04/28/23)
+
+*Warning: This release has a regression issue that can lead to auth server panic on clusters with access requests.*
+*We strongly recommend upgrading to 12.3.2 or newer instead.*
 
 This release of Teleport contains multiple improvements and bug fixes.
 

@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Image } from 'design';
-import { AWSIcon } from 'design/SVGIcon';
+import awsIcon from 'design/assets/images/icons/aws.svg';
 import slackIcon from 'design/assets/images/icons/slack.svg';
 import openaiIcon from 'design/assets/images/icons/openai.svg';
 import Table, { Cell } from 'design/DataTable';
@@ -37,10 +37,7 @@ import {
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
   onDeletePlugin?(p: Plugin): void;
-  integrationOps?: {
-    onDeleteIntegration(i: Integration): void;
-    onEditIntegration(i: Integration): void;
-  };
+  onDeleteIntegration?(i: Integration): void;
 };
 
 type IntegrationLike = Integration | Plugin;
@@ -90,16 +87,7 @@ export function IntegrationList(props: Props<IntegrationLike>) {
             return (
               <Cell align="right">
                 <MenuButton>
-                  <MenuItem
-                    onClick={() => props.integrationOps.onEditIntegration(item)}
-                  >
-                    Edit...
-                  </MenuItem>
-                  <MenuItem
-                    onClick={() =>
-                      props.integrationOps.onDeleteIntegration(item)
-                    }
-                  >
+                  <MenuItem onClick={() => props.onDeleteIntegration(item)}>
                     Delete...
                   </MenuItem>
                 </MenuButton>
@@ -165,7 +153,7 @@ const StatusLight = styled(Box)`
       return theme.colors.success;
     }
     if (status === Status.Error) {
-      return theme.colors.error.main;
+      return theme.colors.error.light;
     }
     if (status === Status.Warning) {
       return theme.colors.warning.main;
@@ -193,11 +181,7 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
     switch (item.kind) {
       case IntegrationKind.AwsOidc:
         formattedText = item.name;
-        icon = (
-          <SvgIconContainer>
-            <AWSIcon />
-          </SvgIconContainer>
-        );
+        icon = <IconContainer src={awsIcon} />;
         break;
     }
   }
@@ -218,9 +202,5 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
 
 const IconContainer = styled(Image)`
   width: 22px;
-  margin-right: 10px;
-`;
-
-const SvgIconContainer = styled(Flex)`
-  margin-right: 10px;
+  padding-right: 8px;
 `;

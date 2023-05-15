@@ -61,24 +61,20 @@ export default function createClient(
     async getKubes({
       clusterUri,
       search,
-      sort,
+      sort = { fieldName: 'name', dir: 'ASC' },
       query,
       searchAsRoles,
       startKey,
       limit,
-    }: types.GetResourcesParams) {
+    }: types.ServerSideParams) {
       const req = new api.GetKubesRequest()
         .setClusterUri(clusterUri)
         .setSearchAsRoles(searchAsRoles)
         .setStartKey(startKey)
+        .setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`)
         .setSearch(search)
         .setQuery(query)
         .setLimit(limit);
-
-      if (sort) {
-        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
-      }
-
       return new Promise<types.GetKubesResponse>((resolve, reject) => {
         tshd.getKubes(req, (err, response) => {
           if (err) {
@@ -132,24 +128,20 @@ export default function createClient(
     async getDatabases({
       clusterUri,
       search,
-      sort,
+      sort = { fieldName: 'name', dir: 'ASC' },
       query,
       searchAsRoles,
       startKey,
       limit,
-    }: types.GetResourcesParams) {
+    }: types.ServerSideParams) {
       const req = new api.GetDatabasesRequest()
         .setClusterUri(clusterUri)
         .setSearchAsRoles(searchAsRoles)
         .setStartKey(startKey)
+        .setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`)
         .setSearch(search)
         .setQuery(query)
         .setLimit(limit);
-
-      if (sort) {
-        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
-      }
-
       return new Promise<types.GetDatabasesResponse>((resolve, reject) => {
         tshd.getDatabases(req, (err, response) => {
           if (err) {
@@ -206,23 +198,19 @@ export default function createClient(
       clusterUri,
       search,
       query,
-      sort,
+      sort = { fieldName: 'hostname', dir: 'ASC' },
       searchAsRoles,
       startKey,
       limit,
-    }: types.GetResourcesParams) {
+    }: types.ServerSideParams) {
       const req = new api.GetServersRequest()
         .setClusterUri(clusterUri)
         .setSearchAsRoles(searchAsRoles)
         .setStartKey(startKey)
+        .setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`)
         .setSearch(search)
         .setQuery(query)
         .setLimit(limit);
-
-      if (sort) {
-        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
-      }
-
       return new Promise<types.GetServersResponse>((resolve, reject) => {
         tshd.getServers(req, (err, response) => {
           if (err) {

@@ -362,24 +362,15 @@ const (
 	LimiterMaxConcurrentSignatures = 10
 )
 
-// Default rate limits for unauthenticated endpoints.
+// Default rate limits for unauthenticated passwordless endpoints.
 const (
-	// LimiterPeriod is the default period for unauthenticated limiters.
-	LimiterPeriod = 1 * time.Minute
-	// LimiterAverage is the default average for unauthenticated limiters.
-	LimiterAverage = 20
-	// LimiterBurst is the default burst for unauthenticated limiters.
-	LimiterBurst = 40
-)
-
-// Default high rate limits for unauthenticated endpoints that are CPU constrained.
-const (
-	// LimiterHighPeriod is the default period for high rate unauthenticated limiters.
-	LimiterHighPeriod = 1 * time.Minute
-	// LimiterHighAverage is the default average for high rate unauthenticated limiters.
-	LimiterHighAverage = 120
-	// LimiterHighBurst is the default burst for high rate unauthenticated limiters.
-	LimiterHighBurst = 480
+	// LimiterPasswordlessPeriod is the default period for passwordless limiters.
+	LimiterPasswordlessPeriod = 1 * time.Minute
+	// LimiterPasswordlessAverage is the default average for passwordless
+	// limiters.
+	LimiterPasswordlessAverage = 10
+	// LimiterPasswordlessBurst is the default burst for passwordless limiters.
+	LimiterPasswordlessBurst = 20
 )
 
 const (
@@ -448,8 +439,6 @@ const (
 	ProtocolCassandra = "cassandra"
 	// ProtocolElasticsearch is the Elasticsearch database protocol.
 	ProtocolElasticsearch = "elasticsearch"
-	// ProtocolOpenSearch is the OpenSearch database protocol.
-	ProtocolOpenSearch = "opensearch"
 	// ProtocolDynamoDB is the DynamoDB database protocol.
 	ProtocolDynamoDB = "dynamodb"
 )
@@ -466,7 +455,6 @@ var DatabaseProtocols = []string{
 	ProtocolSQLServer,
 	ProtocolCassandra,
 	ProtocolElasticsearch,
-	ProtocolOpenSearch,
 	ProtocolDynamoDB,
 }
 
@@ -490,8 +478,6 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Snowflake"
 	case ProtocolElasticsearch:
 		return "Elasticsearch"
-	case ProtocolOpenSearch:
-		return "OpenSearch"
 	case ProtocolSQLServer:
 		return "Microsoft SQL Server"
 	case ProtocolCassandra:
@@ -671,13 +657,6 @@ const (
 	// WebsocketResize is receiving a resize request.
 	WebsocketResize = "w"
 
-	// WebsocketFileTransferRequest is received when a new file transfer has been requested
-	WebsocketFileTransferRequest = "f"
-
-	// WebsocketFileTransferDecision is received when a response (approve/deny) has been
-	// made for an existing file transfer request
-	WebsocketFileTransferDecision = "t"
-
 	// WebsocketWebauthnChallenge is sending a webauthn challenge.
 	WebsocketWebauthnChallenge = "n"
 
@@ -753,7 +732,7 @@ var (
 	}
 )
 
-// HTTPClient returns a new http.Client with sensible defaults.
+// Transport returns a new http.Client with sensible defaults.
 func HTTPClient() (*http.Client, error) {
 	transport, err := Transport()
 	if err != nil {

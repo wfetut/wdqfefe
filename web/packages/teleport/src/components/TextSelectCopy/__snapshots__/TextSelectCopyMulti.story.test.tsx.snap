@@ -12,7 +12,7 @@ exports[`render multi bash texts 1`] = `
   margin-right: 4px;
 }
 
-.c12 {
+.c11 {
   box-sizing: border-box;
   padding-bottom: 0px;
   padding-top: 8px;
@@ -37,36 +37,28 @@ exports[`render multi bash texts 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c7:hover,
-.c7:focus {
-  background: rgba(255,255,255,0.13);
+.c7:active {
+  opacity: 0.56;
 }
 
-.c7:active {
-  background: rgba(255,255,255,0.18);
+.c7:hover,
+.c7:focus {
+  background: #2C3A73;
 }
 
 .c7:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c10 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  color: #FFFFFF;
-}
-
-.c11 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -100,12 +92,6 @@ exports[`render multi bash texts 1`] = `
   min-height: auto;
   padding: 0;
   margin-top: -4px;
-  background: rgba(255,255,255,0.07);
-}
-
-.c8:hover,
-.c8:focus {
-  background: rgba(255,255,255,0.13);
 }
 
 .c1 {
@@ -117,7 +103,6 @@ exports[`render multi bash texts 1`] = `
   font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
   overflow: scroll;
   line-height: 20px;
-  color: #FFFFFF;
 }
 
 .c0 {
@@ -182,7 +167,6 @@ exports[`render multi bash texts 1`] = `
             >
               <div
                 class="c9 icon-container"
-                color="dark"
               >
                 <span
                   class="c10 icon icon-copy "
@@ -190,7 +174,8 @@ exports[`render multi bash texts 1`] = `
                   data-testid="btn-copy"
                 />
                 <span
-                  class="c11 icon icon-check "
+                  class="c10 icon icon-check "
+                  color="light"
                   data-testid="btn-check"
                 />
               </div>
@@ -231,7 +216,6 @@ exports[`render multi bash texts 1`] = `
             >
               <div
                 class="c9 icon-container"
-                color="dark"
               >
                 <span
                   class="c10 icon icon-copy "
@@ -239,7 +223,8 @@ exports[`render multi bash texts 1`] = `
                   data-testid="btn-copy"
                 />
                 <span
-                  class="c11 icon icon-check "
+                  class="c10 icon icon-check "
+                  color="light"
                   data-testid="btn-check"
                 />
               </div>
@@ -248,7 +233,7 @@ exports[`render multi bash texts 1`] = `
         </div>
       </div>
       <div
-        class="c12"
+        class="c11"
       >
         <div
           class="c3"
@@ -280,7 +265,6 @@ exports[`render multi bash texts 1`] = `
             >
               <div
                 class="c9 icon-container"
-                color="dark"
               >
                 <span
                   class="c10 icon icon-copy "
@@ -288,7 +272,8 @@ exports[`render multi bash texts 1`] = `
                   data-testid="btn-copy"
                 />
                 <span
-                  class="c11 icon icon-check "
+                  class="c10 icon icon-check "
+                  color="light"
                   data-testid="btn-check"
                 />
               </div>
@@ -313,7 +298,7 @@ exports[`render multi bash texts with comment 1`] = `
   margin-right: 4px;
 }
 
-.c13 {
+.c12 {
   box-sizing: border-box;
   padding-bottom: 0px;
   padding-top: 8px;
@@ -338,36 +323,28 @@ exports[`render multi bash texts with comment 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c8:hover,
-.c8:focus {
-  background: rgba(255,255,255,0.13);
+.c8:active {
+  opacity: 0.56;
 }
 
-.c8:active {
-  background: rgba(255,255,255,0.18);
+.c8:hover,
+.c8:focus {
+  background: #2C3A73;
 }
 
 .c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c11 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  color: #FFFFFF;
-}
-
-.c12 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -405,12 +382,6 @@ exports[`render multi bash texts with comment 1`] = `
   min-height: auto;
   padding: 0;
   margin-top: -4px;
-  background: rgba(255,255,255,0.07);
-}
-
-.c9:hover,
-.c9:focus {
-  background: rgba(255,255,255,0.13);
 }
 
 .c1 {
@@ -422,7 +393,6 @@ exports[`render multi bash texts with comment 1`] = `
   font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
   overflow: scroll;
   line-height: 20px;
-  color: #FFFFFF;
 }
 
 .c0 {
@@ -493,7 +463,6 @@ exports[`render multi bash texts with comment 1`] = `
             >
               <div
                 class="c10 icon-container"
-                color="dark"
               >
                 <span
                   class="c11 icon icon-copy "
@@ -501,7 +470,8 @@ exports[`render multi bash texts with comment 1`] = `
                   data-testid="btn-copy"
                 />
                 <span
-                  class="c12 icon icon-check "
+                  class="c11 icon icon-check "
+                  color="light"
                   data-testid="btn-check"
                 />
               </div>
@@ -542,7 +512,6 @@ exports[`render multi bash texts with comment 1`] = `
             >
               <div
                 class="c10 icon-container"
-                color="dark"
               >
                 <span
                   class="c11 icon icon-copy "
@@ -550,7 +519,8 @@ exports[`render multi bash texts with comment 1`] = `
                   data-testid="btn-copy"
                 />
                 <span
-                  class="c12 icon icon-check "
+                  class="c11 icon icon-check "
+                  color="light"
                   data-testid="btn-check"
                 />
               </div>
@@ -559,7 +529,7 @@ exports[`render multi bash texts with comment 1`] = `
         </div>
       </div>
       <div
-        class="c13"
+        class="c12"
       >
         <div
           class="c3"
@@ -602,7 +572,6 @@ https://apt.releases.teleport.dev/stable/v10" \\
             >
               <div
                 class="c10 icon-container"
-                color="dark"
               >
                 <span
                   class="c11 icon icon-copy "
@@ -610,7 +579,8 @@ https://apt.releases.teleport.dev/stable/v10" \\
                   data-testid="btn-copy"
                 />
                 <span
-                  class="c12 icon icon-check "
+                  class="c11 icon icon-check "
+                  color="light"
                   data-testid="btn-check"
                 />
               </div>
@@ -649,36 +619,28 @@ exports[`render non bash single text 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c6:hover,
-.c6:focus {
-  background: rgba(255,255,255,0.13);
+.c6:active {
+  opacity: 0.56;
 }
 
-.c6:active {
-  background: rgba(255,255,255,0.18);
+.c6:hover,
+.c6:focus {
+  background: #2C3A73;
 }
 
 .c6:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c9 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  color: #FFFFFF;
-}
-
-.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -712,12 +674,6 @@ exports[`render non bash single text 1`] = `
   min-height: auto;
   padding: 0;
   margin-top: -4px;
-  background: rgba(255,255,255,0.07);
-}
-
-.c7:hover,
-.c7:focus {
-  background: rgba(255,255,255,0.13);
 }
 
 .c1 {
@@ -729,7 +685,6 @@ exports[`render non bash single text 1`] = `
   font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
   overflow: scroll;
   line-height: 20px;
-  color: #FFFFFF;
 }
 
 .c0 {
@@ -789,7 +744,6 @@ exports[`render non bash single text 1`] = `
             >
               <div
                 class="c8 icon-container"
-                color="dark"
               >
                 <span
                   class="c9 icon icon-copy "
@@ -797,7 +751,8 @@ exports[`render non bash single text 1`] = `
                   data-testid="btn-copy"
                 />
                 <span
-                  class="c10 icon icon-check "
+                  class="c9 icon icon-check "
+                  color="light"
                   data-testid="btn-check"
                 />
               </div>
@@ -841,36 +796,28 @@ exports[`render single bash text 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c7:hover,
-.c7:focus {
-  background: rgba(255,255,255,0.13);
+.c7:active {
+  opacity: 0.56;
 }
 
-.c7:active {
-  background: rgba(255,255,255,0.18);
+.c7:hover,
+.c7:focus {
+  background: #2C3A73;
 }
 
 .c7:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c10 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  color: #FFFFFF;
-}
-
-.c11 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -904,12 +851,6 @@ exports[`render single bash text 1`] = `
   min-height: auto;
   padding: 0;
   margin-top: -4px;
-  background: rgba(255,255,255,0.07);
-}
-
-.c8:hover,
-.c8:focus {
-  background: rgba(255,255,255,0.13);
 }
 
 .c1 {
@@ -921,7 +862,6 @@ exports[`render single bash text 1`] = `
   font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
   overflow: scroll;
   line-height: 20px;
-  color: #FFFFFF;
 }
 
 .c0 {
@@ -986,7 +926,6 @@ exports[`render single bash text 1`] = `
             >
               <div
                 class="c9 icon-container"
-                color="dark"
               >
                 <span
                   class="c10 icon icon-copy "
@@ -994,7 +933,8 @@ exports[`render single bash text 1`] = `
                   data-testid="btn-copy"
                 />
                 <span
-                  class="c11 icon icon-check "
+                  class="c10 icon icon-check "
+                  color="light"
                   data-testid="btn-check"
                 />
               </div>
@@ -1038,36 +978,28 @@ exports[`render single bash text with comment 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #FFFFFF;
-  background: rgba(255,255,255,0.07);
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c8:hover,
-.c8:focus {
-  background: rgba(255,255,255,0.13);
+.c8:active {
+  opacity: 0.56;
 }
 
-.c8:active {
-  background: rgba(255,255,255,0.18);
+.c8:hover,
+.c8:focus {
+  background: #2C3A73;
 }
 
 .c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c11 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
-  color: #FFFFFF;
-}
-
-.c12 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -1105,12 +1037,6 @@ exports[`render single bash text with comment 1`] = `
   min-height: auto;
   padding: 0;
   margin-top: -4px;
-  background: rgba(255,255,255,0.07);
-}
-
-.c9:hover,
-.c9:focus {
-  background: rgba(255,255,255,0.13);
 }
 
 .c1 {
@@ -1122,7 +1048,6 @@ exports[`render single bash text with comment 1`] = `
   font-family: "Droid Sans Mono","monospace",monospace,"Droid Sans Fallback";
   overflow: scroll;
   line-height: 20px;
-  color: #FFFFFF;
 }
 
 .c0 {
@@ -1192,7 +1117,6 @@ exports[`render single bash text with comment 1`] = `
             >
               <div
                 class="c10 icon-container"
-                color="dark"
               >
                 <span
                   class="c11 icon icon-copy "
@@ -1200,7 +1124,8 @@ exports[`render single bash text with comment 1`] = `
                   data-testid="btn-copy"
                 />
                 <span
-                  class="c12 icon icon-check "
+                  class="c11 icon icon-check "
+                  color="light"
                   data-testid="btn-check"
                 />
               </div>

@@ -41,8 +41,6 @@ type rdsFetcherConfig struct {
 	RDS rdsiface.RDSAPI
 	// Region is the AWS region to query databases in.
 	Region string
-	// AssumeRole is the AWS IAM role to assume before discovering databases.
-	AssumeRole services.AssumeRole
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -78,7 +76,6 @@ func newRDSDBInstancesFetcher(config rdsFetcherConfig) (common.Fetcher, error) {
 			trace.Component: "watch:rds",
 			"labels":        config.Labels,
 			"region":        config.Region,
-			"role":          config.AssumeRole,
 		}),
 	}, nil
 }
@@ -90,7 +87,6 @@ func (f *rdsDBInstancesFetcher) Get(ctx context.Context) (types.ResourcesWithLab
 		return nil, trace.Wrap(err)
 	}
 
-	applyAssumeRoleToDatabases(rdsDatabases, f.cfg.AssumeRole)
 	return filterDatabasesByLabels(rdsDatabases, f.cfg.Labels, f.log).AsResources(), nil
 }
 
@@ -176,7 +172,6 @@ func newRDSAuroraClustersFetcher(config rdsFetcherConfig) (common.Fetcher, error
 			trace.Component: "watch:aurora",
 			"labels":        config.Labels,
 			"region":        config.Region,
-			"role":          config.AssumeRole,
 		}),
 	}, nil
 }
@@ -188,7 +183,6 @@ func (f *rdsAuroraClustersFetcher) Get(ctx context.Context) (types.ResourcesWith
 		return nil, trace.Wrap(err)
 	}
 
-	applyAssumeRoleToDatabases(auroraDatabases, f.cfg.AssumeRole)
 	return filterDatabasesByLabels(auroraDatabases, f.cfg.Labels, f.log).AsResources(), nil
 }
 

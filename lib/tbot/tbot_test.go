@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -66,7 +65,7 @@ func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *test
 ) (auth.ClientI, func() *service.TeleportProcess, *config.FileConfig) {
 	fc, fds := testhelpers.DefaultConfig(t)
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
 	cfg.FileDescriptors = fds
 	cfg.Log = log
@@ -78,7 +77,7 @@ func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *test
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := service.Run(ctx, *cfg, func(cfg *servicecfg.Config) (service.Process, error) {
+		err := service.Run(ctx, *cfg, func(cfg *service.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				svcC <- svc

@@ -117,8 +117,6 @@ const cfg = {
     headlessSso: `/web/headless/:requestId`,
     integrations: '/web/integrations',
     integrationEnroll: '/web/integrations/new/:type?',
-    locks: '/web/locks',
-    newLock: '/web/locks/new',
 
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
@@ -139,7 +137,7 @@ const cfg = {
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
     checkAccessToRegisteredResource: `/v1/webapi/sites/:clusterId/resources/check`,
 
-    scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename&moderatedSessionId=:moderatedSessionId?&fileTransferRequestId=:fileTransferRequestId?',
+    scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
     webRenewTokenPath: '/v1/webapi/sessions/web/renew',
     resetPasswordTokenPath: '/v1/webapi/users/password/token',
     webSessionPath: '/v1/webapi/sessions/web',
@@ -202,9 +200,6 @@ const cfg = {
     mfaDevicesPath: '/v1/webapi/mfa/devices',
     mfaDevicePath: '/v1/webapi/mfa/token/:tokenId/devices/:deviceName',
 
-    locksPath: '/v1/webapi/sites/:clusterId/locks',
-    locksPathWithUuid: '/v1/webapi/sites/:clusterId/locks/:uuid',
-
     dbSign: 'v1/webapi/sites/:clusterId/sign/db',
 
     installADDSPath: '/v1/webapi/scripts/desktop-access/install-ad-ds.ps1',
@@ -215,12 +210,14 @@ const cfg = {
     captureUserEventPath: '/v1/webapi/capture',
     capturePreUserEventPath: '/v1/webapi/precapture',
 
-    webapiPingPath: '/v1/webapi/ping',
-
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
 
+    webapiPingPath: '/v1/webapi/ping',
+
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
-    thumbprintPath: '/v1/webapi/thumbprint',
+    integrationExecutePath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/action/:action',
+
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
 
@@ -533,26 +530,6 @@ const cfg = {
     });
   },
 
-  getLocksRoute() {
-    return cfg.routes.locks;
-  },
-
-  getNewLocksRoute() {
-    return cfg.routes.newLock;
-  },
-
-  getLocksUrl() {
-    // Currently only support get/create locks in root cluster.
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.locksPath, { clusterId });
-  },
-
-  getLocksUrlWithUuid(uuid: string) {
-    // Currently only support delete/lookup locks in root cluster.
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.locksPathWithUuid, { clusterId, uuid });
-  },
-
   getDatabaseSignUrl(clusterId: string) {
     return generatePath(cfg.api.dbSign, { clusterId });
   },
@@ -590,7 +567,6 @@ const cfg = {
     let path = generatePath(cfg.api.scp, {
       ...params,
     });
-
     if (!webauthn) {
       return path;
     }
@@ -654,19 +630,20 @@ const cfg = {
     });
   },
 
+  getUserGroupsListUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.userGroupsListPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
   getAwsRdsDbListUrl(integrationName: string) {
+    // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
 
     return generatePath(cfg.api.awsRdsDbListPath, {
       clusterId,
       name: integrationName,
-    });
-  },
-
-  getUserGroupsListUrl(clusterId: string, params: UrlResourcesParams) {
-    return generateResourcePath(cfg.api.userGroupsListPath, {
-      clusterId,
-      ...params,
     });
   },
 
@@ -753,8 +730,6 @@ export interface UrlScpParams {
   login: string;
   location: string;
   filename: string;
-  moderatedSessionId?: string;
-  fileTransferRequestId?: string;
   webauthn?: WebauthnAssertionResponse;
 }
 
@@ -812,14 +787,6 @@ export interface UrlResourcesParams {
   limit?: number;
   startKey?: string;
   searchAsRoles?: 'yes' | '';
-}
-
-export interface UrlIntegrationExecuteRequestParams {
-  // name is the name of integration to execute (use).
-  name: string;
-  // action is the expected backend string value
-  // used to describe what to use the integration for.
-  action: 'aws-oidc/list_databases';
 }
 
 export default cfg;

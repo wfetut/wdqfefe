@@ -39,7 +39,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
-	"github.com/gravitational/teleport/lib/agentless"
+	assistlib "github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -49,9 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
-
-// CommandResultType is the type of Assist message that contains the command execution result.
-const CommandResultType = "COMMAND_RESULT"
 
 // CommandRequest is a request to execute a command on all nodes that match the query.
 type CommandRequest struct {
@@ -116,6 +113,10 @@ func (h *Handler) executeCommand(
 
 	clt, err := sessionCtx.GetUserClient(r.Context(), site)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkAssistEnabled(clt, r.Context()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -203,7 +204,6 @@ func (h *Handler) executeCommand(
 				InteractiveCommand: strings.Split(req.Command, " "),
 				Router:             h.cfg.Router,
 				TracerProvider:     h.cfg.TracerProvider,
-				LocalAuthProvider:  h.auth.accessPoint,
 			}
 
 			handler, err := newCommandHandler(ctx, commandHandlerConfig)
@@ -237,7 +237,7 @@ func (h *Handler) executeCommand(
 				ConversationId: req.ConversationID,
 				Username:       identity.TeleportUser,
 				Message: &assist.AssistantMessage{
-					Type:        CommandResultType,
+					Type:        string(assistlib.MessageKindCommandResult),
 					CreatedTime: timestamppb.New(time.Now().UTC()),
 					Payload:     string(msgPayload),
 				},
@@ -277,7 +277,6 @@ func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandH
 			proxyHostPort:      cfg.ProxyHostPort,
 			interactiveCommand: cfg.InteractiveCommand,
 			router:             cfg.Router,
-			localAuthProvider:  cfg.LocalAuthProvider,
 			tracer:             cfg.tracer,
 		},
 	}, nil
@@ -303,9 +302,6 @@ type CommandHandlerConfig struct {
 	Router *proxy.Router
 	// TracerProvider is used to create the tracer
 	TracerProvider oteltrace.TracerProvider
-	// LocalAuthProvider is used to fetch user information from the
-	// local cluster when connecting to agentless nodes.
-	LocalAuthProvider agentless.AuthProvider
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
 }
@@ -340,10 +336,6 @@ func (t *CommandHandlerConfig) CheckAndSetDefaults() error {
 
 	if t.TracerProvider == nil {
 		t.TracerProvider = tracing.DefaultProvider()
-	}
-
-	if t.LocalAuthProvider == nil {
-		return trace.BadParameter("LocalAuthProvider must be provided")
 	}
 
 	t.tracer = t.TracerProvider.Tracer("webcommand")
@@ -446,7 +438,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 	defer span.End()
 
 	mfaAuth := func(ctx context.Context, ws WSConn, tc *client.TeleportClient,
-		accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator,
+		accessChecker services.AccessChecker, getAgent teleagent.Getter,
 	) (*client.NodeClient, error) {
 		return nil, trace.NotImplemented("MFA is not supported for command execution")
 	}

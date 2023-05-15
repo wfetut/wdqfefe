@@ -60,7 +60,7 @@ export default function Container(props: AgentStepProps) {
       fallbackFn={fbProps => (
         <Template prevStep={props.prevStep} nextStep={() => null}>
           <TextIcon mt={2} mb={3}>
-            <Icons.Warning ml={1} color="error.main" />
+            <Icons.Warning ml={1} color="danger" />
             Encountered Error: {fbProps.error.message}
           </TextIcon>
         </Template>

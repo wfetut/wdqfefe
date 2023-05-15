@@ -73,7 +73,6 @@ import (
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/gcp"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -97,7 +96,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/interval"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
-	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 )
 
 const (
@@ -219,7 +217,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.UsageReporter = usagereporter.DiscardUsageReporter{}
 	}
 	if cfg.Okta == nil {
-		cfg.Okta, err = local.NewOktaService(cfg.Backend, cfg.Clock)
+		cfg.Okta, err = local.NewOktaService(cfg.Backend, cfg.Backend.Clock())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -271,7 +269,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Kubernetes:              cfg.Kubernetes,
 		Databases:               cfg.Databases,
 		DatabaseServices:        cfg.DatabaseServices,
-		AuditLogSessionStreamer: cfg.AuditLog,
+		IAuditLog:               cfg.AuditLog,
 		Events:                  cfg.Events,
 		WindowsDesktops:         cfg.WindowsDesktops,
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
@@ -287,25 +285,23 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
-		bk:                  cfg.Backend,
-		clock:               cfg.Clock,
-		limiter:             limiter,
-		Authority:           cfg.Authority,
-		AuthServiceName:     cfg.AuthServiceName,
-		ServerID:            cfg.HostUUID,
-		githubClients:       make(map[string]*githubClient),
-		cancelFunc:          cancelFunc,
-		closeCtx:            closeCtx,
-		emitter:             cfg.Emitter,
-		streamer:            cfg.Streamer,
-		Unstable:            local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
-		Services:            services,
-		Cache:               services,
-		keyStore:            keyStore,
-		traceClient:         cfg.TraceClient,
-		fips:                cfg.FIPS,
-		loadAllCAs:          cfg.LoadAllCAs,
-		httpClientForAWSSTS: cfg.HTTPClientForAWSSTS,
+		bk:              cfg.Backend,
+		limiter:         limiter,
+		Authority:       cfg.Authority,
+		AuthServiceName: cfg.AuthServiceName,
+		ServerID:        cfg.HostUUID,
+		githubClients:   make(map[string]*githubClient),
+		cancelFunc:      cancelFunc,
+		closeCtx:        closeCtx,
+		emitter:         cfg.Emitter,
+		streamer:        cfg.Streamer,
+		Unstable:        local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
+		Services:        services,
+		Cache:           services,
+		keyStore:        keyStore,
+		traceClient:     cfg.TraceClient,
+		fips:            cfg.FIPS,
+		loadAllCAs:      cfg.LoadAllCAs,
 	}
 	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
@@ -322,14 +318,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	as.ttlCache, err = utils.NewFnCache(utils.FnCacheConfig{
-		TTL: time.Second * 3,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if as.ghaIDTokenValidator == nil {
 		as.ghaIDTokenValidator = githubactions.NewIDTokenValidator(
 			githubactions.IDTokenValidatorConfig{
@@ -361,14 +349,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		as.kubernetesTokenValidator = &kubernetestoken.Validator{}
 	}
 
-	if as.gcpIDTokenValidator == nil {
-		as.gcpIDTokenValidator = gcp.NewIDTokenValidator(
-			gcp.IDTokenValidatorConfig{
-				Clock: as.clock,
-			},
-		)
-	}
-
 	return &as, nil
 }
 
@@ -396,7 +376,7 @@ type Services struct {
 	services.Assistant
 	usagereporter.UsageReporter
 	types.Events
-	events.AuditLogSessionStreamer
+	events.IAuditLog
 }
 
 // GetWebSession returns existing web session described by req.
@@ -514,8 +494,6 @@ type Server struct {
 
 	sshca.Authority
 
-	upgradeWindowStartHourGetter func(context.Context) (int64, error)
-
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
 	// (managing multiple teleport clusters) this field is used to tell them apart in UIs
 	// It usually defaults to the hostname of the machine the Auth service runs on.
@@ -569,9 +547,6 @@ type Server struct {
 	// external SSO or not.
 	githubOrgSSOCache *utils.FnCache
 
-	// ttlCache is a generic ttl cache. typed keys must be used.
-	ttlCache *utils.FnCache
-
 	// traceClient is used to forward spans to the upstream collector for components
 	// within the cluster that don't have a direct connection to said collector
 	traceClient otlptrace.Client
@@ -595,10 +570,6 @@ type Server struct {
 	// by the auth server. It can be overridden for the purpose of tests.
 	kubernetesTokenValidator kubernetesTokenValidator
 
-	// gcpIDTokenValidator allows ID tokens from GCP to be validated by the auth
-	// server. It can be overridden for the purpose of tests.
-	gcpIDTokenValidator gcpIDTokenValidator
-
 	// loadAllCAs tells tsh to load the host CAs for all clusters when trying to ssh into a node.
 	loadAllCAs bool
 
@@ -612,10 +583,6 @@ type Server struct {
 	loginHooksMu sync.RWMutex
 	// loginHooks are a list of hooks that will be called on login.
 	loginHooks []LoginHook
-
-	// httpClientForAWSSTS overwrites the default HTTP client used for making
-	// STS requests.
-	httpClientForAWSSTS utils.HTTPDoClient
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -640,20 +607,6 @@ func (a *Server) SetLicense(license *liblicense.License) {
 // SetReleaseService sets the release service
 func (a *Server) SetReleaseService(svc release.Client) {
 	a.releaseService = svc
-}
-
-// SetUpgradeWindowStartHourGetter sets the getter used to sync the ClusterMaintenanceConfig resource
-// with the cloud UpgradeWindowStartHour value.
-func (a *Server) SetUpgradeWindowStartHourGetter(fn func(context.Context) (int64, error)) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	a.upgradeWindowStartHourGetter = fn
-}
-
-func (a *Server) getUpgradeWindowStartHourGetter() func(context.Context) (int64, error) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	return a.upgradeWindowStartHourGetter
 }
 
 // SetLoginRuleEvaluator sets the login rule evaluator.
@@ -733,66 +686,6 @@ func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher 
 	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
 }
 
-// syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
-// the ClusterMaintenanceConfig resource's AgentUpgrade.UTCStartHour field to match it.
-func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
-	getter := a.getUpgradeWindowStartHourGetter()
-	if getter == nil {
-		return trace.Errorf("getter has not been registered")
-	}
-
-	startHour, err := getter(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cmc, err := a.GetClusterMaintenanceConfig(ctx)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-
-		// create an empty maintenance config resource on NotFound
-		cmc = types.NewClusterMaintenanceConfig()
-	}
-
-	agentWindow, _ := cmc.GetAgentUpgradeWindow()
-
-	agentWindow.UTCStartHour = uint32(startHour)
-
-	cmc.SetAgentUpgradeWindow(agentWindow)
-
-	if err := a.UpdateClusterMaintenanceConfig(ctx, cmc); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (a *Server) periodicSyncUpgradeWindowStartHour() {
-	checkInterval := interval.New(interval.Config{
-		Duration:      time.Minute * 3,
-		FirstDuration: utils.FullJitter(time.Second * 30),
-		Jitter:        retryutils.NewSeventhJitter(),
-	})
-	defer checkInterval.Stop()
-
-	for {
-		select {
-		case <-checkInterval.Next():
-			if err := a.syncUpgradeWindowStartHour(a.closeCtx); err != nil {
-				if a.closeCtx.Err() == nil {
-					// we run this periodic at a fairly high frequency, so errors are just
-					// logged but otherwise ignored.
-					log.Warnf("Failed to sync upgrade window start hour: %v", err)
-				}
-			}
-		case <-a.closeCtx.Done():
-			return
-		}
-	}
-}
-
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
 func (a *Server) runPeriodicOperations() {
@@ -866,12 +759,6 @@ func (a *Server) runPeriodicOperations() {
 			}
 		}
 	}()
-
-	// cloud auth servers need to periodically sync the upgrade window
-	// from the cloud db.
-	if modules.GetModules().Features().Cloud {
-		go a.periodicSyncUpgradeWindowStartHour()
-	}
 
 	for {
 		select {
@@ -1210,8 +1097,8 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 }
 
 // SetAuditLog sets the server's audit log
-func (a *Server) SetAuditLog(auditLog events.AuditLogSessionStreamer) {
-	a.Services.AuditLogSessionStreamer = auditLog
+func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
+	a.Services.IAuditLog = auditLog
 }
 
 // GetEmitter fetches the current audit log emitter implementation.
@@ -1283,7 +1170,7 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	}
 
 	// get the certificate authority that will be signing the public key of the host
-	ca, err := a.Services.GetCertAuthority(ctx, types.CertAuthID{
+	ca, err := a.Services.GetCertAuthority(context.TODO(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: domainName,
 	}, true)
@@ -1297,7 +1184,7 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	}
 
 	// create and sign!
-	return a.generateHostCert(ctx, services.HostCertParams{
+	return a.generateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
 		PublicHostKey: hostPublicKey,
 		HostID:        hostID,
@@ -1309,10 +1196,8 @@ func (a *Server) GenerateHostCert(ctx context.Context, hostPublicKey []byte, hos
 	})
 }
 
-func (a *Server) generateHostCert(
-	ctx context.Context, p services.HostCertParams,
-) ([]byte, error) {
-	authPref, err := a.GetAuthPreference(ctx)
+func (a *Server) generateHostCert(p services.HostCertParams) ([]byte, error) {
+	authPref, err := a.GetAuthPreference(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1467,60 +1352,6 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	}
 }
 
-func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
-	if req.User == nil {
-		return nil, trace.BadParameter("user is empty")
-	}
-	if len(req.PublicKey) == 0 {
-		return nil, trace.BadParameter("public key is empty")
-	}
-	if req.TTL == 0 {
-		return nil, trace.BadParameter("TTL is not set")
-	}
-	if req.TTL < 0 {
-		return nil, trace.BadParameter("TTL must be positive")
-	}
-	if req.Cluster == "" {
-		return nil, trace.BadParameter("cluster is empty")
-	}
-
-	// add implicit roles to the set and build a checker
-	accessInfo := services.AccessInfoFromUser(req.User)
-	roles := make([]types.Role, len(req.Roles))
-	for i := range req.Roles {
-		roles[i] = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
-	}
-	roleSet := services.NewRoleSet(roles...)
-
-	clusterName, err := a.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)
-
-	certs, err := a.generateOpenSSHCert(certRequest{
-		user:            req.User,
-		publicKey:       req.PublicKey,
-		compatibility:   constants.CertificateFormatStandard,
-		checker:         checker,
-		ttl:             time.Duration(req.TTL),
-		traits:          req.User.GetTraits(),
-		routeToCluster:  req.Cluster,
-		disallowReissue: true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &proto.OpenSSHCert{
-		Cert: certs.SSH,
-	}, nil
-}
-
-func certRequestPinIP(pinIP bool) certRequestOption {
-	return func(r *certRequest) { r.pinIP = pinIP }
-}
-
 // GenerateUserTestCertsRequest is a request to generate test certificates.
 type GenerateUserTestCertsRequest struct {
 	Key            []byte
@@ -1585,8 +1416,6 @@ type AppTestCertRequest struct {
 	AzureIdentity string
 	// GCPServiceAccount is optional GCP service account a user wants to assume to encode.
 	GCPServiceAccount string
-	// PinnedIP is optional IP to pin certificate to.
-	PinnedIP string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -1629,8 +1458,6 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		awsRoleARN:        req.AWSRoleARN,
 		azureIdentity:     req.AzureIdentity,
 		gcpServiceAccount: req.GCPServiceAccount,
-		pinIP:             req.PinnedIP != "",
-		loginIP:           req.PinnedIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1820,7 +1647,7 @@ func (a *Server) AugmentContextUserCertificates(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, sshSigner, _, err := a.getSigningCAs(ctx, domainName, types.UserCA)
+	tlsCA, sshSigner, _, err := a.getUserSigningCAs(ctx, domainName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1982,17 +1809,8 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 	})
 }
 
-// generateUserCert generates certificates signed with User CA
+// generateUserCert generates user certificates
 func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
-	return generateCert(a, req, types.UserCA)
-}
-
-// generateOpenSSHCert generates certificates signed with OpenSSH CA
-func (a *Server) generateOpenSSHCert(req certRequest) (*proto.Certs, error) {
-	return generateCert(a, req, types.OpenSSHCA)
-}
-
-func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto.Certs, error) {
 	ctx := context.TODO()
 	err := req.check()
 	if err != nil {
@@ -2096,6 +1914,11 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		}
 	}
 
+	tlsCA, sshSigner, userCA, err := a.getUserSigningCAs(ctx, clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Add the special join-only principal used for joining sessions.
 	// All users have access to this and join RBAC rules are checked after the connection is established.
 	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
@@ -2106,24 +1929,14 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 	}
 
 	pinnedIP := ""
-	if caType == types.UserCA && (req.checker.PinSourceIP() || req.pinIP) {
+	if req.checker.PinSourceIP() || req.pinIP {
 		if req.loginIP == "" {
-			return nil, trace.BadParameter("IP pinning is enabled for user %q but there is no client IP information", req.user.GetName())
+			// TODO(anton): make sure all upstream callers provide clientIP and make this into hard error
+			// instead of warning, after merging #21080
+			log.Warnf("IP pinning is enabled for user %q but there is no client ip information", req.user.GetName())
 		}
 
 		pinnedIP = req.loginIP
-	}
-
-	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
-		DomainName: clusterName,
-	}, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	params := services.UserCertParams{
@@ -2156,7 +1969,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		DeviceAssetTag:          req.deviceExtensions.AssetTag,
 		DeviceCredentialID:      req.deviceExtensions.CredentialID,
 	}
-	signedSSHCert, err := a.GenerateUserCert(params)
+	sshCert, err := a.GenerateUserCert(params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2204,6 +2017,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		return nil, trace.Wrap(err)
 	}
 
+	// generate TLS certificate
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
 		Impersonator:      req.impersonator,
@@ -2254,38 +2068,23 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 		},
 		UserType: req.user.GetUserType(),
 	}
-
-	var signedTLSCert []byte
-	notAfter := a.clock.Now().UTC().Add(sessionTTL)
-	// generate TLS certificate if the signing CA isn't OpenSSH CA, as
-	// OpenSSH CA doesn't have any TLS keypairs
-	if caType != types.OpenSSHCA {
-		tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		subject, err := identity.Subject()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		certRequest := tlsca.CertificateRequest{
-			Clock:     a.clock,
-			PublicKey: cryptoPubKey,
-			Subject:   subject,
-			NotAfter:  notAfter,
-		}
-		signedTLSCert, err = tlsCA.GenerateCertificate(certRequest)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	subject, err := identity.Subject()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certRequest := tlsca.CertificateRequest{
+		Clock:     a.clock,
+		PublicKey: cryptoPubKey,
+		Subject:   subject,
+		NotAfter:  a.clock.Now().UTC().Add(sessionTTL),
+	}
+	tlsCert, err := tlsCA.GenerateCertificate(certRequest)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	eventIdentity := identity.GetEventIdentity()
-	eventIdentity.Expires = notAfter
+	eventIdentity.Expires = certRequest.NotAfter
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
 		Metadata: apievents.Metadata{
 			Type: events.CertificateCreateEvent,
@@ -2299,12 +2098,12 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 
 	// create certs struct to return to user
 	certs := &proto.Certs{
-		SSH: signedSSHCert,
-		TLS: signedTLSCert,
+		SSH: sshCert,
+		TLS: tlsCert,
 	}
 
-	// always include specified CA
-	cas := []types.CertAuthority{ca}
+	// always include user CA TLS and SSH certs
+	cas := []types.CertAuthority{userCA}
 
 	// also include host CA certs if requested
 	if req.includeHostCA {
@@ -2369,18 +2168,19 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	return trace.Wrap(a.checkLockInForce(lockingMode, lockTargets))
 }
 
-// getSigningCAs returns the necessary resources to issue/sign new certificates.
-func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType types.CertAuthType) (*tlsca.CertAuthority, ssh.Signer, types.CertAuthority, error) {
+// getUserSigningCAs returns the necessary resources to issue/sign new user
+// certificates.
+func (a *Server) getUserSigningCAs(ctx context.Context, domainName string) (*tlsca.CertAuthority, ssh.Signer, types.CertAuthority, error) {
 	const loadKeys = true
-	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
+	userCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
 		DomainName: domainName,
 	}, loadKeys)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
+	tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, userCA)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -2389,12 +2189,12 @@ func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType ty
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
+	sshSigner, err := a.keyStore.GetSSHSigner(ctx, userCA)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	return tlsCA, sshSigner, ca, nil
+	return tlsCA, sshSigner, userCA, nil
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication
@@ -2485,7 +2285,6 @@ func (a *Server) PreAuthenticatedSignIn(ctx context.Context, user string, identi
 	}
 	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 user,
-		LoginIP:              identity.LoginIP,
 		Roles:                accessInfo.Roles,
 		Traits:               accessInfo.Traits,
 		AccessRequests:       identity.ActiveRequests,
@@ -3082,7 +2881,6 @@ func (a *Server) ExtendWebSession(ctx context.Context, req WebSessionReq, identi
 	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(ctx, types.NewWebSessionRequest{
 		User:                 req.User,
-		LoginIP:              identity.LoginIP,
 		Roles:                roles,
 		Traits:               traits,
 		SessionTTL:           sessionTTL,
@@ -3158,8 +2956,6 @@ func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSe
 }
 
 // GenerateToken generates multi-purpose authentication token.
-// Deprecated: Use CreateToken or UpdateToken.
-// DELETE IN 14.0.0, replaced by methods above (strideynet).
 func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error) {
 	ttl := defaults.ProvisioningTokenTTL
 	if req.TTL != 0 {
@@ -3340,7 +3136,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 		return nil, trace.Wrap(err)
 	}
 	// generate host SSH certificate
-	hostSSHCert, err := a.generateHostCert(ctx, services.HostCertParams{
+	hostSSHCert, err := a.generateHostCert(services.HostCertParams{
 		CASigner:      caSigner,
 		PublicHostKey: req.PublicSSHKey,
 		HostID:        req.HostID,
@@ -3609,23 +3405,15 @@ func (a *Server) ValidateToken(ctx context.Context, token string) (types.Provisi
 // checkTokenTTL checks if the token is still valid. If it is not, the token
 // is removed from the backend and returns false. Otherwise returns true.
 func (a *Server) checkTokenTTL(tok types.ProvisionToken) bool {
-	// Always accept tokens without an expiry configured.
-	if tok.Expiry().IsZero() {
-		return true
-	}
-
+	ctx := context.TODO()
 	now := a.clock.Now().UTC()
 	if tok.Expiry().Before(now) {
-		// Tidy up the expired token in background if it has expired.
-		go func() {
-			ctx, cancel := context.WithTimeout(a.CloseContext(), time.Second*30)
-			defer cancel()
-			if err := a.DeleteToken(ctx, tok.GetName()); err != nil {
-				if !trace.IsNotFound(err) {
-					log.Warnf("Unable to delete token from backend: %v.", err)
-				}
+		err := a.DeleteToken(ctx, tok.GetName())
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				log.Warnf("Unable to delete token from backend: %v.", err)
 			}
-		}()
+		}
 		return false
 	}
 	return true
@@ -3721,7 +3509,6 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
-		loginIP:        req.LoginIP,
 		ttl:            sessionTTL,
 		publicKey:      pub,
 		checker:        checker,
@@ -3980,6 +3767,16 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 	if kind == 0 {
 		return nil
 	}
+
+	// KubeServiceV2 (used by v11 kube agents) keepalives as
+	// KeepAlive_KUBERNETES but with no HostID; we shouldn't count those, as the
+	// name is going to be the host ID of the agent rather than the kube cluster
+	// name.
+	// DELETE IN: 13.0
+	if h.Type == types.KeepAlive_KUBERNETES && h.HostID == "" {
+		return nil
+	}
+
 	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   h.Name,
 		Kind:   kind,
@@ -3997,40 +3794,18 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 		return nil, trace.Wrap(err)
 	}
 
-	kind := usagereporter.ResourceKindNode
-	if server.GetSubKind() == types.SubKindOpenSSHNode {
-		kind = usagereporter.ResourceKindNodeOpenSSH
-	}
-
 	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   server.GetName(),
-		Kind:   kind,
+		Kind:   usagereporter.ResourceKindNode,
 		Static: server.Expiry().IsZero(),
 	})
 
 	return lease, nil
 }
 
-// enforceLicense checks if the license allows the given resource type to be
-// created.
-func enforceLicense(t string) error {
-	switch t {
-	case types.KindKubeServer, types.KindKubernetesCluster:
-		if !modules.GetModules().Features().Kubernetes {
-			return trace.AccessDenied(
-				"this Teleport cluster is not licensed for Kubernetes, please contact the cluster administrator")
-		}
-	}
-	return nil
-}
-
 // UpsertKubernetesServer implements [services.Presence] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertKubernetesServer(ctx context.Context, server types.KubeServer) (*types.KeepAlive, error) {
-	if err := enforceLicense(types.KindKubeServer); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	k, err := a.Services.UpsertKubernetesServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4453,9 +4228,6 @@ func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesReque
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.KubeCluster) error {
-	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
-		return trace.Wrap(err)
-	}
 	if err := a.Services.CreateKubernetesCluster(ctx, kubeCluster); err != nil {
 		return trace.Wrap(err)
 	}
@@ -4480,9 +4252,6 @@ func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.
 
 // UpdateKubernetesCluster updates an existing kubernetes cluster resource.
 func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.KubeCluster) error {
-	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
-		return trace.Wrap(err)
-	}
 	if err := a.Kubernetes.UpdateKubernetesCluster(ctx, kubeCluster); err != nil {
 		return trace.Wrap(err)
 	}
@@ -4571,87 +4340,6 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}, nil
 }
 
-type maintenanceWindowCacheKey struct {
-	key string
-}
-
-// agentWindowLookahead is the number of upgrade windows, starting from 'today', that we export
-// when compiling agent upgrade schedules. The choice is arbitrary. We must export at least 2, because upgraders
-// treat a schedule value whose windows all end in the past to be stale and therefore a sign that the agent is
-// unhealthy. 3 was picked to give us some leeway in terms of how long an agent can be turned off before its
-// upgrader starts complaining of a stale schedule.
-const agentWindowLookahead = 3
-
-// exportUpgradeWindowsCached generates the export value of all upgrade window schedule types. Since schedules
-// are reloaded frequently in large clusters and export incurs string/json encoding, we use the ttl cache to store
-// the encoded schedule values for a few seconds.
-func (a *Server) exportUpgradeWindowsCached(ctx context.Context) (proto.ExportUpgradeWindowsResponse, error) {
-	return utils.FnCacheGet(ctx, a.ttlCache, maintenanceWindowCacheKey{"export"}, func(ctx context.Context) (proto.ExportUpgradeWindowsResponse, error) {
-		var rsp proto.ExportUpgradeWindowsResponse
-		cmc, err := a.GetClusterMaintenanceConfig(ctx)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				// "not found" is treated as an empty schedule value
-				return rsp, nil
-			}
-			return rsp, trace.Wrap(err)
-		}
-
-		agentWindow, ok := cmc.GetAgentUpgradeWindow()
-		if !ok {
-			// "unconfigured" is treated as an empty schedule value
-			return rsp, nil
-		}
-
-		sched := agentWindow.Export(time.Now(), agentWindowLookahead)
-
-		rsp.CanonicalSchedule = &sched
-
-		rsp.KubeControllerSchedule, err = uw.EncodeKubeControllerSchedule(sched)
-		if err != nil {
-			log.Warnf("Failed to encode kube controller maintenance schedule: %v", err)
-		}
-
-		rsp.SystemdUnitSchedule, err = uw.EncodeSystemdUnitSchedule(sched)
-		if err != nil {
-			log.Warnf("Failed to encode systemd unit maintenance schedule: %v", err)
-		}
-
-		return rsp, nil
-	})
-}
-
-func (a *Server) ExportUpgradeWindows(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error) {
-	var rsp proto.ExportUpgradeWindowsResponse
-
-	// get the cached collection of all export values
-	cached, err := a.exportUpgradeWindowsCached(ctx)
-	if err != nil {
-		return rsp, nil
-	}
-
-	switch req.UpgraderKind {
-	case "":
-		rsp.CanonicalSchedule = cached.CanonicalSchedule.Clone()
-	case types.UpgraderKindKubeController:
-		rsp.KubeControllerSchedule = cached.KubeControllerSchedule
-
-		if sched := os.Getenv("TELEPORT_UNSTABLE_KUBE_UPGRADE_SCHEDULE"); sched != "" {
-			rsp.KubeControllerSchedule = sched
-		}
-	case types.UpgraderKindSystemdUnit:
-		rsp.SystemdUnitSchedule = cached.SystemdUnitSchedule
-
-		if sched := os.Getenv("TELEPORT_UNSTABLE_SYSTEMD_UPGRADE_SCHEDULE"); sched != "" {
-			rsp.SystemdUnitSchedule = sched
-		}
-	default:
-		return rsp, trace.NotImplemented("unsupported upgrader kind %q in upgrade window export request", req.UpgraderKind)
-	}
-
-	return rsp, nil
-}
-
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
@@ -4697,7 +4385,6 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			// connection.
 			return &proto.IsMFARequiredResponse{Required: false}, nil
 		}
-
 		// Check RBAC against all matching nodes and return the first error.
 		// If at least one node requires MFA, we'll catch it.
 		for _, n := range matches {
@@ -5153,7 +4840,7 @@ func (a *Server) createSelfSignedCA(ctx context.Context, caID types.CertAuthID) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.CreateCertAuthority(ctx, ca); err != nil {
+	if err := a.CreateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

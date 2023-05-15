@@ -141,10 +141,6 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		if err := a.checkKubernetesJoinRequest(ctx, req); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case types.JoinMethodGCP:
-		if err := a.checkGCPJoinRequest(ctx, req); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	case types.JoinMethodToken:
 		// carry on to common token checking logic
 	default:
@@ -202,8 +198,7 @@ func (a *Server) generateCertsBot(
 		types.JoinMethodGitLab,
 		types.JoinMethodCircleCI,
 		types.JoinMethodKubernetes,
-		types.JoinMethodAzure,
-		types.JoinMethodGCP:
+		types.JoinMethodAzure:
 		shouldDeleteToken = false
 		renewable = false
 	default:

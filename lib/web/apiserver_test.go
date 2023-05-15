@@ -57,10 +57,12 @@ import (
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/mailgun/timetools"
 	"github.com/pquerna/otp/totp"
+	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
+	otlp "go.opentelemetry.io/proto/otlp/trace/v1"
 	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
@@ -79,6 +81,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -105,11 +108,11 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/secret"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -175,6 +178,9 @@ type webSuiteConfig struct {
 	// Custom "HealthCheckAppServer" function. Can be used to avoid dialing app
 	// services.
 	HealthCheckAppServer healthCheckAppServerFunc
+
+	// OpenAIConfig is a custom OpenAI config for the test.
+	OpenAIConfig *openai.ClientConfig
 }
 
 func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
@@ -307,7 +313,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
@@ -445,6 +451,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		Router:                          router,
 		HealthCheckAppServer:            cfg.HealthCheckAppServer,
 		UI:                              cfg.uiConfig,
+		OpenAIConfig:                    cfg.OpenAIConfig,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -569,7 +576,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(s.clock),
@@ -1129,129 +1136,6 @@ func TestResolveServerHostPort(t *testing.T) {
 	}
 }
 
-func isFileTransferRequest(e *Envelope) bool {
-	if e.GetType() != defaults.WebsocketAudit {
-		return false
-	}
-	var ef events.EventFields
-	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
-		return false
-	}
-	return ef.GetType() == string(srv.FileTransferUpdate)
-}
-
-func isFileTransferDecision(e *Envelope) bool {
-	if e.GetType() != defaults.WebsocketAudit {
-		return false
-	}
-	var ef events.EventFields
-	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
-		return false
-	}
-	return ef.GetType() == string(srv.FileTransferApproved)
-}
-
-func getRequestId(e *Envelope) (string, error) {
-	var ef events.EventFields
-	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
-		return "", err
-	}
-	return ef.GetString("requestID"), nil
-}
-
-func TestFileTransferEvents(t *testing.T) {
-	t.Parallel()
-	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
-
-	errs := make(chan error, 2)
-	readLoop := func(ctx context.Context, ws *websocket.Conn, ch chan<- *Envelope) {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
-			typ, b, err := ws.ReadMessage()
-			if err != nil {
-				errs <- err
-				return
-			}
-			if typ != websocket.BinaryMessage {
-				errs <- trace.BadParameter("expected binary message, got %v", typ)
-				return
-			}
-			var envelope Envelope
-			if err := proto.Unmarshal(b, &envelope); err != nil {
-				errs <- trace.Wrap(err)
-				return
-			}
-			ch <- &envelope
-		}
-	}
-
-	// Create a new user "foo", open a terminal to a new session
-	pack := s.authPack(t, "foo")
-	ws, _, err := s.makeTerminal(t, pack)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	wsMessages := make(chan *Envelope)
-	go readLoop(ctx, ws, wsMessages)
-
-	// Create file transfer event
-	data, err := json.Marshal(events.EventFields{
-		"download": true,
-		"location": "~/myfile.txt",
-	})
-
-	require.NoError(t, err)
-	envelope := &Envelope{
-		Version: defaults.WebsocketVersion,
-		Type:    defaults.WebsocketFileTransferRequest,
-		Payload: string(data),
-	}
-	envelopeBytes, err := proto.Marshal(envelope)
-	require.NoError(t, err)
-	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
-	require.NoError(t, err)
-
-	done := time.After(5 * time.Second)
-	for {
-		select {
-		case <-done:
-			require.FailNow(t, "expected to receive a file transfer event")
-		case err := <-errs:
-			require.NoError(t, err)
-		case e := <-wsMessages:
-			if isFileTransferRequest(e) {
-				requestId, err := getRequestId(e)
-				require.NoError(t, err)
-				data, err := json.Marshal(events.EventFields{
-					"requestId": requestId,
-					"approved":  true,
-				})
-				require.NoError(t, err)
-				envelope := &Envelope{
-					Version: defaults.WebsocketVersion,
-					Type:    defaults.WebsocketFileTransferDecision,
-					Payload: string(data),
-				}
-				envelopeBytes, err := proto.Marshal(envelope)
-				require.NoError(t, err)
-				err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
-				require.NoError(t, err)
-			}
-
-			if isFileTransferDecision(e) {
-				return
-			}
-		}
-	}
-}
-
 func TestNewTerminalHandler(t *testing.T) {
 	ctx := context.Background()
 
@@ -1335,7 +1219,6 @@ func TestNewTerminalHandler(t *testing.T) {
 		AuthProvider: authProviderMock{
 			server: validNode,
 		},
-		LocalAuthProvider: authProviderMock{},
 		SessionData: session.Session{
 			ID:       session.NewID(),
 			Login:    "root",
@@ -2432,22 +2315,20 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 
 // TestInstallerRepoChannel ensures the returned installer script has the proper repo channel
 func TestInstallerRepoChannel(t *testing.T) {
-	s := newWebSuiteWithConfig(t, webSuiteConfig{
-		authPreferenceSpec: &types.AuthPreferenceSpecV2{
-			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOn,
-			Webauthn:     &types.Webauthn{RPID: "localhost"},
-		},
-	})
-
-	wc := s.client(t)
 	t.Run("documented variables are injected", func(t *testing.T) {
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOn,
+				Webauthn:     &types.Webauthn{RPID: "localhost"},
+			},
+		})
+		wc := s.client(t)
 		// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
 		err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
 echo {{ .PublicProxyAddr }}
 echo Teleport-{{ .MajorVersion }}
 echo Repository Channel: {{ .RepoChannel }}
-echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 		`))
 		require.NoError(t, err)
 
@@ -2459,15 +2340,21 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 		// Variables must be injected
 		require.Contains(t, responseString, "echo Teleport-v")
 		require.Contains(t, responseString, "echo Repository Channel: stable/v")
-		require.Contains(t, responseString, "echo AutomaticUpgrades: false")
 	})
 	t.Run("cloud with automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Cloud:             true,
-				AutomaticUpgrades: true,
-			}})
+		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+			Cloud:             true,
+			AutomaticUpgrades: true,
+		}})
+
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOn,
+				Webauthn:     &types.Webauthn{RPID: "localhost"},
+			},
+		})
+		wc := s.client(t)
 
 		t.Run("default-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
@@ -2478,12 +2365,6 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			// The repo's channel to use is stable/cloud
 			require.Contains(t, responseString, "stable/cloud")
 			require.NotContains(t, responseString, "stable/v")
-			require.Contains(t, responseString, ""+
-				"  PACKAGE_LIST=\"teleport-ent jq\"\n"+
-				"  if [[ \"true\" == \"true\" ]]; then\n"+
-				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-ent-updater\"\n"+
-				"  fi\n",
-			)
 		})
 		t.Run("default-agentless-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
@@ -2494,12 +2375,6 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			// The repo's channel to use is stable/cloud
 			require.Contains(t, responseString, "stable/cloud")
 			require.NotContains(t, responseString, "stable/v")
-			require.Contains(t, responseString, ""+
-				"  PACKAGE_LIST=\"teleport-ent\"\n"+
-				"  if [[ \"true\" == \"true\" ]]; then\n"+
-				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-ent-updater\"\n"+
-				"  fi\n",
-			)
 		})
 	})
 	t.Run("cloud without automatic upgrades", func(t *testing.T) {
@@ -2507,6 +2382,15 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			Cloud:             true,
 			AutomaticUpgrades: false,
 		}})
+
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOn,
+				Webauthn:     &types.Webauthn{RPID: "localhost"},
+			},
+		})
+		wc := s.client(t)
 
 		t.Run("default-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
@@ -3354,18 +3238,22 @@ func TestCheckAccessToRegisteredResource(t *testing.T) {
 			},
 		},
 		{
-			name: "has registered kube server",
+			name: "has registered kube service",
 			insertResource: func() {
-				kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{Name: "test-kube-name"}, types.KubernetesClusterSpecV3{})
-				require.NoError(t, err)
-				kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "test-kube", "test-kube")
-				require.NoError(t, err)
-				_, err = env.server.Auth().UpsertKubernetesServer(ctx, kubeServer)
+				_, err := env.server.Auth().UpsertKubeServiceV2(ctx, &types.ServerV2{
+					Metadata: types.Metadata{Name: "test-kube"},
+					Kind:     types.KindKubeService,
+					Version:  types.V2,
+					Spec: types.ServerSpecV2{
+						Addr:               "test",
+						KubernetesClusters: []*types.KubernetesCluster{{Name: "test-kube-name"}},
+					},
+				})
 				require.NoError(t, err)
 			},
 			deleteResource: func() {
-				require.NoError(t, env.server.Auth().DeleteKubernetesServer(ctx, "test-kube", "test-kube-name"))
-				kubes, err := env.server.Auth().GetKubernetesServers(ctx)
+				require.NoError(t, env.server.Auth().DeleteKubeService(ctx, "test-kube"))
+				kubes, err := env.server.Auth().GetKubeServices(ctx)
 				require.NoError(t, err)
 				require.Len(t, kubes, 0)
 			},
@@ -5794,7 +5682,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				{
 					Type:    types.ConnectionDiagnosticTrace_NODE_PRINCIPAL,
 					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: `Invalid user. Please ensure the principal "nonvalidlinuxuser" is a valid Linux login in the target node. Output from Node: Failed to launch: user:`,
+					Details: `Invalid user. Please ensure the principal "nonvalidlinuxuser" is a valid Linux login in the target node. Output from Node: Failed to launch: user: unknown user nonvalidlinuxuser.`,
 					Error:   "Process exited with status 255",
 				},
 			},
@@ -5856,7 +5744,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 
 					foundTrace = true
 					require.Equal(t, returnedTrace.Status, expectedTrace.Status.String())
-					require.Contains(t, returnedTrace.Details, expectedTrace.Details)
+					require.Equal(t, returnedTrace.Details, expectedTrace.Details)
 					require.Contains(t, returnedTrace.Error, expectedTrace.Error)
 				}
 
@@ -6869,7 +6757,7 @@ func (mock authProviderMock) GetNodes(ctx context.Context, n string) ([]types.Se
 	return []types.Server{&mock.server}, nil
 }
 
-func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int) ([]events.EventFields, error) {
+func (mock authProviderMock) GetSessionEvents(n string, s session.ID, c int, p bool) ([]events.EventFields, error) {
 	return []events.EventFields{}, nil
 }
 
@@ -6882,18 +6770,6 @@ func (mock authProviderMock) IsMFARequired(ctx context.Context, req *authproto.I
 }
 
 func (mock authProviderMock) GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error) {
-	return nil, nil
-}
-
-func (mock authProviderMock) GenerateOpenSSHCert(ctx context.Context, req *authproto.OpenSSHCertRequest) (*authproto.OpenSSHCert, error) {
-	return nil, nil
-}
-
-func (mock authProviderMock) GetUser(_ string, _ bool) (types.User, error) {
-	return nil, nil
-}
-
-func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, error) {
 	return nil, nil
 }
 
@@ -7189,7 +7065,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetEmitter(nodeClient),
-		regular.SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetRestrictedSessionManager(&restricted.NOP{}),
 		regular.SetClock(clock),
@@ -7706,6 +7582,11 @@ func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient
 	return &webclient.ProxySettings{}, nil
 }
 
+// GetOpenAIAPIKey returns a dummy OpenAI API key.
+func (mock *mockProxySettings) GetOpenAIAPIKey() string {
+	return "test-key"
+}
+
 // TestUserContextWithAccessRequest checks that the userContext includes the ID of the
 // access request after it has been consumed and the web session has been renewed.
 func TestUserContextWithAccessRequest(t *testing.T) {
@@ -7901,7 +7782,7 @@ func TestIsMFARequired_AcceptedRequests(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			resp := isMfaRequiredResponse{}
+			resp := isMFARequiredResponse{}
 			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 			require.True(t, resp.Required, "isMFARequired returned response with unexpected value for Required field")
 		})
@@ -8047,16 +7928,6 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	if cfg.serviceType == kubeproxy.KubeService {
 		proxySigner = nil
 	}
-	clock := clockwork.NewRealClock()
-	watcher, err := services.NewKubeServerWatcher(ctx, services.KubeServerWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: component,
-			Log:       log,
-			Client:    client,
-			Clock:     clock,
-		},
-	})
-	require.NoError(t, err)
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
@@ -8080,13 +7951,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
 				return nil
 			},
-			ConnTLSConfig: tlsConfig,
-			Clock:         clockwork.NewRealClock(),
-			ClusterFeatures: func() authproto.Features {
-				return authproto.Features{
-					Kubernetes: true,
-				}
-			},
+			Clock: clockwork.NewRealClock(),
 		},
 		TLS:           tlsConfig,
 		AccessPoint:   client,
@@ -8104,10 +7969,9 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			default:
 			}
 		},
-		GetRotation:              func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-		ResourceMatchers:         nil,
-		OnReconcile:              func(kc types.KubeClusters) {},
-		KubernetesServersWatcher: watcher,
+		GetRotation:      func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ResourceMatchers: nil,
+		OnReconcile:      func(kc types.KubeClusters) {},
 	})
 	require.NoError(t, err)
 
@@ -8255,7 +8119,7 @@ func TestForwardingTraces(t *testing.T) {
 	cases := []struct {
 		name      string
 		req       func(t *testing.T) *http.Request
-		assertion func(t *testing.T, spans []*tracepb.ResourceSpans, err error, code int)
+		assertion func(t *testing.T, spans []*otlp.ResourceSpans, err error, code int)
 	}{
 		{
 			name: "no data",
@@ -8331,7 +8195,7 @@ func TestForwardingTraces(t *testing.T) {
 
 				return r
 			},
-			assertion: func(t *testing.T, spans []*tracepb.ResourceSpans, err error, code int) {
+			assertion: func(t *testing.T, spans []*otlp.ResourceSpans, err error, code int) {
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, code)
 				require.Len(t, spans, 1)
@@ -8341,7 +8205,7 @@ func TestForwardingTraces(t *testing.T) {
 
 				// compare the spans, but ignore the ids since we know that the rawSpan
 				// has hex encoded ids and protojson.Unmarshal will give us an invalid value
-				require.Empty(t, cmp.Diff(data.ResourceSpans[0], spans[0], protocmp.Transform(), protocmp.IgnoreFields(&tracepb.Span{}, "span_id", "trace_id")))
+				require.Empty(t, cmp.Diff(data.ResourceSpans[0], spans[0], protocmp.Transform(), protocmp.IgnoreFields(&otlp.Span{}, "span_id", "trace_id")))
 
 				// compare the ids separately
 				sid1 := spans[0].ScopeSpans[0].Spans[0].SpanId
@@ -8392,16 +8256,18 @@ func TestForwardingTraces(t *testing.T) {
 	}
 }
 
-type mockPROXYSigner struct{}
+type mockPROXYSigner struct {
+}
 
 func (m *mockPROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, error) {
 	return nil, nil
+
 }
 
 type mockTraceClient struct {
 	uploadError    error
 	uploadReceived chan struct{}
-	spans          []*tracepb.ResourceSpans
+	spans          []*otlp.ResourceSpans
 }
 
 func (m *mockTraceClient) Start(ctx context.Context) error {
@@ -8412,7 +8278,7 @@ func (m *mockTraceClient) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (m *mockTraceClient) UploadTraces(ctx context.Context, protoSpans []*tracepb.ResourceSpans) error {
+func (m *mockTraceClient) UploadTraces(ctx context.Context, protoSpans []*otlp.ResourceSpans) error {
 	m.spans = append(m.spans, protoSpans...)
 	m.uploadReceived <- struct{}{}
 	return m.uploadError
@@ -8477,12 +8343,12 @@ func TestLogout(t *testing.T) {
 func TestGetIsDashboard(t *testing.T) {
 	tt := []struct {
 		name     string
-		features authproto.Features
+		features clientproto.Features
 		expected bool
 	}{
 		{
 			name: "not cloud nor recovery codes is not dashboard",
-			features: authproto.Features{
+			features: clientproto.Features{
 				Cloud:         false,
 				RecoveryCodes: false,
 			},
@@ -8490,7 +8356,7 @@ func TestGetIsDashboard(t *testing.T) {
 		},
 		{
 			name: "not cloud, with recovery codes is dashboard",
-			features: authproto.Features{
+			features: clientproto.Features{
 				Cloud:         false,
 				RecoveryCodes: true,
 			},
@@ -8498,7 +8364,7 @@ func TestGetIsDashboard(t *testing.T) {
 		},
 		{
 			name: "cloud, with recovery codes is not dashboard",
-			features: authproto.Features{
+			features: clientproto.Features{
 				Cloud:         true,
 				RecoveryCodes: true,
 			},
@@ -8506,7 +8372,7 @@ func TestGetIsDashboard(t *testing.T) {
 		},
 		{
 			name: "cloud, without recovery codes is not dashboard",
-			features: authproto.Features{
+			features: clientproto.Features{
 				Cloud:         true,
 				RecoveryCodes: false,
 			},
@@ -8540,17 +8406,10 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		ClusterName:   clusterName,
+		AccessPoint:   proxyAuthClient,
 		Limiter:       limiter,
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}
-
-	tlsConf := copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName)
-	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
-		TransportCredentials: credentials.NewTLS(tlsConf),
-		UserGetter:           authMiddleware,
-	})
-	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
@@ -8559,7 +8418,9 @@ func initGRPCServer(t *testing.T, env *webPack, listener net.Listener) {
 		grpc.ChainStreamInterceptor(
 			authMiddleware.StreamInterceptor(),
 		),
-		grpc.Creds(creds),
+		grpc.Creds(credentials.NewTLS(
+			copyAndConfigureTLS(tlsConfig, logrus.New(), proxyAuthClient, clusterName),
+		)),
 	)
 
 	kubeproto.RegisterKubeServiceServer(grpcServer, &fakeKubeService{})

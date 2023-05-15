@@ -38,7 +38,6 @@ export default function FieldSelect({
   isSimpleValue = false,
   autoFocus = false,
   isDisabled = false,
-  elevated = false,
   ...styles
 }: Props) {
   const { valid, message } = useRule(rule(value));
@@ -67,7 +66,6 @@ export default function FieldSelect({
         isMulti={isMulti}
         autoFocus={autoFocus}
         isDisabled={isDisabled}
-        elevated={elevated}
       />
     </Box>
   );

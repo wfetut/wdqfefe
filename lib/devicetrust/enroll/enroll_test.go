@@ -54,7 +54,7 @@ func TestRunCeremony(t *testing.T) {
 			*enroll.SignChallenge = test.dev.SignChallenge
 
 			got, err := enroll.RunCeremony(ctx, devices, "faketoken")
-			require.NoError(t, err, "RunCeremony failed")
+			assert.NoError(t, err, "RunCeremony failed")
 			assert.NotNil(t, got, "RunCeremony returned nil device")
 		})
 	}
@@ -67,22 +67,19 @@ func resetNative() func() {
 	}
 	os.Setenv(guardKey, "1")
 
-	collectDeviceData := *enroll.CollectDeviceData
-	enrollDeviceInit := *enroll.EnrollInit
 	getOSType := *enroll.GetOSType
+	enrollDeviceInit := *enroll.EnrollInit
 	signChallenge := *enroll.SignChallenge
 	return func() {
-		*enroll.CollectDeviceData = collectDeviceData
-		*enroll.EnrollInit = enrollDeviceInit
 		*enroll.GetOSType = getOSType
+		*enroll.EnrollInit = enrollDeviceInit
 		*enroll.SignChallenge = signChallenge
 		os.Unsetenv(guardKey)
 	}
 }
 
 type fakeDevice interface {
-	CollectDeviceData() (*devicepb.DeviceCollectedData, error)
-	EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
 	GetOSType() devicepb.OSType
+	EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
 	SignChallenge(chal []byte) (sig []byte, err error)
 }

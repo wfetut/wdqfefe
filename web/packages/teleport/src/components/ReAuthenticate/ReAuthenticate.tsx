@@ -104,7 +104,6 @@ export function ReAuthenticate({
                   mr={3}
                   mb={0}
                   isDisabled={attempt.status === 'processing'}
-                  elevated={true}
                 />
                 <Box width="50%">
                   {mfaOption.value === 'otp' && (

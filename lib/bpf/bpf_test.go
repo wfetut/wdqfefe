@@ -45,7 +45,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/cgroup"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 func TestRootWatch(t *testing.T) {
@@ -65,10 +64,10 @@ func TestRootWatch(t *testing.T) {
 	cgroupPath := t.TempDir()
 
 	// Create BPF service.
-	service, err := New(&servicecfg.BPFConfig{
+	service, err := New(&Config{
 		Enabled:    true,
 		CgroupPath: cgroupPath,
-	}, &servicecfg.RestrictedSessionConfig{})
+	}, &RestrictedSessionConfig{})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -136,7 +135,6 @@ func TestRootWatch(t *testing.T) {
 
 // TestRootObfuscate checks if execsnoop can capture Obfuscated commands.
 func TestRootObfuscate(t *testing.T) {
-	t.Skip("flaky test, disable now")
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
 	if !bpfTestEnabled() {
@@ -179,7 +177,9 @@ func TestRootObfuscate(t *testing.T) {
 		for {
 			select {
 			case <-ticker.C:
-				runCmd(t, reexecInCGroupCmd, fileName, execsnoop)
+				if err := osexec.Command(fileName).Run(); err != nil {
+					t.Logf("Failed to run script: %v.", err)
+				}
 			case <-done:
 				return
 			}
@@ -207,7 +207,6 @@ func TestRootObfuscate(t *testing.T) {
 
 // TestRootScript checks if execsnoop can capture what a script executes.
 func TestRootScript(t *testing.T) {
-	t.Skip("flaky test, disable now")
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
 	if !bpfTestEnabled() {
@@ -241,8 +240,10 @@ func TestRootScript(t *testing.T) {
 			case <-done:
 				return
 			case <-ticker.C:
-				// Run script in a cgroup.
-				runCmd(t, reexecInCGroupCmd, fileName, execsnoop)
+				// Run script.
+				if err := osexec.Command(fileName).Run(); err != nil {
+					t.Logf("Failed to run script: %v.", err)
+				}
 			}
 		}
 	}()
@@ -270,7 +271,6 @@ func TestRootScript(t *testing.T) {
 // TestRootPrograms tests execsnoop, opensnoop, and tcpconnect to make sure they
 // run and receive events.
 func TestRootPrograms(t *testing.T) {
-	t.Skip("flaky test, disable now")
 	// This test must be run as root. Only root can create cgroups.
 	if !bpfTestEnabled() {
 		t.Skip("BPF testing is disabled")
@@ -303,18 +303,20 @@ func TestRootPrograms(t *testing.T) {
 	// Loop over all three programs and make sure events are received off the
 	// perf buffer.
 	var tests = []struct {
-		inName    string
-		inEventCh <-chan []byte
-		genEvents func(t *testing.T, ctx context.Context)
-		verifyFn  func(event []byte) bool
+		inName        string
+		inCommand     string
+		inCommandArgs []string
+		inEventCh     <-chan []byte
+		inHTTP        bool
+		verifyFn      func(event []byte) bool
 	}{
 		// Run execsnoop with "ls".
 		{
-			inName:    "execsnoop",
-			inEventCh: execsnoop.events(),
-			genEvents: func(t *testing.T, ctx context.Context) {
-				executeCommand(t, ctx, "ls", execsnoop)
-			},
+			inName:        "execsnoop",
+			inCommand:     "ls",
+			inCommandArgs: []string{},
+			inEventCh:     execsnoop.events(),
+			inHTTP:        false,
 			verifyFn: func(event []byte) bool {
 				var e rawExecEvent
 				err := unmarshalEvent(event, &e)
@@ -324,11 +326,11 @@ func TestRootPrograms(t *testing.T) {
 		// Run opensnoop with "ls". This is fine because "ls" will open some
 		// shared library.
 		{
-			inName:    "opensnoop",
-			inEventCh: opensnoop.events(),
-			genEvents: func(t *testing.T, ctx context.Context) {
-				executeCommand(t, ctx, "ls", opensnoop)
-			},
+			inName:        "opensnoop",
+			inCommand:     "ls",
+			inCommandArgs: []string{},
+			inEventCh:     opensnoop.events(),
+			inHTTP:        false,
 			verifyFn: func(event []byte) bool {
 				var e rawOpenEvent
 				err := unmarshalEvent(event, &e)
@@ -339,9 +341,7 @@ func TestRootPrograms(t *testing.T) {
 		{
 			inName:    "tcpconnect",
 			inEventCh: tcpconnect.v4Events(),
-			genEvents: func(t *testing.T, ctx context.Context) {
-				executeHTTP(t, ctx, ts.URL, tcpconnect)
-			},
+			inHTTP:    true,
 			verifyFn: func(event []byte) bool {
 				var e rawConn4Event
 				err := unmarshalEvent(event, &e)
@@ -358,8 +358,11 @@ func TestRootPrograms(t *testing.T) {
 		// second will continue to execute or an HTTP GET in a processAccessEvents attempting to
 		// trigger an event.
 		go waitForEvent(doneContext, doneFunc, tt.inEventCh, tt.verifyFn)
-
-		go tt.genEvents(t, doneContext)
+		if tt.inHTTP {
+			go executeHTTP(t, doneContext, ts.URL)
+		} else {
+			go executeCommand(t, doneContext, tt.inCommand, opensnoop)
+		}
 
 		// Wait for an event to arrive from execsnoop. If an event does not arrive
 		// within 10 seconds, timeout.
@@ -373,7 +376,6 @@ func TestRootPrograms(t *testing.T) {
 
 // TestRootBPFCounter tests that BPF-to-Prometheus counter works ok
 func TestRootBPFCounter(t *testing.T) {
-	t.Skip("flaky test, disable now")
 	// This test must be run as root. Only root can create cgroups.
 	if !bpfTestEnabled() {
 		t.Skip("BPF testing is disabled")
@@ -523,17 +525,14 @@ func executeCommand(t *testing.T, doneContext context.Context, file string,
 				t.Logf("Failed to find executable %q: %v.", file, err)
 			}
 
-			fullPath, err := osexec.LookPath(path)
-			require.NoError(t, err)
-
-			runCmd(t, reexecInCGroupCmd, fullPath, traceCgroup)
+			runCmd(t, path, traceCgroup)
 		case <-doneContext.Done():
 			return
 		}
 	}
 }
 
-func runCmd(t *testing.T, reexecCmd string, arg string, traceCgroup cgroupRegister) {
+func runCmd(t *testing.T, cmdName string, traceCgroup cgroupRegister) {
 	t.Helper()
 
 	// Create a pipe to communicate with the child process after re-exec.
@@ -545,8 +544,11 @@ func runCmd(t *testing.T, reexecCmd string, arg string, traceCgroup cgroupRegist
 		writeP.Close()
 	})
 
+	path, err := osexec.LookPath(cmdName)
+	require.NoError(t, err)
+
 	// Re-exec the test binary. We can then move the binary to a new cgroup.
-	cmd := osexec.Command(os.Args[0], reexecCmd, arg)
+	cmd := osexec.Command(os.Args[0], reexecInCGroupCmd, path)
 
 	cmd.ExtraFiles = append(cmd.ExtraFiles, readP)
 
@@ -575,7 +577,7 @@ func runCmd(t *testing.T, reexecCmd string, arg string, traceCgroup cgroupRegist
 }
 
 // executeHTTP will perform a HTTP GET to some endpoint in a loop.
-func executeHTTP(t *testing.T, doneContext context.Context, endpoint string, traceCgroup cgroupRegister) {
+func executeHTTP(t *testing.T, doneContext context.Context, endpoint string) {
 	t.Helper()
 
 	ticker := time.NewTicker(250 * time.Millisecond)
@@ -588,8 +590,6 @@ func executeHTTP(t *testing.T, doneContext context.Context, endpoint string, tra
 			if _, err := http.Get(endpoint); err != nil {
 				t.Logf("HTTP request failed: %v.", err)
 			}
-
-			runCmd(t, networkInCgroupCmd, endpoint, traceCgroup)
 
 		case <-doneContext.Done():
 			return

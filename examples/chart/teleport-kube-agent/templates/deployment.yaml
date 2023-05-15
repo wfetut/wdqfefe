@@ -115,7 +115,7 @@ spec:
       {{- end }}
       containers:
       - name: "teleport"
-        image: {{ include "teleport-kube-agent.image" . | quote }}
+        image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
@@ -124,10 +124,6 @@ spec:
         # Telemetry is opt-in for oss users and controlled at the auth level.
         - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
           value: "true"
-        {{- if .Values.updater.enabled }}
-        - name: TELEPORT_EXT_UPGRADER
-          value: kube
-        {{- end }}
         {{- if (gt (len .Values.extraEnv) 0) }}
           {{- toYaml .Values.extraEnv | nindent 8 }}
         {{- end }}
@@ -209,5 +205,5 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ template "teleport-kube-agent.serviceAccountName" . }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}
 {{- end }}

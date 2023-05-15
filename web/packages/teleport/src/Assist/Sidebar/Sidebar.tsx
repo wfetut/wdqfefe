@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { useCallback } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import { NavLink } from 'react-router-dom';
 
@@ -37,7 +37,7 @@ const Container = styled.div`
 const ChatHistoryTitle = styled.div`
   font-size: 13px;
   line-height: 14px;
-  color: ${props => props.theme.colors.text.main};
+  color: white;
   font-weight: bold;
   margin-left: 32px;
   margin-bottom: 13px;
@@ -45,7 +45,7 @@ const ChatHistoryTitle = styled.div`
 
 const ChatHistoryItem = styled(NavLink)`
   display: flex;
-  color: ${props => props.theme.colors.text.main};
+  color: white;
   padding: 7px 0px 7px 30px;
   line-height: 1.4;
   align-items: center;
@@ -55,13 +55,13 @@ const ChatHistoryItem = styled(NavLink)`
   opacity: 0.7;
 
   &:hover {
-    background: ${props => props.theme.colors.spotBackground[0]};
+    background: rgba(255, 255, 255, 0.07);
   }
 
   &.active {
     opacity: 1;
-    background: ${props => props.theme.colors.spotBackground[0]};
-    border-left-color: ${props => props.theme.colors.brand};
+    background: rgba(255, 255, 255, 0.07);
+    border-left-color: #9f85ff;
   }
 `;
 
@@ -81,8 +81,8 @@ const NewChatButton = styled.div`
   display: flex;
   cursor: pointer;
   margin: 0 15px;
-  background: ${p => p.theme.colors.buttons.primary.default};
-  color: ${p => p.theme.colors.buttons.primary.text};
+  background: #9f85ff;
+  color: black;
   align-items: center;
 
   svg {
@@ -91,7 +91,7 @@ const NewChatButton = styled.div`
   }
 
   &:hover {
-    background: ${p => p.theme.colors.buttons.primary.hover};
+    background: #b29dff;
   }
 `;
 
@@ -107,15 +107,13 @@ const ChatHistoryList = styled.div.attrs({ 'data-scrollbar': 'default' })`
 `;
 
 const ErrorMessage = styled.div`
-  color: ${p => p.theme.colors.error.main};
+  color: #ff6257;
   font-weight: 700;
   margin-bottom: 5px;
   padding: 0 15px 15px;
 `;
 
 export function Sidebar() {
-  const theme = useTheme();
-
   const history = useHistory();
 
   const { create, conversations, error } = useConversations();
@@ -146,7 +144,7 @@ export function Sidebar() {
       <ChatHistoryList>{chatHistory}</ChatHistoryList>
 
       <NewChatButton onClick={() => handleNewChat()}>
-        <PlusIcon size={16} fill={theme.colors.buttons.primary.text} />
+        <PlusIcon size={16} fill="black" />
         New Conversation
       </NewChatButton>
     </Container>

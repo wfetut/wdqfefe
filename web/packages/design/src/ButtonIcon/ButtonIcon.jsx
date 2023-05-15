@@ -49,14 +49,11 @@ const fromProps = props => {
   const { theme } = props;
   return {
     '&:disabled': {
-      color: theme.colors.text.disabled,
+      color: theme.colors.action.disabled,
       cursor: 'default',
     },
     '&:hover:enabled, &:focus:enabled': {
-      background: theme.colors.spotBackground[1],
-    },
-    '&:active:enabled': {
-      background: theme.colors.spotBackground[2],
+      background: theme.colors.action.hover,
     },
   };
 };
@@ -91,7 +88,7 @@ const StyledButtonIcon = styled.button`
   }
 
   &:disabled {
-    color: ${({ theme }) => theme.colors.text.disabled};
+    color: ${({ theme }) => theme.colors.action.disabled};
   }
 
   ${fromProps}

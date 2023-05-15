@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
 
@@ -64,7 +64,7 @@ const Container = styled.div`
 `;
 
 const ActiveValue = styled.div<OpenProps>`
-  border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
+  border: 1px solid #cccccc;
   border-radius: 4px;
   padding: 12px 16px;
   width: 190px;
@@ -85,7 +85,7 @@ const Dropdown = styled.div<OpenProps>`
   background: ${({ theme }) => theme.colors.levels.popout};
   border-radius: 4px;
   z-index: 99;
-  box-shadow: ${({ theme }) => theme.boxShadow[1]};
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.45);
   opacity: ${p => (p.open ? 1 : 0)};
   visibility: ${p => (p.open ? 'visible' : 'hidden')};
   transform-origin: top center;
@@ -95,7 +95,7 @@ const Dropdown = styled.div<OpenProps>`
 `;
 
 const DropdownItem = styled.div<ActiveProps & OpenProps>`
-  color: ${props => props.theme.colors.text.main};
+  color: white;
   padding: 12px 16px;
   width: 190px;
   font-weight: ${p => (p.active ? 700 : 400)};
@@ -108,7 +108,7 @@ const DropdownItem = styled.div<ActiveProps & OpenProps>`
   &:hover,
   &:focus {
     outline: none;
-    background: ${({ theme }) => theme.colors.spotBackground[0]};
+    background: ${({ theme }) => theme.colors.levels.popoutHighlighted};
   }
 `;
 
@@ -117,7 +117,7 @@ const Arrow = styled.div<OpenProps>`
   top: 50%;
   right: 16px;
   transform: translate(0, -50%);
-  color: ${props => props.theme.colors.text.main}
+  color: white;
   line-height: 0;
 
   svg {
@@ -125,7 +125,7 @@ const Arrow = styled.div<OpenProps>`
     transition: 0.1s linear transform;
 
     path {
-      fill: ${props => props.theme.colors.text.main}
+      fill: white;
     }
   }
 `;
@@ -151,8 +151,6 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
     KeysEnum.SHOW_ASSIST_POPUP,
     assistEnabled && !isAssistRoute
   );
-
-  const theme = useTheme();
 
   const [open, setOpen] = useState(showAssist);
 
@@ -300,7 +298,7 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
               <TooltipLogos>
                 <ChatGPTIcon size={30} />
                 <TooltipLogosSpacer>+</TooltipLogosSpacer>
-                <TeleportIcon light={theme.name === 'light'} />
+                <TeleportIcon />
               </TooltipLogos>
 
               <TooltipButton onClick={() => setShowAssist(false)}>

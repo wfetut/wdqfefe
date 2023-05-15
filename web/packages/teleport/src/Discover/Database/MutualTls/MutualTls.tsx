@@ -290,7 +290,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
 
 const StyledBox = styled(Box)`
   max-width: 800px;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
+  background-color: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   padding: 20px;
 `;

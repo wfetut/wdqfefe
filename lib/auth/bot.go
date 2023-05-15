@@ -165,16 +165,11 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		return nil, trace.Wrap(err)
 	}
 
-	tokenTTL := time.Duration(0)
-	if exp := provisionToken.Expiry(); !exp.IsZero() {
-		tokenTTL = time.Until(exp)
-	}
-
 	return &proto.CreateBotResponse{
 		TokenID:    provisionToken.GetName(),
 		UserName:   resourceName,
 		RoleName:   resourceName,
-		TokenTTL:   proto.Duration(tokenTTL),
+		TokenTTL:   proto.Duration(time.Until(*provisionToken.GetMetadata().Expires)),
 		JoinMethod: provisionToken.GetJoinMethod(),
 	}, nil
 }
@@ -313,7 +308,7 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 		JoinMethod: types.JoinMethodToken,
 		BotName:    botName,
 	}
-	token, err := types.NewProvisionTokenFromSpec(tokenName, s.clock.Now().Add(ttl), tokenSpec)
+	token, err := types.NewProvisionTokenFromSpec(tokenName, time.Now().Add(ttl), tokenSpec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

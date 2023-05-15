@@ -17,18 +17,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { SortType } from 'design/DataTable/types';
 import { useAsync } from 'shared/hooks/useAsync';
-import {
-  AgentFilter as WeakAgentFilter,
-  AgentLabel,
-} from 'teleport/services/agents';
+import { AgentFilter, AgentLabel } from 'teleport/services/agents';
 
-import { GetResourcesParams } from 'teleterm/services/tshd/types';
+import { ServerSideParams } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { useClusterContext } from '../clusterContext';
-
-type AgentFilter = WeakAgentFilter & { sort: SortType };
 
 function addAgentLabelToQuery(filter: AgentFilter, label: AgentLabel) {
   const queryParts = [];
@@ -54,7 +49,7 @@ const limit = 15;
 
 export function useServerSideResources<Agent>(
   defaultSort: SortType,
-  fetchFunction: (params: GetResourcesParams) => Promise<FetchResponse<Agent>>
+  fetchFunction: (params: ServerSideParams) => Promise<FetchResponse<Agent>>
 ) {
   const ctx = useAppContext();
   const { clusterUri } = useClusterContext();

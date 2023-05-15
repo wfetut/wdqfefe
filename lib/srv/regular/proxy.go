@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -259,15 +258,7 @@ func (t *proxySubsys) proxyToSite(ctx context.Context, ch ssh.Channel, clusterNa
 func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrcAddr, clientDstAddr net.Addr) error {
 	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v", t.host, t.port, t.SpecifiedPort())
 
-	authClient, err := t.router.GetSiteClient(ctx, t.localCluster)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	identity := t.ctx.Identity
-
-	signer := agentless.SignerFromSSHCertificate(identity.Certificate, authClient, t.clusterName, identity.TeleportUser)
-	aGetter := t.ctx.StartAgentChannel
-	conn, teleportVersion, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, aGetter, signer)
+	conn, teleportVersion, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, t.ctx.StartAgentChannel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -278,7 +269,6 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrc
 	go func() {
 		t.close(utils.ProxyConn(ctx, ch, conn))
 	}()
-
 	return nil
 }
 

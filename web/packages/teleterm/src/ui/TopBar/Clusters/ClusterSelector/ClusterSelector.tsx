@@ -62,22 +62,31 @@ const Container = styled.button`
   background: inherit;
   color: inherit;
   font-family: inherit;
-  flex: 1;
-  flex-shrink: 2;
-  min-width: calc(${props => props.theme.space[7]}px * 2);
+  min-width: 0;
+  width: 100%;
   height: 100%;
-  border: 1px ${props => props.theme.colors.buttons.border.border} solid;
+  border: 0.5px ${props => props.theme.colors.action.disabledBackground} solid;
   border-radius: 4px;
   display: flex;
+  flex-grow: 1;
   justify-content: space-between;
   align-items: center;
-  padding: 0 ${props => props.theme.space[2]}px;
+  padding: 0 12px;
   opacity: ${props => (props.isClusterSelected ? 1 : 0.6)};
   cursor: pointer;
 
   &:hover,
   &:focus {
     opacity: 1;
-    background: ${props => props.theme.colors.spotBackground[0]};
+    border-color: ${props => props.theme.colors.light};
   }
+
+  ${props => {
+    if (props.isOpened) {
+      return {
+        borderColor: props.theme.colors.brand,
+        opacity: 1,
+      };
+    }
+  }}
 `;

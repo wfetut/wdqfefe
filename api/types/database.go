@@ -77,10 +77,6 @@ type Database interface {
 	GetAWS() AWS
 	// SetStatusAWS sets the database AWS metadata in the status field.
 	SetStatusAWS(AWS)
-	// SetAWSExternalID sets the database AWS external ID in the Spec.AWS field.
-	SetAWSExternalID(id string)
-	// SetAWSAssumeRole sets the database AWS assume role arn in the Spec.AWS field.
-	SetAWSAssumeRole(roleARN string)
 	// GetGCP returns GCP information for Cloud SQL databases.
 	GetGCP() GCPCloudSQL
 	// GetAzure returns Azure database server metadata.
@@ -344,16 +340,6 @@ func (d *DatabaseV3) SetStatusAWS(aws AWS) {
 	d.Status.AWS = aws
 }
 
-// SetAWSExternalID sets the database AWS external ID in the Spec.AWS field.
-func (d *DatabaseV3) SetAWSExternalID(id string) {
-	d.Spec.AWS.ExternalID = id
-}
-
-// SetAWSAssumeRole sets the database AWS assume role arn in the Spec.AWS field.
-func (d *DatabaseV3) SetAWSAssumeRole(roleARN string) {
-	d.Spec.AWS.AssumeRoleARN = roleARN
-}
-
 // GetGCP returns GCP information for Cloud SQL databases.
 func (d *DatabaseV3) GetGCP() GCPCloudSQL {
 	return d.Spec.GCP
@@ -422,14 +408,8 @@ func (d *DatabaseV3) IsAWSKeyspaces() bool {
 	return d.GetType() == DatabaseTypeAWSKeyspaces
 }
 
-// IsDynamoDB returns true if this is an AWS hosted DynamoDB database.
 func (d *DatabaseV3) IsDynamoDB() bool {
 	return d.GetType() == DatabaseTypeDynamoDB
-}
-
-// IsOpenSearch returns true if this is an AWS hosted OpenSearch instance.
-func (d *DatabaseV3) IsOpenSearch() bool {
-	return d.GetType() == DatabaseTypeOpenSearch
 }
 
 // IsAWSHosted returns true if database is hosted by AWS.
@@ -454,8 +434,6 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 		}
 	case DatabaseTypeDynamoDB:
 		return DatabaseTypeDynamoDB, true
-	case DatabaseTypeOpenSearch:
-		return DatabaseTypeOpenSearch, true
 	}
 	if aws.Redshift.ClusterID != "" {
 		return DatabaseTypeRedshift, true
@@ -542,21 +520,16 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("database %q protocol is empty", d.GetName())
 	}
 	if d.Spec.URI == "" {
-		switch d.GetType() {
-		case DatabaseTypeAWSKeyspaces:
-			if d.Spec.AWS.Region != "" {
-				// In case of AWS Hosted Cassandra allow to omit URI.
-				// The URL will be constructed from the database resource based on the region and account ID.
-				d.Spec.URI = awsutils.CassandraEndpointURLForRegion(d.Spec.AWS.Region)
-			} else {
-				return trace.BadParameter("AWS Keyspaces database %q URI is empty and cannot be derived without a configured AWS region",
-					d.GetName())
-			}
-		case DatabaseTypeDynamoDB:
+		switch {
+		case d.IsAWSKeyspaces() && d.Spec.AWS.Region != "":
+			// In case of AWS Hosted Cassandra allow to omit URI.
+			// The URL will be constructed from the database resource based on the region and account ID.
+			d.Spec.URI = awsutils.CassandraEndpointURLForRegion(d.Spec.AWS.Region)
+		case d.IsDynamoDB():
 			if d.Spec.AWS.Region != "" {
 				d.Spec.URI = awsutils.DynamoDBURIForRegion(d.Spec.AWS.Region)
 			} else {
-				return trace.BadParameter("DynamoDB database %q URI is empty and cannot be derived without a configured AWS region",
+				return trace.BadParameter("DynamoDB database %q URI is missing and cannot be derived from an empty configured AWS region",
 					d.GetName())
 			}
 		default:
@@ -573,10 +546,6 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	switch {
 	case d.IsDynamoDB():
 		if err := d.handleDynamoDBConfig(); err != nil {
-			return trace.Wrap(err)
-		}
-	case d.IsOpenSearch():
-		if err := d.handleOpenSearchConfig(); err != nil {
 			return trace.Wrap(err)
 		}
 	case awsutils.IsRDSEndpoint(d.Spec.URI):
@@ -722,13 +691,6 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 		}
 	}
 
-	if d.Spec.AWS.ExternalID != "" && d.Spec.AWS.AssumeRoleARN == "" && !d.RequireAWSIAMRolesAsUsers() {
-		// Databases that use database username to assume an IAM role do not
-		// need assume_role_arn in configuration when external_id is set.
-		return trace.BadParameter("AWS database %q has external_id %q, but assume_role_arn is empty",
-			d.GetName(), d.Spec.AWS.ExternalID)
-	}
-
 	// Validate Cloud SQL specific configuration.
 	switch {
 	case d.Spec.GCP.ProjectID != "" && d.Spec.GCP.InstanceID == "":
@@ -754,7 +716,7 @@ func (d *DatabaseV3) handleDynamoDBConfig() error {
 		// so we check if the region is configured to see if this is really a configuration error.
 		if d.Spec.AWS.Region == "" {
 			// the AWS region is empty and we can't derive it from the URI, so this is a config error.
-			return trace.BadParameter("database %q AWS region is empty and cannot be derived from the URI %q",
+			return trace.BadParameter("database %q AWS region is missing and cannot be derived from the URI %q",
 				d.GetName(), d.Spec.URI)
 		}
 		if awsutils.IsAWSEndpoint(d.Spec.URI) {
@@ -767,7 +729,7 @@ func (d *DatabaseV3) handleDynamoDBConfig() error {
 		d.Spec.AWS.Region = info.Region
 	case d.Spec.AWS.Region != info.Region:
 		// if the AWS region is not empty but doesn't match the URI, this may indicate a user configuration mistake.
-		return trace.BadParameter("database %q AWS region %q does not match the configured URI region %q,"+
+		return trace.BadParameter("database %q AWS region %q does not match the configured URI region %q, "+
 			" omit the URI and it will be derived automatically for the configured AWS region",
 			d.GetName(), d.Spec.AWS.Region, info.Region)
 	}
@@ -775,40 +737,6 @@ func (d *DatabaseV3) handleDynamoDBConfig() error {
 	if d.Spec.URI == "" {
 		d.Spec.URI = awsutils.DynamoDBURIForRegion(d.Spec.AWS.Region)
 	}
-	return nil
-}
-
-// handleOpenSearchConfig handles OpenSearch configuration checks.
-func (d *DatabaseV3) handleOpenSearchConfig() error {
-	if d.Spec.AWS.AccountID == "" {
-		return trace.BadParameter("database %q AWS account ID is empty", d.GetName())
-	}
-
-	info, err := awsutils.ParseOpensearchEndpoint(d.Spec.URI)
-	switch {
-	case err != nil:
-		// parsing the endpoint can return an error, especially if the custom endpoint feature is in use.
-		// this is fine as long as we have the region explicitly configured.
-		if d.Spec.AWS.Region == "" {
-			// the AWS region is empty, and we can't derive it from the URI, so this is a config error.
-			return trace.BadParameter("database %q AWS region is missing and cannot be derived from the URI %q",
-				d.GetName(), d.Spec.URI)
-		}
-		if awsutils.IsAWSEndpoint(d.Spec.URI) {
-			// The user configured an AWS URI that doesn't look like a OpenSearch endpoint.
-			// The URI must look like: <region>.<service>.<partition>.
-			return trace.Wrap(err)
-		}
-	case d.Spec.AWS.Region == "":
-		// if the AWS region is empty we can just use the region extracted from the URI.
-		d.Spec.AWS.Region = info.Region
-	case d.Spec.AWS.Region != info.Region:
-		// if the AWS region is not empty but doesn't match the URI, this may indicate a user configuration mistake.
-		return trace.BadParameter("database %q AWS region %q does not match the configured URI region %q,"+
-			" omit the URI and it will be derived automatically for the configured AWS region",
-			d.GetName(), d.Spec.AWS.Region, info.Region)
-	}
-
 	return nil
 }
 
@@ -841,7 +769,6 @@ func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 	switch awsType {
 	case DatabaseTypeAWSKeyspaces,
 		DatabaseTypeDynamoDB,
-		DatabaseTypeOpenSearch,
 		DatabaseTypeRedshiftServerless:
 		return true
 	default:
@@ -874,8 +801,6 @@ const (
 	DatabaseTypeCassandra = "cassandra"
 	// DatabaseTypeDynamoDB is a DynamoDB database.
 	DatabaseTypeDynamoDB = "dynamodb"
-	// DatabaseTypeOpenSearch is AWS-hosted OpenSearch instance.
-	DatabaseTypeOpenSearch = "opensearch"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".

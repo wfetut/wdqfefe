@@ -23,7 +23,7 @@ export const CheckboxWrapper = styled(Flex)`
   margin-bottom: 4px;
   width: 300px;
   align-items: center;
-  border: 1px solid ${props => props.theme.colors.spotBackground[1]};
+  border: 1px solid ${props => props.theme.colors.levels.surface};
   border-radius: 8px;
 
   &.disabled {

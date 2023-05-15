@@ -46,7 +46,7 @@ func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http
 		return nil, trace.Wrap(err)
 	}
 
-	resourceKinds := []string{types.KindNode, types.KindDatabaseServer, types.KindAppServer, types.KindKubeServer, types.KindWindowsDesktop}
+	resourceKinds := []string{types.KindNode, types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindWindowsDesktop}
 	for _, kind := range resourceKinds {
 		res, err := clt.ListResources(r.Context(), proto.ListResourcesRequest{
 			ResourceType: kind,
@@ -381,7 +381,8 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 	return &unknownRes, nil
 }
 
-func convertListResourcesRequest(r *http.Request, kind string) (*proto.ListResourcesRequest, error) {
+// listResources gets a list of resources depending on the type of resource.
+func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
 	values := r.URL.Query()
 
 	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
@@ -392,15 +393,17 @@ func convertListResourcesRequest(r *http.Request, kind string) (*proto.ListResou
 	sortBy := types.GetSortByFromString(values.Get("sort"))
 
 	startKey := values.Get("startKey")
-	return &proto.ListResourcesRequest{
-		ResourceType:        kind,
+	req := proto.ListResourcesRequest{
+		ResourceType:        resourceKind,
 		Limit:               limit,
 		StartKey:            startKey,
 		SortBy:              sortBy,
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
 		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
-	}, nil
+	}
+
+	return clt.ListResources(r.Context(), req)
 }
 
 // listKubeResources gets a list of kubernetes resources depending on the type of resource.

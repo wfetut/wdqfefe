@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -73,8 +72,7 @@ func (c *Cluster) getAllDatabases(ctx context.Context) ([]Database, error) {
 		defer proxyClient.Close()
 
 		dbs, err = proxyClient.FindDatabasesByFilters(ctx, proto.ListResourcesRequest{
-			Namespace:    defaults.Namespace,
-			ResourceType: types.KindDatabaseServer,
+			Namespace: defaults.Namespace,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -99,22 +97,11 @@ func (c *Cluster) getAllDatabases(ctx context.Context) ([]Database, error) {
 
 func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) (*GetDatabasesResponse, error) {
 	var (
-		page        apiclient.ResourcePage[types.DatabaseServer]
+		resp        *types.ListResourcesResponse
 		authClient  auth.ClientI
 		proxyClient *client.ProxyClient
 		err         error
 	)
-
-	req := &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindDatabaseServer,
-		Limit:               r.Limit,
-		SortBy:              types.GetSortByFromString(r.SortBy),
-		StartKey:            r.StartKey,
-		PredicateExpression: r.Query,
-		SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
-		UseSearchAsRoles:    r.SearchAsRoles == "yes",
-	}
 
 	err = addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
@@ -128,19 +115,38 @@ func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) 
 			return trace.Wrap(err)
 		}
 		defer authClient.Close()
+		sortBy := types.GetSortByFromString(r.SortBy)
 
-		page, err = apiclient.GetResourcePage[types.DatabaseServer](ctx, authClient, req)
-		return trace.Wrap(err)
+		resp, err = authClient.ListResources(ctx, proto.ListResourcesRequest{
+			Namespace:           defaults.Namespace,
+			ResourceType:        types.KindDatabaseServer,
+			Limit:               r.Limit,
+			SortBy:              sortBy,
+			StartKey:            r.StartKey,
+			PredicateExpression: r.Query,
+			SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
+			UseSearchAsRoles:    r.SearchAsRoles == "yes",
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := &GetDatabasesResponse{
-		StartKey:   page.NextKey,
-		TotalCount: page.Total,
+	databases, err := types.ResourcesWithLabels(resp.Resources).AsDatabaseServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	for _, database := range page.Resources {
+
+	response := &GetDatabasesResponse{
+		StartKey:   resp.NextKey,
+		TotalCount: resp.TotalCount,
+	}
+	for _, database := range databases {
 		response.Databases = append(response.Databases, Database{
 			URI:      c.URI.AppendDB(database.GetName()),
 			Database: database.GetDatabase(),

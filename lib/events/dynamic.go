@@ -215,8 +215,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SQLServerRPCRequest{}
 	case DatabaseSessionElasticsearchRequestEvent:
 		e = &events.ElasticsearchRequest{}
-	case DatabaseSessionOpenSearchRequestEvent:
-		e = &events.OpenSearchRequest{}
 	case DatabaseSessionDynamoDBRequestEvent:
 		e = &events.DynamoDBRequest{}
 	case KubeRequestEvent:

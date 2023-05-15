@@ -40,26 +40,6 @@ func promoteBuildPipelines() []pipeline {
 
 	promotePipelines = append(promotePipelines, ociPipeline)
 
-	updaterPipeline := ghaBuildPipeline(ghaBuildType{
-		buildType:    buildType{os: "linux", fips: false},
-		trigger:      triggerPromote,
-		pipelineName: "promote-teleport-kube-agent-updater-oci-images",
-		workflows: []ghaWorkflow{
-			{
-				name:              "promote-teleport-kube-agent-updater-oci.yml",
-				timeout:           150 * time.Minute,
-				ref:               "${DRONE_TAG}",
-				shouldTagWorkflow: true,
-				inputs: map[string]string{
-					"release-source-tag": "${DRONE_TAG}",
-				},
-			},
-		},
-	})
-	updaterPipeline.Trigger.Target.Include = append(updaterPipeline.Trigger.Target.Include, "promote-updater")
-
-	promotePipelines = append(promotePipelines, updaterPipeline)
-
 	return promotePipelines
 }
 

@@ -8,9 +8,15 @@ Teleport instances to join your Teleport cluster without sharing any secrets
 when they are running in an Azure Virtual Machine.
 
 The Azure join method is available in Teleport 12.1+. It is available to any
-Teleport process running in an Azure Virtual Machine. Support for joining a
-cluster with the Proxy Service behind a layer 7 load balancer or reverse proxy
-is available in Teleport 13.0+.
+Teleport process running in an Azure Virtual Machine.
+
+<Notice type="warning" scope={["oss", "enterprise"]}>
+
+The Azure join method will not work if TLS is terminated at a load balancer in
+front of your Teleport Proxy Service unless the Teleport process using this
+method is connecting directly to the Auth Service.
+
+</Notice>
 
 For other methods of joining a Teleport process to a cluster, see [Joining
 Teleport Services to a Cluster](../join-services-to-your-cluster.mdx).
@@ -329,6 +335,8 @@ metadata:
   # the token name is not a secret because instances must prove that they are
   # running in your Azure subscription to use this token
   name: azure-token
+  # set a long expiry time, the default for tokens is only 30 minutes
+  expires: "3000-01-01T00:00:00Z"
 spec:
   # use the minimal set of roles required
   roles: [Node]

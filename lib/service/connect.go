@@ -1171,7 +1171,6 @@ func (process *TeleportProcess) newClientThroughTunnel(addr string, tlsConfig *t
 		ClientConfig:          sshConfig,
 		Log:                   process.log,
 		InsecureSkipTLSVerify: lib.IsInsecureDevMode(),
-		ClusterCAs:            tlsConfig.RootCAs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -133,19 +133,33 @@ message Event {
     types.OktaAssignmentV1 OktaAssignment = 41 [(gogoproto.jsontag) = "okta_assignment,omitempty"];
     // Integration is an Integration resource.
     types.IntegrationV1 Integration = 42 [(gogoproto.jsontag) = "integration,omitempty"];
-    // WatchStatus is an WatchStatus resource.
-    types.WatchStatusV1 WatchStatus = 43 [(gogoproto.jsontag) = "watch_status,omitempty"];
   }
 }
 
 // Watch specifies watch parameters
 message Watch {
   // Kinds specifies object kinds to watch
-  repeated types.WatchKind Kinds = 1 [
+  repeated WatchKind Kinds = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kinds,omitempty"
   ];
-  bool AllowPartialSuccess = 2 [(gogoproto.jsontag) = "allow_partial_success,omitempty"];
+}
+
+// WatchKind specifies resource kind to watch
+message WatchKind {
+  // Kind is a resource kind to watch
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // LoadSecrets specifies whether to load secrets
+  bool LoadSecrets = 2 [(gogoproto.jsontag) = "load_secrets"];
+  // Name is an optional specific resource type to watch,
+  // if specified only the events with a specific resource
+  // name will be sent
+  string Name = 3 [(gogoproto.jsontag) = "name"];
+  // Filter is an optional mapping of custom filter parameters.
+  // Valid values vary by resource kind.
+  map<string, string> Filter = 4 [(gogoproto.jsontag) = "filter,omitempty"];
+  // SubKind is a resource subkind to watch
+  string SubKind = 5 [(gogoproto.jsontag) = "sub_kind,omitempty"];
 }
 
 // HostCertsRequest specifies certificate-generation parameters
@@ -193,32 +207,6 @@ message HostCertsRequest {
   // system roles are held.
   // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
   string UnstableSystemRoleAssertionID = 12 [(gogoproto.jsontag) = "system_role_assertion_id,omitempty"];
-}
-
-// OpenSSHCertRequest specifies certificate-generation parameters
-// for a certificates used to connect to Agentless nodes.
-message OpenSSHCertRequest {
-  reserved 1; // Username, jsontag "username"
-  reserved "Username";
-  // PublicKey is the public key to sign.
-  bytes PublicKey = 2 [(gogoproto.jsontag) = "public_key"];
-  // TTL is the duration the certificate will be valid for.
-  int64 TTL = 3 [
-    (gogoproto.jsontag) = "ttl",
-    (gogoproto.casttype) = "Duration"
-  ];
-  // Cluster is the Teleport cluster name the target node is connected to.
-  string Cluster = 4 [(gogoproto.jsontag) = "cluster"];
-  // User is the Teleport user the certificate will be generated for.
-  types.UserV2 User = 5 [(gogoproto.jsontag) = "user"];
-  // Roles are the roles of the Teleport user the certificate will be
-  // generated for.
-  repeated types.RoleV6 Roles = 6 [(gogoproto.jsontag) = "roles"];
-}
-
-// OpenSSHCert is a SSH certificate signed by OpenSSH CA.
-message OpenSSHCert {
-  bytes Cert = 1 [(gogoproto.jsontag) = "cert"];
 }
 
 // UserCertRequest specifies certificate-generation parameters
@@ -320,10 +308,8 @@ message UserCertsRequest {
   enum Requester {
     // UNSPECIFIED is set when the requester in unknown.
     UNSPECIFIED = 0;
-    // TSH_DB_LOCAL_PROXY_TUNNEL is set when the request was sent by a tsh db local proxy tunnel.
+    // TSH_DB_LOCAL_PROXY_TUNNEL is set when the request was sent by a tsh local proxy tunnel.
     TSH_DB_LOCAL_PROXY_TUNNEL = 1;
-    // TSH_KUBE_LOCAL_PROXY is set when the request was sent by a tsh kube local proxy.
-    TSH_KUBE_LOCAL_PROXY = 2;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
@@ -401,6 +387,11 @@ message ChangePasswordRequest {
   bytes NewPassword = 3 [(gogoproto.jsontag) = "new_password"];
   string SecondFactorToken = 4 [(gogoproto.jsontag) = "second_factor_token"];
   webauthn.CredentialAssertionResponse Webauthn = 5 [(gogoproto.jsontag) = "webauthn"];
+}
+
+// AccessRequests is a collection of AccessRequest values.
+message AccessRequests {
+  repeated types.AccessRequestV3 AccessRequests = 1 [(gogoproto.jsontag) = "access_requests"];
 }
 
 // PluginDataSeq is a sequence of plugin data.
@@ -909,6 +900,24 @@ message GetWebTokensResponse {
   repeated types.WebTokenV3 Tokens = 1 [(gogoproto.jsontag) = "tokens"];
 }
 
+// UpsertKubeServiceRequest are the parameters used to add or update a
+// kubernetes service.
+// DELETE IN 13.0.0
+message UpsertKubeServiceRequest {
+  types.ServerV2 Server = 1 [(gogoproto.jsontag) = "server"];
+}
+
+// DeleteKubeServiceRequest are the parameters used to remove a kubernetes service.
+// DELETE IN 13.0.0
+message DeleteKubeServiceRequest {
+  // Name is the name of the kubernetes service to delete.
+  string Name = 2 [(gogoproto.jsontag) = "name"];
+}
+
+// DeleteAllKubeServicesRequest are the parameters used to remove all kubernetes services.
+// DELETE IN 13.0.0
+message DeleteAllKubeServicesRequest {}
+
 // UpsertKubernetesServerRequest are the parameters used to add or update a
 // kubernetes server.
 message UpsertKubernetesServerRequest {
@@ -970,8 +979,11 @@ message DatabaseCSRRequest {
   bytes CSR = 1 [(gogoproto.jsontag) = "csr"];
   // ClusterName is the name of the cluster the request is for.
   string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
-  // SignWithDatabaseCA deprecated.
-  reserved 3;
+  // SignWithDatabaseCA if set to true will use Database CA to sign the created certificate.
+  // This flag was created to enable Database CA for new proxies and don't break old one that
+  // are still using UserCA.
+  // DELETE IN 11.0.
+  bool SignWithDatabaseCA = 3 [(gogoproto.jsontag) = "sign_with_database_ca"];
 }
 
 // DatabaseCSRResponse contains the signed database certificate.
@@ -1115,7 +1127,7 @@ message MFAAuthenticateChallenge {
   // credentials for the ceremony (one for each U2F or Webauthn device
   // registered by the user).
   webauthn.CredentialAssertion WebauthnChallenge = 3;
-  // MFRequired indicates whether proceeding with the MFA ceremony will
+  // MFARequired indicates whether proceeding with the MFA ceremony will
   // grant access to the resource. If `MFA_REQUIRED_NO` is returned by the
   // server then the stream will be terminated to prevent a fruitless MFA ceremony from
   // proceeding.
@@ -1618,8 +1630,6 @@ message ChangeUserAuthenticationRequest {
   MFARegisterResponse NewMFARegisterResponse = 3 [(gogoproto.jsontag) = "new_mfa_register_response,omitempty"];
   // NewDeviceName is the name of a new mfa or passwordless device.
   string NewDeviceName = 4 [(gogoproto.jsontag) = "new_device_name,omitempty"];
-  // LoginIP is an IP that will be embedded in the new client's certificate for web session if successful.
-  string LoginIP = 5 [(gogoproto.jsontag) = "login_ip,omitempty"];
 }
 
 // ChangeUserAuthenticationResponse is a response for ChangeUserAuthentication.
@@ -1791,7 +1801,6 @@ message CreateRegisterChallengeRequest {
 
 // PaginatedResource represents one of the supported resources.
 message PaginatedResource {
-  reserved 4;
   // Resource is the resource itself.
   oneof resource {
     // DatabaseServer represents a DatabaseServer resource.
@@ -1800,6 +1809,9 @@ message PaginatedResource {
     types.AppServerV3 AppServer = 2;
     // Nodes represents a Server resource.
     types.ServerV2 Node = 3 [(gogoproto.jsontag) = "node,omitempty"];
+    // KubeService represents a KubernetesService resource.
+    // DELETE IN 13.0.0. Deprecated, use KubernetesService field.
+    types.ServerV2 KubeService = 4 [(gogoproto.jsontag) = "kube_service,omitempty"];
     // WindowsDesktop represents a WindowsDesktop resource.
     types.WindowsDesktopV3 WindowsDesktop = 5 [(gogoproto.jsontag) = "windows_desktop,omitempty"];
     // KubeCluster represents a KubeCluster resource.
@@ -2245,22 +2257,6 @@ message ListReleasesRequest {
   // ListReleases currently takes no params
 }
 
-// CreateTokenV2Request is used with CreateTokenV2 to create tokens in the
-// backend.
-message CreateTokenV2Request {
-  oneof Token {
-    types.ProvisionTokenV2 V2 = 1 [(gogoproto.jsontag) = "v2,omitempty"];
-  }
-}
-
-// UpsertTokenV2Request is used with UpsertTokenV2 to upsert tokens in the
-// backend.
-message UpsertTokenV2Request {
-  oneof Token {
-    types.ProvisionTokenV2 V2 = 1 [(gogoproto.jsontag) = "v2,omitempty"];
-  }
-}
-
 // Request for GetHeadlessAuthentication.
 message GetHeadlessAuthenticationRequest {
   // ID is the headless authentication id.
@@ -2280,31 +2276,6 @@ message UpdateHeadlessAuthenticationStateRequest {
   // MFA Auth Challenges can be created for a user with the
   // authservice.GenerateAuthenticateChallenge rpc.
   MFAAuthenticateResponse mfa_response = 3;
-}
-
-// ExportUpgradeWindowsRequest encodes parameters for loading the
-// upgrader-facing representations of upcoming agent maintenance windows.
-message ExportUpgradeWindowsRequest {
-  // TeleportVersion is the version of the teleport client making the request.
-  string TeleportVersion = 1;
-  // UpgraderKind represents the kind of upgrader the schedule is intended for.
-  string UpgraderKind = 2;
-}
-
-// ExportUpgradeWindowsResponse encodes an upgrader-facing representation
-// of upcoming agent maintenance windows. Teleport agents periodically export these
-// schedules to external upgraders as part of the externally-managed upgrade system.
-message ExportUpgradeWindowsResponse {
-  // CanonicalSchedule is the teleport-facing schedule repr.
-  types.AgentUpgradeSchedule CanonicalSchedule = 1;
-  // KubeControllerSchedule encodes upcoming upgrade upgrade windows in a format known
-  // to the kube upgrade controller. Teleport agents should treat this value as an
-  // opaque blob.
-  string KubeControllerSchedule = 2;
-  // SystemdUnitSchedule encodes the upcoming upgrade windows in a format known to
-  // the teleport-upgrade systemd unit. Teleport agents should treat this value as an
-  // opaque blob.
-  string SystemdUnitSchedule = 3;
 }
 
 // AuthService is authentication/authorization service implementation
@@ -2383,13 +2354,13 @@ service AuthService {
   // GenerateUserSingleUseCerts generates a set of single-use user
   // certificates.
   rpc GenerateUserSingleUseCerts(stream UserSingleUseCertsRequest) returns (stream UserSingleUseCertsResponse);
-  // GenerateOpenSSHCert signs a SSH certificate that can be used
-  // to connect to Agentless nodes.
-  rpc GenerateOpenSSHCert(OpenSSHCertRequest) returns (OpenSSHCert);
   // IsMFARequired checks whether MFA is required to access the specified
   // target.
   rpc IsMFARequired(IsMFARequiredRequest) returns (IsMFARequiredResponse);
 
+  // GetAccessRequests gets all pending access requests.
+  // DEPRECATED, DELETE IN 11.0.0: Use GetAccessRequestsV2 instead.
+  rpc GetAccessRequests(types.AccessRequestFilter) returns (AccessRequests);
   // GetAccessRequestsV2 gets all pending access requests.
   rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
   // CreateAccessRequest creates a new access request.
@@ -2532,6 +2503,30 @@ service AuthService {
   // UpdateRemoteCluster updates remote cluster
   rpc UpdateRemoteCluster(types.RemoteClusterV3) returns (google.protobuf.Empty);
 
+  // UpsertKubeService adds or updates a kubernetes service.
+  // DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
+  rpc UpsertKubeService(UpsertKubeServiceRequest) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
+
+  // UpsertKubeServiceV2 adds or updates a kubernetes service.
+  // DELETE IN 13.0. Deprecated, use UpsertKubernetesServer
+  rpc UpsertKubeServiceV2(UpsertKubeServiceRequest) returns (types.KeepAlive) {
+    option deprecated = true;
+  }
+
+  // DeleteKubeService removes a kubernetes service.
+  // DELETE IN 13.0. Deprecated, use DeleteKubernetesServer
+  rpc DeleteKubeService(DeleteKubeServiceRequest) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
+
+  // DeleteAllKubeServices removes all kubernetes services.
+  // DELETE IN 13.0. Deprecated, use DeleteAllKubernetesServers
+  rpc DeleteAllKubeServices(DeleteAllKubeServicesRequest) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
+
   // UpsertKubernetesServer adds or updates a kubernetes server.
   rpc UpsertKubernetesServer(UpsertKubernetesServerRequest) returns (types.KeepAlive);
   // DeleteKubernetesServer removes a kubernetes server.
@@ -2662,18 +2657,10 @@ service AuthService {
   // GetToken retrieves all tokens.
   rpc GetTokens(google.protobuf.Empty) returns (types.ProvisionTokenV2List);
   // UpsertToken upserts a token in a backend.
-  // Deprecated: switch to UpsertTokenV2. DELETE IN 14.0.0.
   rpc UpsertToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
   // CreateToken creates a token in a backend.
-  // Deprecated: switch to CreateTokenV2. DELETE IN 14.0.0.
   rpc CreateToken(types.ProvisionTokenV2) returns (google.protobuf.Empty);
-  // CreateTokenV2 creates a token in a backend.
-  rpc CreateTokenV2(CreateTokenV2Request) returns (google.protobuf.Empty);
-  // UpsertTokenV2 upserts a token in a backend.
-  rpc UpsertTokenV2(UpsertTokenV2Request) returns (google.protobuf.Empty);
   // GenerateToken generates a new auth token.
-  // Deprecated: switch to CreateTokenV2.
-  // DELETE IN 14.0.0, replaced by CreateTokenV2 (strideynet).
   rpc GenerateToken(GenerateTokenRequest) returns (GenerateTokenResponse);
   // DeleteToken deletes an existing token in a backend described by the given request.
   rpc DeleteToken(types.ResourceRequest) returns (google.protobuf.Empty);
@@ -2958,14 +2945,4 @@ service AuthService {
 
   // UpdateHeadlessAuthenticationState is a request to update a headless authentication's state.
   rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (google.protobuf.Empty);
-
-  // ExportUpgradeWindows is used to load derived maintenance window values for agents that
-  // need to export schedules to external upgraders.
-  rpc ExportUpgradeWindows(ExportUpgradeWindowsRequest) returns (ExportUpgradeWindowsResponse);
-
-  // GetClusterMaintenanceConfig gets the current maintenance window config singleton.
-  rpc GetClusterMaintenanceConfig(google.protobuf.Empty) returns (types.ClusterMaintenanceConfigV1);
-
-  // UpdateClusterMaintenanceConfig updates the current maintenance window config singleton.
-  rpc UpdateClusterMaintenanceConfig(types.ClusterMaintenanceConfigV1) returns (google.protobuf.Empty);
 }

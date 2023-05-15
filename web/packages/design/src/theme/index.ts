@@ -14,8 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import darkTheme from './darkTheme';
-import lightTheme from './lightTheme';
+import theme from './theme';
 
-export { darkTheme, lightTheme };
-export type { ThemeOption } from './types';
+export default theme;

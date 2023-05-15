@@ -80,7 +80,7 @@ export default function Container(props: AgentStepProps) {
               <Labels {...labelProps} />
               <Box>
                 <TextIcon mt={3}>
-                  <Icons.Warning ml={1} color="error.main" />
+                  <Icons.Warning ml={1} color="danger" />
                   Encountered Error: {fbProps.error.message}
                 </TextIcon>
               </Box>

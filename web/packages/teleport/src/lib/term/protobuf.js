@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Buffer } from 'buffer/';
+import BufferModule from 'buffer/';
 
 /**
  * convenience constant equal to 2^32.
@@ -27,8 +27,6 @@ export const MessageTypeEnum = {
   SESSION_DATA: 's',
   SESSION_END: 'c',
   RESIZE: 'w',
-  FILE_TRANSFER_REQUEST: 'f',
-  FILE_TRANSFER_DECISION: 't',
   WEBAUTHN_CHALLENGE: 'n',
 };
 
@@ -50,9 +48,6 @@ export const messageFields = {
     code: 0x12,
     values: {
       resize: MessageTypeEnum.RESIZE.charCodeAt(0),
-      fileTransferRequest: MessageTypeEnum.FILE_TRANSFER_REQUEST.charCodeAt(0),
-      fileTransferDecision:
-        MessageTypeEnum.FILE_TRANSFER_DECISION.charCodeAt(0),
       data: MessageTypeEnum.RAW.charCodeAt(0),
       event: MessageTypeEnum.AUDIT.charCodeAt(0),
       close: MessageTypeEnum.SESSION_END.charCodeAt(0),
@@ -71,14 +66,6 @@ export class Protobuf {
 
   encodeResizeMessage(message) {
     return this.encode(messageFields.type.values.resize, message);
-  }
-
-  encodeFileTransferRequest(message) {
-    return this.encode(messageFields.type.values.fileTransferRequest, message);
-  }
-
-  encodeFileTransferDecision(message) {
-    return this.encode(messageFields.type.values.fileTransferDecision, message);
   }
 
   encodeRawMessage(message) {
@@ -190,7 +177,7 @@ export class Protobuf {
   }
 
   _textToUintArray(text) {
-    return Buffer(text);
+    return BufferModule.Buffer(text);
   }
 
   _uintArrayToText(uintArray) {
@@ -198,7 +185,7 @@ export class Protobuf {
     if (window.TextDecoder) {
       return new TextDecoder('utf-8').decode(uintArray);
     } else {
-      return Buffer(uintArray).toString();
+      return BufferModule.Buffer(uintArray).toString();
     }
   }
 }

@@ -16,47 +16,27 @@
 
 import React from 'react';
 
-import { ContextProvider } from 'teleport';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
 import { Props, Support } from './Support';
 
 export default {
   title: 'Teleport/Support',
 };
 
-export const SupportOSS = () => (
-  <ContextProvider ctx={ctx}>
-    <Support {...props} />
-  </ContextProvider>
-);
+export const SupportOSS = () => <Support {...props} />;
 
-export const SupportCloud = () => (
-  <ContextProvider ctx={ctx}>
-    <Support {...props} isCloud={true} />;
-  </ContextProvider>
-);
+export const SupportCloud = () => <Support {...props} isCloud={true} />;
 
 export const SupportEnterprise = () => (
-  <ContextProvider ctx={ctx}>
-    <Support {...props} isEnterprise={true} />
-  </ContextProvider>
+  <Support {...props} isEnterprise={true} />
 );
 
 export const SupportWithCTA = () => (
-  <ContextProvider ctx={ctx}>
-    <Support {...props} isEnterprise={true} showPremiumSupportCTA={true} />
-  </ContextProvider>
+  <Support {...props} isEnterprise={true} showPremiumSupportCTA={true} />
 );
 
 export const SupportWithTunnelAddress = () => (
-  <ContextProvider ctx={ctx}>
-    <Support {...props} tunnelPublicAddress="localhost:11005"></Support>
-  </ContextProvider>
+  <Support {...props} tunnelPublicAddress="localhost:11005"></Support>
 );
-
-const ctx = createTeleportContext();
 
 const props: Props = {
   clusterId: 'test',

@@ -21,6 +21,7 @@ import { SearchPanel, SearchPagination } from 'shared/components/Search';
 
 import { makeServer } from 'teleterm/ui/services/clusters';
 
+import { MenuLoginTheme } from '../MenuLoginTheme';
 import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
 import { getEmptyTableText } from '../getEmptyTableText';
 
@@ -111,18 +112,22 @@ const renderConnectCell = (
 ) => {
   return (
     <Cell align="right">
-      <MenuLogin
-        getLoginItems={() => getSshLogins().map(login => ({ login, url: '' }))}
-        onSelect={(e, login) => onConnect(login)}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'right',
-        }}
-        anchorOrigin={{
-          vertical: 'center',
-          horizontal: 'right',
-        }}
-      />
+      <MenuLoginTheme>
+        <MenuLogin
+          getLoginItems={() =>
+            getSshLogins().map(login => ({ login, url: '' }))
+          }
+          onSelect={(e, login) => onConnect(login)}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+          anchorOrigin={{
+            vertical: 'center',
+            horizontal: 'right',
+          }}
+        />
+      </MenuLoginTheme>
     </Cell>
   );
 };
@@ -131,11 +136,9 @@ const renderAddressCell = ({ addr, tunnel }: ReturnType<typeof makeServer>) => (
   <Cell>
     {tunnel && (
       <span
-        style={{ cursor: 'default', whiteSpace: 'nowrap' }}
+        style={{ cursor: 'default' }}
         title="This node is connected to cluster through reverse tunnel"
-      >
-        ← tunnel
-      </span>
+      >{`⟵ tunnel`}</span>
     )}
     {!tunnel && addr}
   </Cell>

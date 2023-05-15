@@ -19,7 +19,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -27,6 +26,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"text/template"
 	"time"
@@ -45,7 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
 
@@ -55,12 +55,12 @@ func TestSSH(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	s := newTestSuite(t,
-		withRootConfigFunc(func(cfg *servicecfg.Config) {
+		withRootConfigFunc(func(cfg *service.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 		withLeafCluster(),
-		withLeafConfigFunc(func(cfg *servicecfg.Config) {
+		withLeafConfigFunc(func(cfg *service.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 		}),
 	)
@@ -191,12 +191,12 @@ func TestSSHLoadAllCAs(t *testing.T) {
 		{
 			name: "TLS routing enabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
+				withRootConfigFunc(func(cfg *service.Config) {
 					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 					cfg.Auth.LoadAllCAs = true
 				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
+				withLeafConfigFunc(func(cfg *service.Config) {
 					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
@@ -205,11 +205,11 @@ func TestSSHLoadAllCAs(t *testing.T) {
 		{
 			name: "TLS routing disabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
+				withRootConfigFunc(func(cfg *service.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 					cfg.Auth.LoadAllCAs = true
 				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
+				withLeafConfigFunc(func(cfg *service.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
 			},
@@ -263,7 +263,7 @@ func TestProxySSH(t *testing.T) {
 		{
 			name: "TLS routing enabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
+				withRootConfigFunc(func(cfg *service.Config) {
 					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
@@ -272,7 +272,7 @@ func TestProxySSH(t *testing.T) {
 		{
 			name: "TLS routing disabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
+				withRootConfigFunc(func(cfg *service.Config) {
 					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
@@ -349,10 +349,10 @@ func TestProxySSHJumpHost(t *testing.T) {
 		{
 			name: "TLS routing enabled for root and leaf",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
+				withRootConfigFunc(func(cfg *service.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
+				withLeafConfigFunc(func(cfg *service.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
 			},
@@ -360,10 +360,10 @@ func TestProxySSHJumpHost(t *testing.T) {
 		{
 			name: "TLS routing enabled for root and disabled for leaf",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
+				withRootConfigFunc(func(cfg *service.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
+				withLeafConfigFunc(func(cfg *service.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
 			},
@@ -371,10 +371,10 @@ func TestProxySSHJumpHost(t *testing.T) {
 		{
 			name: "TLS routing disabled for root and enabled for leaf",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
+				withRootConfigFunc(func(cfg *service.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
+				withLeafConfigFunc(func(cfg *service.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
 			},
@@ -382,10 +382,10 @@ func TestProxySSHJumpHost(t *testing.T) {
 		{
 			name: "TLS routing disabled for root and leaf",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
+				withRootConfigFunc(func(cfg *service.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
-				withLeafConfigFunc(func(cfg *servicecfg.Config) {
+				withLeafConfigFunc(func(cfg *service.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
 			},
@@ -464,8 +464,8 @@ Host *
 `, tshPath)), 0o644)
 	require.NoError(t, err)
 
-	// Connect to "rootnode" with OpenSSH.
-	mustRunOpenSSHCommand(t, sshConfigFile, "rootnode.root",
+	// Connect to "localnode" with OpenSSH.
+	mustRunOpenSSHCommand(t, sshConfigFile, "localnode.root",
 		s.root.Config.SSH.Addr.Port(defaults.SSHServerListenPort), "echo", "hello")
 }
 
@@ -488,7 +488,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 		{
 			name: "node recording mode with TLS routing enabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
+				withRootConfigFunc(func(cfg *service.Config) {
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
@@ -497,7 +497,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 		{
 			name: "proxy recording mode with TLS routing enabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
+				withRootConfigFunc(func(cfg *service.Config) {
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxy)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
@@ -506,7 +506,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 		{
 			name: "node recording mode with TLS routing disabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
+				withRootConfigFunc(func(cfg *service.Config) {
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
@@ -515,7 +515,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 		{
 			name: "proxy recording mode with TLS routing disabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *servicecfg.Config) {
+				withRootConfigFunc(func(cfg *service.Config) {
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxy)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
@@ -614,12 +614,12 @@ func TestList(t *testing.T) {
 	})
 
 	s := newTestSuite(t,
-		withRootConfigFunc(func(cfg *servicecfg.Config) {
+		withRootConfigFunc(func(cfg *service.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 		withLeafCluster(),
-		withLeafConfigFunc(func(cfg *servicecfg.Config) {
+		withLeafConfigFunc(func(cfg *service.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 		}),
 	)
@@ -631,71 +631,37 @@ func TestList(t *testing.T) {
 	testCases := []struct {
 		description string
 		command     []string
-		assertion   func(t *testing.T, out []byte)
+		resultNodes []string
 	}{
 		{
 			description: "List root cluster nodes",
-			command:     []string{"ls", "-f", "json"},
-			assertion: func(t *testing.T, out []byte) {
-				var results []types.ServerV2
-				require.NoError(t, json.Unmarshal(out, &results))
-
-				require.Len(t, results, 1)
-				require.Equal(t, "rootnode", results[0].Spec.Hostname)
-				require.Equal(t, rootNodeAddress.String(), results[0].Spec.Addr)
-			},
+			command:     []string{"ls"},
+			resultNodes: []string{"localnode " + rootNodeAddress.String()},
 		},
 		{
 			description: "List leaf cluster nodes",
-			command:     []string{"ls", "-c", "leaf1", "-f", "json"},
-			assertion: func(t *testing.T, out []byte) {
-				var results []types.ServerV2
-				require.NoError(t, json.Unmarshal(out, &results))
-
-				require.Len(t, results, 1)
-				require.Equal(t, "leafnode", results[0].Spec.Hostname)
-				require.Equal(t, leafNodeAddress.String(), results[0].Spec.Addr)
-			},
+			command:     []string{"ls", "-c", "leaf1"},
+			resultNodes: []string{"localnode " + leafNodeAddress.String()},
 		},
 		{
 			description: "List all clusters nodes",
-			command:     []string{"ls", "-R", "-f", "json"},
-			assertion: func(t *testing.T, out []byte) {
-				expected := map[string]string{
-					"root":  "rootnode",
-					"leaf1": "leafnode",
-				}
-
-				type result struct {
-					Cluster string         `json:"cluster"`
-					Node    types.ServerV2 `json:"node"`
-				}
-				var results []result
-				require.NoError(t, json.Unmarshal(out, &results))
-
-				require.Equal(t, len(expected), len(results))
-				for _, res := range results {
-					node, ok := expected[res.Cluster]
-					require.True(t, ok, "expected node to be present for cluster %s", res.Cluster)
-					require.Equal(t, node, res.Node.Spec.Hostname)
-					address := leafNodeAddress
-					if res.Cluster == s.root.Config.Auth.ClusterName.GetName() {
-						address = rootNodeAddress
-					}
-					require.Equal(t, address.String(), results[0].Node.Spec.Addr)
-				}
-			},
+			command:     []string{"ls", "-R"},
+			resultNodes: []string{"leaf1     localnode", "localhost localnode"},
 		},
 	}
 
-	tshHome, _ := mustLogin(t, s)
 	for _, test := range testCases {
 		t.Run(test.description, func(t *testing.T) {
-			stdout := &bytes.Buffer{}
-			err := Run(context.Background(), test.command, setHomePath(tshHome), setOverrideStdout(stdout))
-			require.NoError(t, err)
+			tshHome, _ := mustLogin(t, s)
+			stdout := new(bytes.Buffer)
 
-			test.assertion(t, stdout.Bytes())
+			err := Run(context.Background(), test.command, setHomePath(tshHome), setOverrideStdout(stdout))
+
+			require.NoError(t, err)
+			require.Equal(t, len(test.resultNodes), len(strings.Split(stdout.String(), "\n"))-4) // 4 - unimportant new lines
+			for _, node := range test.resultNodes {
+				require.Contains(t, stdout.String(), node)
+			}
 		})
 	}
 }
@@ -959,11 +925,11 @@ Use the following command to connect to the database or to the address above usi
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
-  * default: 
+  * default:
 
   $ echo "hello world"
 
-  * alternative: 
+  * alternative:
 
   $ echo "goodbye world"
 
@@ -1012,11 +978,11 @@ To avoid port randomization, you can choose the listening port using the --port 
 
 Use one of the following commands to connect to the database or to the address above using other database GUI/CLI clients:
 
-  * default: 
+  * default:
 
   $ echo "hello world"
 
-  * alternative: 
+  * alternative:
 
   $ echo "goodbye world"
 
@@ -1042,166 +1008,6 @@ Use one of the following commands to connect to the database or to the address a
 			err := tpl.Execute(buf, templateArgs)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantOutput, buf.String())
-		})
-	}
-}
-
-type fakeAWSAppInfo struct {
-	forwardProxyAddr string
-}
-
-func (f fakeAWSAppInfo) GetAppName() string {
-	return "fake-aws-app"
-}
-func (f fakeAWSAppInfo) GetEnvVars() (map[string]string, error) {
-	envVars := map[string]string{
-		"AWS_ACCESS_KEY_ID":     "FAKE_ID",
-		"AWS_SECRET_ACCESS_KEY": "FAKE_KEY",
-		"AWS_CA_BUNDLE":         "FAKE_CA_BUNDLE_PATH",
-	}
-	if f.forwardProxyAddr != "" {
-		envVars["HTTPS_PROXY"] = "http://" + f.forwardProxyAddr
-	}
-	return envVars, nil
-}
-func (f fakeAWSAppInfo) GetEndpointURL() string {
-	return "https://127.0.0.1:12345"
-}
-func (f fakeAWSAppInfo) GetForwardProxyAddr() string {
-	return f.forwardProxyAddr
-}
-
-func TestPrintProxyAWSTemplate(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		inputCLIConf *CLIConf
-		inputAWSApp  awsAppInfo
-		wantSnippets []string
-	}{
-		{
-			name: "HTTPS_PROXY mode",
-			inputCLIConf: &CLIConf{
-				Format: envVarDefaultFormat(),
-			},
-			inputAWSApp: fakeAWSAppInfo{
-				forwardProxyAddr: "127.0.0.1:8888",
-			},
-			wantSnippets: []string{
-				"127.0.0.1:8888",
-				"Use the following credentials and HTTPS proxy setting to connect to the proxy",
-			},
-		},
-		{
-			name: "endpoint URL mode",
-			inputCLIConf: &CLIConf{
-				Format:             envVarDefaultFormat(),
-				AWSEndpointURLMode: true,
-			},
-			inputAWSApp: fakeAWSAppInfo{},
-			wantSnippets: []string{
-				"AWS endpoint URL at https://127.0.0.1:12345",
-			},
-		},
-		{
-			name: "athena-odbc",
-			inputCLIConf: &CLIConf{
-				Format: awsProxyFormatAthenaODBC,
-			},
-			inputAWSApp: fakeAWSAppInfo{
-				forwardProxyAddr: "127.0.0.1:8888",
-			},
-			wantSnippets: []string{
-				"DRIVER=Simba Amazon Athena ODBC Connector;",
-				"UseProxy=1;ProxyScheme=http;ProxyHost=127.0.0.1;ProxyPort=8888;",
-			},
-		},
-		{
-			name: "athena-jdbc",
-			inputCLIConf: &CLIConf{
-				Format: awsProxyFormatAthenaJDBC,
-			},
-			inputAWSApp: fakeAWSAppInfo{
-				forwardProxyAddr: "127.0.0.1:8888",
-			},
-			wantSnippets: []string{
-				"jdbc:awsathena:",
-				"ProxyHost=127.0.0.1;ProxyPort=8888;",
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			buf := new(bytes.Buffer)
-			test.inputCLIConf.overrideStdout = buf
-			require.NoError(t, printProxyAWSTemplate(test.inputCLIConf, test.inputAWSApp))
-			for _, wantSnippet := range test.wantSnippets {
-				require.Contains(t, buf.String(), wantSnippet)
-			}
-		})
-	}
-}
-
-func TestCheckProxyAWSFormatCompatibility(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		input      *CLIConf
-		checkError require.ErrorAssertionFunc
-	}{
-		{
-			name: "default format is supported in HTTPS_PROXY mode",
-			input: &CLIConf{
-				Format: envVarDefaultFormat(),
-			},
-			checkError: require.NoError,
-		},
-		{
-			name: "default format is supported in endpoint URL mode",
-			input: &CLIConf{
-				Format:             envVarDefaultFormat(),
-				AWSEndpointURLMode: true,
-			},
-			checkError: require.NoError,
-		},
-		{
-			name: "athena-odbc is supported in HTTPS_PROXY mode",
-			input: &CLIConf{
-				Format: awsProxyFormatAthenaODBC,
-			},
-			checkError: require.NoError,
-		},
-		{
-			name: "athena-odbc is not supported in endpoint URL mode",
-			input: &CLIConf{
-				Format:             awsProxyFormatAthenaODBC,
-				AWSEndpointURLMode: true,
-			},
-			checkError: require.Error,
-		},
-		{
-			name: "athena-jdbc is supported in HTTPS_PROXY mode",
-			input: &CLIConf{
-				Format: awsProxyFormatAthenaJDBC,
-			},
-			checkError: require.NoError,
-		},
-		{
-			name: "athena-jdbc is not supported in endpoint URL mode",
-			input: &CLIConf{
-				Format:             awsProxyFormatAthenaJDBC,
-				AWSEndpointURLMode: true,
-			},
-			checkError: require.Error,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.checkError(t, checkProxyAWSFormatCompatibility(test.input))
 		})
 	}
 }

@@ -152,9 +152,6 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.CASSANDRA_PREPARE_EVENT]: Icons.Database,
   [eventCodes.CASSANDRA_REGISTER_EVENT]: Icons.Database,
   [eventCodes.ELASTICSEARCH_REQUEST]: Icons.Database,
-  [eventCodes.ELASTICSEARCH_REQUEST_FAILURE]: Icons.Database,
-  [eventCodes.OPENSEARCH_REQUEST]: Icons.Database,
-  [eventCodes.OPENSEARCH_REQUEST_FAILURE]: Icons.Database,
   [eventCodes.DYNAMODB_REQUEST]: Icons.Database,
   [eventCodes.DYNAMODB_REQUEST_FAILURE]: Icons.Database,
   [eventCodes.DESKTOP_SESSION_STARTED]: Icons.Desktop,
@@ -174,7 +171,6 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.DEVICE_ENROLL]: Icons.Info,
   [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: Icons.Info,
   [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: Icons.Info,
-  [eventCodes.DEVICE_UPDATE]: Icons.Info,
   [eventCodes.MFA_DEVICE_ADD]: Icons.Info,
   [eventCodes.MFA_DEVICE_DELETE]: Icons.Info,
   [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCardAlt2,
@@ -275,9 +271,9 @@ export default function renderTypeCell(event: Event, clusterId: string) {
 
 const StyledCliIcon = styled(Icons.Cli)(
   props => `
-  background: ${props.theme.colors.levels.deep};
-  border: 2px solid ${props.theme.colors.brand};
-  color: ${props.theme.colors.text.slightlyMuted};
+  background: ${props.theme.colors.dark};
+  border: 2px solid ${props.theme.colors.brandAccent};
+  color: ${props.theme.colors.text.main};
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -291,8 +287,8 @@ const StyledCliIcon = styled(Icons.Cli)(
   &:hover,
   &:active,
   &:focus {
-    background: ${props.theme.colors.levels.sunken};
-    color: ${props.theme.colors.text.main};
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+    color: ${props.theme.colors.light};
   }
 
   &:active {

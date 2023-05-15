@@ -58,23 +58,21 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 	}
 
 	gw, err := gateway.New(gateway.Config{
-		LocalPort:                     params.LocalPort,
-		TargetURI:                     params.TargetURI,
-		TargetUser:                    params.TargetUser,
-		TargetName:                    db.GetName(),
-		TargetSubresourceName:         params.TargetSubresourceName,
-		Protocol:                      db.GetProtocol(),
-		KeyPath:                       c.status.KeyPath(),
-		CertPath:                      c.status.DatabaseCertPathForCluster(c.clusterClient.SiteName, db.GetName()),
-		Insecure:                      c.clusterClient.InsecureSkipVerify,
-		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
-		Log:                           c.Log,
-		CLICommandProvider:            params.CLICommandProvider,
-		TCPPortAllocator:              params.TCPPortAllocator,
-		OnExpiredCert:                 params.OnExpiredCert,
-		Clock:                         c.clock,
-		TLSRoutingConnUpgradeRequired: c.clusterClient.TLSRoutingConnUpgradeRequired,
-		RootClusterCACertPoolFunc:     c.clusterClient.RootClusterCACertPool,
+		LocalPort:             params.LocalPort,
+		TargetURI:             params.TargetURI,
+		TargetUser:            params.TargetUser,
+		TargetName:            db.GetName(),
+		TargetSubresourceName: params.TargetSubresourceName,
+		Protocol:              db.GetProtocol(),
+		KeyPath:               c.status.KeyPath(),
+		CertPath:              c.status.DatabaseCertPathForCluster(c.clusterClient.SiteName, db.GetName()),
+		Insecure:              c.clusterClient.InsecureSkipVerify,
+		WebProxyAddr:          c.clusterClient.WebProxyAddr,
+		Log:                   c.Log,
+		CLICommandProvider:    params.CLICommandProvider,
+		TCPPortAllocator:      params.TCPPortAllocator,
+		OnExpiredCert:         params.OnExpiredCert,
+		Clock:                 c.clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

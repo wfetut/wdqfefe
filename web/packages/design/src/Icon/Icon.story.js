@@ -24,7 +24,7 @@ export default {
   title: 'Design/Icon',
 };
 
-export const DeprecatedIcons = () => (
+export const ListOfIcons = () => (
   <Flex flexWrap="wrap">
     <IconBox IconCmpt={Icon.Add} text="Add" />
     <IconBox IconCmpt={Icon.AddUsers} text="AddUsers" />
@@ -138,7 +138,6 @@ export const DeprecatedIcons = () => (
     <IconBox IconCmpt={Icon.Magnifier} text="Magnifier" />
     <IconBox IconCmpt={Icon.MasterCard} text="MasterCard" />
     <IconBox IconCmpt={Icon.Memory} text="Memory" />
-    <IconBox IconCmpt={Icon.Moon} text="Moon" />
     <IconBox IconCmpt={Icon.MoreHoriz} text="MoreHoriz" />
     <IconBox IconCmpt={Icon.MoreVert} text="MoreVert" />
     <IconBox IconCmpt={Icon.Mute} text="Mute" />
@@ -176,7 +175,6 @@ export const DeprecatedIcons = () => (
     <IconBox IconCmpt={Icon.Spinner} text="Spinner" />
     <IconBox IconCmpt={Icon.Stars} text="Stars" />
     <IconBox IconCmpt={Icon.Stripe} text="Stripe" />
-    <IconBox IconCmpt={Icon.Sun} text="Sun" />
     <IconBox IconCmpt={Icon.SyncAlt} text="SyncAlt" />
     <IconBox IconCmpt={Icon.Tablet} text="Tablet" />
     <IconBox IconCmpt={Icon.Tags} text="Tags" />

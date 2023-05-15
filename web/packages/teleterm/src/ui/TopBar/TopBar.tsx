@@ -15,15 +15,15 @@
  */
 
 import React from 'react';
-import styled from 'styled-components';
-import { Flex } from 'design';
 
-import { SearchBar } from '../Search';
+import styled from 'styled-components';
+
+import QuickInput from '../QuickInput';
 
 import { Connections } from './Connections';
 import { Clusters } from './Clusters';
 import { Identity } from './Identity';
-import { AdditionalActions } from './AdditionalActions';
+import { NavigationMenu } from './NavigationMenu';
 
 export function TopBar() {
   return (
@@ -33,31 +33,35 @@ export function TopBar() {
       </JustifyLeft>
       <CentralContainer>
         <Clusters />
-        <SearchBar />
+        <QuickInput />
       </CentralContainer>
       <JustifyRight>
-        <AdditionalActions />
+        <NavigationMenu />
         <Identity />
       </JustifyRight>
     </Grid>
   );
 }
 
-const Grid = styled(Flex).attrs({ gap: 3, py: 2, px: 3 })`
-  background: ${props => props.theme.colors.levels.surface};
+const Grid = styled.div`
+  background: ${props => props.theme.colors.levels.surfaceSecondary};
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 700px) 1fr;
   width: 100%;
+  padding: 8px 16px;
   height: 56px;
+  box-sizing: border-box;
   align-items: center;
-  justify-content: space-between;
-  z-index: 2; // minimally higher z-index than the one defined in StyledTabs, so that its drop-shadow doesn't cover the TopBar
 `;
 
-const CentralContainer = styled(Flex).attrs({ gap: 3 })`
-  flex: 1;
+const CentralContainer = styled.div`
+  display: grid;
+  column-gap: 12px;
+  margin: auto 12px;
+  grid-auto-flow: column;
+  grid-auto-columns: 2fr 5fr; // 1fr for a single child, 2fr 5fr for two children
   align-items: center;
-  justify-content: center;
   height: 100%;
-  max-width: calc(${props => props.theme.space[10]}px * 9);
 `;
 
 const JustifyLeft = styled.div`

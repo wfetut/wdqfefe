@@ -124,15 +124,8 @@ const (
 	// KindProxy is proxy resource
 	KindProxy = "proxy"
 
-	// KindNode is node resource. It can be either a Teleport node or
-	// a registered OpenSSH (agentless) node.
+	// KindNode is node resource
 	KindNode = "node"
-
-	// SubKindTeleportNode is a Teleport node.
-	SubKindTeleportNode = "teleport"
-
-	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
-	SubKindOpenSSHNode = "openssh"
 
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
@@ -225,9 +218,6 @@ const (
 	// MetaNameClusterName is the name of a configuration resource for cluster name.
 	MetaNameClusterName = "cluster-name"
 
-	// MetaNameWatchStatus is the name of a watch status resource.
-	MetaNameWatchStatus = "watch-status"
-
 	// KindStaticTokens is a type of configuration resource that contains static tokens.
 	KindStaticTokens = "static_tokens"
 
@@ -261,6 +251,10 @@ const (
 
 	// KindState is local on disk process state
 	KindState = "state"
+
+	// KindKubeService is a kubernetes service resource
+	// DELETE in 13.0.0
+	KindKubeService = "kube_service"
 
 	// KindMFADevice is an MFA device for a user.
 	KindMFADevice = "mfa_device"
@@ -348,19 +342,6 @@ const (
 	// KindIntegration is a connection to a 3rd party system API.
 	KindIntegration = "integration"
 
-	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
-	KindClusterMaintenanceConfig = "cluster_maintenance_config"
-
-	// KindServerInfo contains info that should be applied to joining Nodes.
-	KindServerInfo = "server_info"
-
-	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
-	// window singleton resource.
-	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
-
-	// KindWatchStatus is a kind for WatchStatus resource which contains information about a successful Watch request.
-	KindWatchStatus = "watch_status"
-
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
@@ -382,7 +363,7 @@ const (
 )
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.

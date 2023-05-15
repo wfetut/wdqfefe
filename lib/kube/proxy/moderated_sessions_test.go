@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"reflect"
 	"regexp"
 	"strings"
 	"sync"
@@ -44,7 +43,7 @@ import (
 
 func TestModeratedSessions(t *testing.T) {
 	// enable enterprise features to have access to ModeratedSessions.
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{Kubernetes: true}})
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 	const (
 		moderatorUsername       = "moderator_user"
 		moderatorRoleName       = "mod_role"
@@ -161,8 +160,6 @@ func TestModeratedSessions(t *testing.T) {
 		moderator            types.User
 		closeSession         bool
 		moderatorForcedClose bool
-		reason               string
-		invite               []string
 	}
 	type want struct {
 		sessionEndEvent bool
@@ -175,9 +172,7 @@ func TestModeratedSessions(t *testing.T) {
 		{
 			name: "create session for user without moderation",
 			args: args{
-				user:   user,
-				reason: "reason 1",
-				invite: []string{"user1", "user2"},
+				user: user,
 			},
 			want: want{
 				sessionEndEvent: true,
@@ -188,8 +183,6 @@ func TestModeratedSessions(t *testing.T) {
 			args: args{
 				user:      userRequiringModerator,
 				moderator: moderator,
-				reason:    "reason 2",
-				invite:    []string{"user1", "user2"},
 			},
 			want: want{
 				sessionEndEvent: true,
@@ -200,8 +193,6 @@ func TestModeratedSessions(t *testing.T) {
 			args: args{
 				user:         user,
 				closeSession: true,
-				reason:       "reason 3",
-				invite:       []string{"user1", "user2"},
 			},
 			want: want{
 				sessionEndEvent: true,
@@ -212,8 +203,6 @@ func TestModeratedSessions(t *testing.T) {
 			args: args{
 				user:         userRequiringModerator,
 				closeSession: true,
-				reason:       "reason 4",
-				invite:       []string{"user1", "user2"},
 			},
 			want: want{
 				// until moderator joins the session is not started. If the connection
@@ -227,8 +216,6 @@ func TestModeratedSessions(t *testing.T) {
 				user:                 userRequiringModerator,
 				moderator:            moderator,
 				moderatorForcedClose: true,
-				reason:               "reason 5",
-				invite:               []string{"user1", "user2"},
 			},
 			want: want{
 				sessionEndEvent: true,
@@ -264,16 +251,12 @@ func TestModeratedSessions(t *testing.T) {
 				Tty:    true,
 			}
 			req, err := generateExecRequest(
-				generateExecRequestConfig{
-					addr:          testCtx.KubeServiceAddress(),
-					podName:       podName,
-					podNamespace:  podNamespace,
-					containerName: podContainerName,
-					cmd:           containerCommmandExecute, // placeholder for commands to execute in the dummy pod
-					options:       streamOpts,
-					reason:        tt.args.reason,
-					invite:        tt.args.invite,
-				},
+				testCtx.KubeServiceAddress(),
+				podName,
+				podNamespace,
+				podContainerName,
+				containerCommmandExecute, // placeholder for commands to execute in the dummy pod
+				streamOpts,
 			)
 			require.NoError(t, err)
 
@@ -298,10 +281,6 @@ func TestModeratedSessions(t *testing.T) {
 				group.Go(func() error {
 					// waits for user to send the sessionID of his exec request.
 					sessionID := <-sessionIDC
-					// validate that the sessionID is valid and the reason is the one we expect.
-					if err := validateSessionTracker(testCtx, sessionID, tt.args.reason, tt.args.invite); err != nil {
-						return trace.Wrap(err)
-					}
 					t.Logf("moderator is joining sessionID %q", sessionID)
 					// join the session.
 					stream, err := testCtx.NewJoiningSession(config, sessionID, types.SessionModeratorMode)
@@ -318,13 +297,10 @@ func TestModeratedSessions(t *testing.T) {
 
 					// moderator waits for the user informed that he joined the session.
 					<-moderatorJoined
-					dataFound := false
 					for {
 						p := make([]byte, 1024)
 						n, err := stream.Read(p)
-						if errors.Is(err, io.EOF) {
-							break
-						} else if err != nil {
+						if err != nil {
 							return trace.Wrap(err)
 						}
 						stringData := string(p[:n])
@@ -337,21 +313,15 @@ func TestModeratedSessions(t *testing.T) {
 
 						// stdinPayload is sent by the user after the session started.
 						if strings.Contains(stringData, stdinPayload) {
-							dataFound = true
+							break
 						}
 
 						// podContainerName is returned by the kubemock server and it's used
 						// to control that the session has effectively started.
 						// return to force the defer to run.
 						if strings.Contains(stringData, podContainerName) && tt.args.moderatorForcedClose {
-							if err := stream.ForceTerminate(); err != nil {
-								return trace.Wrap(err)
-							}
-							continue
+							return nil
 						}
-					}
-					if !dataFound && !tt.args.moderatorForcedClose {
-						return trace.Wrap(errors.New("stdinPayload was not received"))
 					}
 					return nil
 				})
@@ -410,8 +380,8 @@ func TestModeratedSessions(t *testing.T) {
 
 					// checks if moderator has joined the session.
 					// Each time a user joins a session the following message is broadcasted
-					// User <user> joined the session with participant mode: <mode>.
-					if strings.Contains(stringData, fmt.Sprintf("User %s joined the session with participant mode: moderator.", moderatorUsername)) {
+					// User <user> joined the session.
+					if strings.Contains(stringData, fmt.Sprintf("User %s joined the session.", moderatorUsername)) {
 						t.Logf("identified that moderator joined the session")
 						// inform moderator goroutine that the user detected that he joined the
 						// session.
@@ -460,20 +430,4 @@ func TestModeratedSessions(t *testing.T) {
 			require.NoError(t, group.Wait())
 		})
 	}
-}
-
-// validateSessionTracker validates that the session tracker has the expected
-// reason and invited users.
-func validateSessionTracker(testCtx *TestContext, sessionID string, reason string, invited []string) error {
-	sessionTracker, err := testCtx.AuthClient.GetSessionTracker(testCtx.Context, sessionID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if sessionTracker.GetReason() != reason {
-		return trace.BadParameter("expected reason %q, got %q", reason, sessionTracker.GetReason())
-	}
-	if !reflect.DeepEqual(sessionTracker.GetInvited(), invited) {
-		return trace.BadParameter("expected invited %q, got %q", invited, sessionTracker.GetInvited())
-	}
-	return nil
 }

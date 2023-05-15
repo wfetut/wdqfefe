@@ -60,6 +60,7 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindSSHSession, RO()),
 	types.NewRule(types.KindAppServer, RO()),
 	types.NewRule(types.KindRemoteCluster, RO()),
+	types.NewRule(types.KindKubeService, RO()),
 	types.NewRule(types.KindKubeServer, RO()),
 	types.NewRule(types.KindDatabaseServer, RO()),
 	types.NewRule(types.KindDatabase, RO()),
@@ -169,6 +170,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindKubernetesCluster, RW()),
 				types.NewRule(types.KindSessionTracker, RO()),
 				types.NewRule(types.KindUserGroup, RW()),
+				types.NewRule(types.KindIntegration, []string{types.VerbUse}),
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{
@@ -3270,5 +3272,23 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 		return utils.FastMarshal(role)
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
+	}
+}
+
+// DowngradeToV5 converts a V6 role to V5 so that it will be compatible with
+// older instances. Makes a shallow copy if the conversion is necessary. The
+// passed in role will not be mutated.
+// DELETE IN 13.0.0
+func DowngradeRoleToV5(r *types.RoleV6) (*types.RoleV6, error) {
+	switch r.Version {
+	case types.V3, types.V4, types.V5:
+		return r, nil
+	case types.V6:
+		var downgraded types.RoleV6
+		downgraded = *r
+		downgraded.Version = types.V5
+		return &downgraded, nil
+	default:
+		return nil, trace.BadParameter("unrecognized role version %T", r.Version)
 	}
 }

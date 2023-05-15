@@ -34,14 +34,14 @@ interface ActionFormProps {
 
 const CommandInput = styled.input`
   padding: 10px 15px;
-  background: ${p => p.theme.colors.spotBackground[0]};
+  background: rgba(255, 255, 255, 0.07);
   border-radius: 5px;
   font-size: 16px;
   font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, Courier,
     monospace;
   font-weight: bold;
   border: none;
-  color: ${p => p.theme.colors.text.main};
+  color: white;
   width: 100%;
   box-sizing: border-box;
 
@@ -60,15 +60,15 @@ const CancelButton = styled.div`
   margin-right: 10px;
 
   &:hover {
-    background: ${p => p.theme.colors.spotBackground[0]};
+    background: rgba(255, 255, 255, 0.07);
   }
 `;
 
 const SaveButton = styled.div`
   margin-top: 10px;
-  background: ${p => p.theme.colors.buttons.primary.default};
+  background: #9f85ff;
   font-weight: bold;
-  color: ${p => p.theme.colors.buttons.primary.text};
+  color: black;
   border-radius: 5px;
   padding: 5px 15px;
   display: inline-flex;
@@ -76,13 +76,13 @@ const SaveButton = styled.div`
   cursor: pointer;
 
   &:hover {
-    background: ${p => p.theme.colors.buttons.primary.hover};
+    background: #b29dff;
   }
 `;
 
 const LabelForm = styled.div`
   display: flex;
-  background: ${p => p.theme.colors.spotBackground[0]};
+  background: rgba(255, 255, 255, 0.07);
   align-items: center;
   padding: 1px 15px;
   border-radius: 5px;
@@ -104,7 +104,7 @@ const Input = styled.input`
   border: none;
   width: 340px;
   box-sizing: border-box;
-  color: ${p => p.theme.colors.text.main};
+  color: white;
 
   &:focus {
     outline: none;

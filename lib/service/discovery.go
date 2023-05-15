@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/discovery"
 )
 
@@ -56,6 +57,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	}
 
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
+		Clients:        cloud.NewClients(),
 		AWSMatchers:    process.Config.Discovery.AWSMatchers,
 		AzureMatchers:  process.Config.Discovery.AzureMatchers,
 		GCPMatchers:    process.Config.Discovery.GCPMatchers,

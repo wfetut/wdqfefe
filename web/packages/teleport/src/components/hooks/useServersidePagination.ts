@@ -51,7 +51,6 @@ export function useServerSidePagination<T extends AgentKind>({
   }
 
   function fetch() {
-    setFetchStatus('loading');
     setAttempt({ status: 'processing' });
     fetchFunc(clusterId, { ...params, limit: pageSize })
       .then(res => {
@@ -71,7 +70,6 @@ export function useServerSidePagination<T extends AgentKind>({
       .catch((err: Error) => {
         setAttempt({ status: 'failed', statusText: err.message });
         setFetchedData({ ...fetchedData, agents: [], totalCount: 0 });
-        setFetchStatus('');
       });
   }
 

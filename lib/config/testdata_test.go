@@ -181,11 +181,6 @@ db_service:
       regions: ["westus"]
       tags:
         "c": "d"
-  aws:
-      - types: ["rds"]
-        regions: ["us-west-1"]
-        assume_role_arn: "arn:aws:iam::123456789012:role/DBDiscoverer"
-        external_id: "externalID123"
 
 kubernetes_service:
     enabled: yes
@@ -201,8 +196,6 @@ discovery_service:
     aws:
       - types: ["ec2"]
         regions: ["eu-central-1"]
-        assume_role_arn: "arn:aws:iam::123456789012:role/DBDiscoverer"
-        external_id: "externalID123"
 
 okta_service:
     enabled: yes

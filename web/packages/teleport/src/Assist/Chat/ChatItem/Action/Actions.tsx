@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import styled, { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import { RunIcon } from 'design/SVGIcon';
 
@@ -75,7 +75,7 @@ const ButtonRun = styled(Button)<{ disabled: boolean }>`
   border: 2px solid ${p => (p.disabled ? '#cccccc' : '#20b141')};
   opacity: ${p => (p.disabled ? 0.8 : 1)};
   cursor: ${p => (p.disabled ? 'not-allowed' : 'pointer')};
-  color: ${p => (p.theme.name === 'light' ? '#20b141' : 'white')};
+  color: white;
 
   &:hover {
     background: ${p => (p.disabled ? 'none' : '#20b141')};
@@ -95,8 +95,6 @@ const Spacer = styled.div`
 `;
 
 export function Actions(props: ActionsProps) {
-  const theme = useTheme();
-
   const [running, setRunning] = useState(false);
   const [actions, setActions] = useState({ ...props.actions });
   const { clusterId } = useStickyClusterId();
@@ -181,10 +179,7 @@ export function Actions(props: ActionsProps) {
       {!result && !running && props.showRunButton && (
         <Buttons>
           <ButtonRun onClick={() => run()}>
-            <RunIcon
-              size={30}
-              fill={theme.name === 'light' ? '#20b141' : 'white'}
-            />
+            <RunIcon size={30} fill="white" />
             Run
           </ButtonRun>
         </Buttons>

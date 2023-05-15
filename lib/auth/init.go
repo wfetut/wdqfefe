@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
@@ -158,7 +157,7 @@ type InitConfig struct {
 	AuthPreference types.AuthPreference
 
 	// AuditLog is used for emitting events to audit log.
-	AuditLog events.AuditLogSessionStreamer
+	AuditLog events.IAuditLog
 
 	// ClusterAuditConfig holds cluster audit configuration.
 	ClusterAuditConfig types.ClusterAuditConfig
@@ -221,14 +220,6 @@ type InitConfig struct {
 
 	// Okta is a service that manages Okta resources.
 	Okta services.Okta
-
-	// Clock is the clock instance auth uses. Typically you'd only want to set
-	// this during testing.
-	Clock clockwork.Clock
-
-	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
-	// STS requests. Used in test.
-	HTTPClientForAWSSTS utils.HTTPDoClient
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -243,11 +234,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	ctx := context.TODO()
 
 	domainName := cfg.ClusterName.GetClusterName()
-	lock, err := backend.AcquireLock(ctx, backend.LockConfiguration{
-		Backend:  cfg.Backend,
-		LockName: domainName,
-		TTL:      30 * time.Second,
-	})
+	lock, err := backend.AcquireLock(ctx, cfg.Backend, domainName, 30*time.Second)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -311,7 +298,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		// Don't re-create CA if it already exists, otherwise
 		// the existing cluster configuration will be corrupted;
 		// this part of code is only used in tests.
-		if err := asrv.CreateCertAuthority(ctx, ca); err != nil {
+		if err := asrv.CreateCertAuthority(ca); err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -1205,7 +1192,7 @@ func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 
-		err = asrv.CreateCertAuthority(ctx, dbCA)
+		err = asrv.CreateCertAuthority(dbCA)
 		switch {
 		case trace.IsAlreadyExists(err):
 			// Probably another auth server have created the DB CA since we last check.

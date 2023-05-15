@@ -185,13 +185,6 @@ const (
 
 	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
 	ElasticsearchRequestCode = "TES00I"
-	// ElasticsearchRequestFailureCode is the db.session.elasticsearch.request event failure code.
-	ElasticsearchRequestFailureCode = "TES00E"
-
-	// OpenSearchRequestCode is the db.session.opensearch.request event code.
-	OpenSearchRequestCode = "TOS00I"
-	// OpenSearchRequestFailureCode is the db.session.opensearch.request event failure code.
-	OpenSearchRequestFailureCode = "TOS00E"
 
 	// DynamoDBRequestCode is the db.session.dynamodb.request event code.
 	DynamoDBRequestCode = "TDY01I"
@@ -407,8 +400,6 @@ const (
 	DeviceEnrollCode = "TV005I"
 	// DeviceAuthenticateCode is the device authentication code.
 	DeviceAuthenticateCode = "TV006I"
-	// DeviceUpdateCode is the device update code.
-	DeviceUpdateCode = "TV007I"
 
 	// LoginRuleCreateCode is the login rule create code.
 	LoginRuleCreateCode = "TLR00I"

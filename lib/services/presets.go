@@ -81,11 +81,10 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindLoginRule, RW()),
 					types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 					types.NewRule(types.KindUserGroup, RW()),
-					types.NewRule(types.KindPlugin, RW()),
 					types.NewRule(types.KindOktaImportRule, RW()),
 					types.NewRule(types.KindOktaAssignment, RW()),
 					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
-					types.NewRule(types.KindLock, RW()),
+					types.NewRule(types.KindPlugin, RW()),
 					types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindBilling, RW()),
 					// Please see defaultAllowRules when adding a new rule.
@@ -191,11 +190,8 @@ func NewPresetAuditorRole() types.Role {
 	return role
 }
 
-// defaultAllowRules has the Allow rules that should be set as default when
-// they were not explicitly defined. This is used to update the current cluster
-// roles when deploying a new resource. It will also update all existing roles
-// on auth server restart. Rules defined in preset template should be
-// exactly the same rule when added here.
+// defaultAllowRules has the Allow rules that should be set as default when they were not explicitly defined.
+// This is used to update the current cluster roles when deploying a new resource.
 func defaultAllowRules() map[string][]types.Rule {
 	return map[string][]types.Rule{
 		teleport.PresetAuditorRoleName: {
@@ -206,12 +202,10 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindDatabase, RW()),
 			types.NewRule(types.KindDatabaseService, RO()),
 			types.NewRule(types.KindLoginRule, RW()),
-			types.NewRule(types.KindPlugin, RW()),
 			types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 			types.NewRule(types.KindOktaImportRule, RW()),
 			types.NewRule(types.KindOktaAssignment, RW()),
-			types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
-			types.NewRule(types.KindLock, RW()),
+			types.NewRule(types.KindPlugin, RW()),
 			types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 			types.NewRule(types.KindBilling, RW()),
 			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),

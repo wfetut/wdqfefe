@@ -149,7 +149,7 @@ func TestDatabaseRequest(t *testing.T) {
 	b._ident = ident
 
 	impersonatedIdent, _, err := b.generateImpersonatedIdentity(
-		context.Background(), dest, []string{roleName},
+		context.Background(), ident.X509Cert.NotAfter, dest, []string{roleName},
 	)
 	require.NoError(t, err)
 
@@ -226,7 +226,7 @@ func TestAppRequest(t *testing.T) {
 	b._ident = ident
 
 	impersonatedIdent, _, err := b.generateImpersonatedIdentity(
-		ctx, dest, []string{roleName},
+		ctx, ident.X509Cert.NotAfter, dest, []string{roleName},
 	)
 	require.NoError(t, err)
 

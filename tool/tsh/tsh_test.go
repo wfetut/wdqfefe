@@ -66,7 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -1410,7 +1409,8 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			},
 			mfaPromptCount: 1,
 			errAssertion:   require.NoError,
-		}, {
+		},
+		{
 			name:      "command runs on a leaf node via root without mfa",
 			target:    sshLeafHostID,
 			proxyAddr: rootProxyAddr.String(),
@@ -2719,7 +2719,7 @@ func TestAuthClientFromTSHProfile(t *testing.T) {
 
 type testServersOpts struct {
 	bootstrap   []types.Resource
-	configFuncs []func(cfg *servicecfg.Config)
+	configFuncs []func(cfg *service.Config)
 }
 
 type testServerOptFunc func(o *testServersOpts)
@@ -2730,20 +2730,20 @@ func withBootstrap(bootstrap ...types.Resource) testServerOptFunc {
 	}
 }
 
-func withConfig(fn func(cfg *servicecfg.Config)) testServerOptFunc {
+func withConfig(fn func(cfg *service.Config)) testServerOptFunc {
 	return func(o *testServersOpts) {
 		o.configFuncs = append(o.configFuncs, fn)
 	}
 }
 
-func withAuthConfig(fn func(*servicecfg.AuthConfig)) testServerOptFunc {
-	return withConfig(func(cfg *servicecfg.Config) {
+func withAuthConfig(fn func(*service.AuthConfig)) testServerOptFunc {
+	return withConfig(func(cfg *service.Config) {
 		fn(&cfg.Auth)
 	})
 }
 
 func withClusterName(t *testing.T, n string) testServerOptFunc {
-	return withAuthConfig(func(cfg *servicecfg.AuthConfig) {
+	return withAuthConfig(func(cfg *service.AuthConfig) {
 		clusterName, err := services.NewClusterNameWithRandomID(
 			types.ClusterNameSpecV2{
 				ClusterName: n,
@@ -2762,20 +2762,20 @@ func withMOTD(t *testing.T, motd string) testServerOptFunc {
 		AddString(""). // 3x to allow multiple logins
 		AddString("").
 		AddString(""))
-	return withAuthConfig(func(cfg *servicecfg.AuthConfig) {
+	return withAuthConfig(func(cfg *service.AuthConfig) {
 		fmt.Printf("\n\n Setting MOTD: '%s' \n\n", motd)
 		cfg.Preference.SetMessageOfTheDay(motd)
 	})
 }
 
 func withHostname(hostname string) testServerOptFunc {
-	return withConfig(func(cfg *servicecfg.Config) {
+	return withConfig(func(cfg *service.Config) {
 		cfg.Hostname = hostname
 	})
 }
 
 func withSSHLabel(key, value string) testServerOptFunc {
-	return withConfig(func(cfg *servicecfg.Config) {
+	return withConfig(func(cfg *service.Config) {
 		if cfg.SSH.Labels == nil {
 			cfg.SSH.Labels = make(map[string]string)
 		}
@@ -2790,7 +2790,7 @@ func makeTestSSHNode(t *testing.T, authAddr *utils.NetAddr, opts ...testServerOp
 	}
 
 	// Set up a test ssh service.
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Hostname = "node"
 	cfg.DataDir = t.TempDir()
@@ -2823,10 +2823,14 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 	var err error
 	// Set up a test auth server.
-	cfg := servicecfg.MakeDefaultConfig()
+	//
+	// We need this to get a random port assigned to it and allow parallel
+	// execution of this test.
+	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
+
 	cfg.SetAuthServerAddress(authAddr)
 	cfg.Auth.BootstrapResources = options.bootstrap
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
@@ -2860,7 +2864,6 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	// in reality, the auth server should start *much* sooner than this.  we use a very large
 	// timeout here because this isn't the kind of problem that this test is meant to catch.
 	require.NoError(t, err, "auth server didn't start after 30s")
-
 	return auth, auth
 }
 
@@ -3978,13 +3981,13 @@ func TestForwardingTraces(t *testing.T) {
 
 	cases := []struct {
 		name          string
-		cfg           func(c *tracing.Collector) servicecfg.TracingConfig
+		cfg           func(c *tracing.Collector) service.TracingConfig
 		spanAssertion func(t *testing.T, spans []*otlp.ScopeSpans)
 	}{
 		{
 			name: "spans exported with auth sampling all",
-			cfg: func(c *tracing.Collector) servicecfg.TracingConfig {
-				return servicecfg.TracingConfig{
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{
 					Enabled:      true,
 					ExporterURL:  c.GRPCAddr(),
 					SamplingRate: 1.0,
@@ -3994,8 +3997,8 @@ func TestForwardingTraces(t *testing.T) {
 		},
 		{
 			name: "spans exported with auth sampling none",
-			cfg: func(c *tracing.Collector) servicecfg.TracingConfig {
-				return servicecfg.TracingConfig{
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{
 					Enabled:      true,
 					ExporterURL:  c.HTTPAddr(),
 					SamplingRate: 0.0,
@@ -4005,8 +4008,8 @@ func TestForwardingTraces(t *testing.T) {
 		},
 		{
 			name: "spans not exported when tracing disabled",
-			cfg: func(c *tracing.Collector) servicecfg.TracingConfig {
-				return servicecfg.TracingConfig{}
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{}
 			},
 			spanAssertion: func(t *testing.T, spans []*otlp.ScopeSpans) {
 				require.Empty(t, spans)
@@ -4042,7 +4045,7 @@ func TestForwardingTraces(t *testing.T) {
 			traceCfg := tt.cfg(collector)
 			authProcess, proxyProcess := makeTestServers(t,
 				withBootstrap(connector, alice),
-				withConfig(func(cfg *servicecfg.Config) {
+				withConfig(func(cfg *service.Config) {
 					cfg.Tracing = traceCfg
 				}),
 			)
@@ -4097,14 +4100,14 @@ func TestExportingTraces(t *testing.T) {
 
 	cases := []struct {
 		name                  string
-		cfg                   func(c *tracing.Collector) servicecfg.TracingConfig
+		cfg                   func(c *tracing.Collector) service.TracingConfig
 		teleportSpanAssertion func(t *testing.T, spans []*otlp.ScopeSpans)
 		tshSpanAssertion      func(t *testing.T, spans []*otlp.ScopeSpans)
 	}{
 		{
 			name: "spans exported with auth sampling all",
-			cfg: func(c *tracing.Collector) servicecfg.TracingConfig {
-				return servicecfg.TracingConfig{
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{
 					Enabled:      true,
 					ExporterURL:  c.GRPCAddr(),
 					SamplingRate: 1.0,
@@ -4115,8 +4118,8 @@ func TestExportingTraces(t *testing.T) {
 		},
 		{
 			name: "spans exported with auth sampling none",
-			cfg: func(c *tracing.Collector) servicecfg.TracingConfig {
-				return servicecfg.TracingConfig{
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{
 					Enabled:      true,
 					ExporterURL:  c.HTTPAddr(),
 					SamplingRate: 0.0,
@@ -4127,8 +4130,8 @@ func TestExportingTraces(t *testing.T) {
 		},
 		{
 			name: "spans not exported when tracing disabled",
-			cfg: func(c *tracing.Collector) servicecfg.TracingConfig {
-				return servicecfg.TracingConfig{}
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{}
 			},
 			teleportSpanAssertion: spanAssertion(false, true),
 			tshSpanAssertion:      spanAssertion(true, false),
@@ -4164,7 +4167,7 @@ func TestExportingTraces(t *testing.T) {
 			traceCfg := tt.cfg(teleportCollector)
 			authProcess, proxyProcess := makeTestServers(t,
 				withBootstrap(connector, alice),
-				withConfig(func(cfg *servicecfg.Config) {
+				withConfig(func(cfg *service.Config) {
 					cfg.Tracing = traceCfg
 				}),
 			)

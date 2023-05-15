@@ -393,7 +393,7 @@ const (
 	duplicateUnsignedProxyLineError       = "duplicate unsigned proxy line"
 	invalidProxyLineError                 = "invalid proxy line"
 	invalidProxyV2LineError               = "invalid proxy v2 line"
-	invalidProxySignatureError            = "could not verify PROXY signature for connection"
+	invalidProxySignatureError            = "could not verify PROXY signature"
 	unknownProtocolError                  = "unknown protocol"
 )
 
@@ -443,7 +443,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 					m.WithFields(log.Fields{
 						"src_addr": conn.RemoteAddr(),
 						"dst_addr": conn.LocalAddr(),
-					}).Warnf("%s - could not get host CA", invalidProxySignatureError)
+					}).Warnf("Could not verify PROXY signature for connection - could not get host CA")
 					continue
 				}
 				// DELETE IN 14.0, early 12 versions could send PROXY headers to remote auth server
@@ -451,11 +451,11 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 					m.WithFields(log.Fields{
 						"src_addr": conn.RemoteAddr(),
 						"dst_addr": conn.LocalAddr(),
-					}).Debugf("%s - signed by non local cluster", invalidProxySignatureError)
+					}).Debugf("Could not verify PROXY signature for connection - signed by non local cluster")
 					continue
 				}
 				if err != nil {
-					return nil, trace.Wrap(err, "%s %s -> %s", invalidProxySignatureError, conn.RemoteAddr(), conn.LocalAddr())
+					return nil, trace.Wrap(err, invalidProxySignatureError)
 				}
 				m.WithFields(log.Fields{
 					"conn_src_addr":   conn.RemoteAddr(),
@@ -680,11 +680,13 @@ func NewPROXYSigner(signingCert *x509.Certificate, jwtSigner JWTPROXYSigner) (*P
 // SignPROXYHeader creates a signed PROXY header with provided source and destination addresses
 func (p *PROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, error) {
 	header, err := signPROXYHeader(source, destination, p.clusterName, p.signingCertDER, p.jwtSigner)
-	if err == nil {
+	if errors.Is(err, ErrBadIP) {
 		log.WithFields(log.Fields{
 			"src_addr":     fmt.Sprintf("%v", source),
 			"dst_addr":     fmt.Sprintf("%v", destination),
-			"cluster_name": p.clusterName}).Trace("Successfully generated signed PROXY header")
+			"cluster_name": p.clusterName}).Warn("Got bad IP while trying to sign PROXY header")
+		return nil, nil
 	}
-	return header, trace.Wrap(err)
+
+	return header, err
 }

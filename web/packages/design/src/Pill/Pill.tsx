@@ -39,7 +39,7 @@ function Pill({ label, onDismiss }: Props) {
 }
 
 const Wrapper = styled.span`
-  background: ${props => props.theme.colors.spotBackground[1]};
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 35px;
   cursor: default;
   display: inline-block;

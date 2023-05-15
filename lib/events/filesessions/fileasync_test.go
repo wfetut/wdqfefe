@@ -35,7 +35,6 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -482,7 +481,7 @@ type uploaderPack struct {
 	clock       clockwork.FakeClock
 	eventsC     chan events.UploadEvent
 	memEventsC  chan events.UploadEvent
-	memUploader *eventstest.MemoryUploader
+	memUploader *events.MemoryUploader
 	streamer    events.Streamer
 	scanDir     string
 	uploader    *Uploader
@@ -508,7 +507,7 @@ func newUploaderPack(t *testing.T, wrapStreamer wrapStreamerFn) uploaderPack {
 		scanDir:    scanDir,
 		scanPeriod: 10 * time.Second,
 	}
-	pack.memUploader = eventstest.NewMemoryUploader(pack.memEventsC)
+	pack.memUploader = events.NewMemoryUploader(pack.memEventsC)
 
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       pack.memUploader,
@@ -545,7 +544,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 
 	clock := clockwork.NewFakeClock()
 	eventsC := make(chan events.UploadEvent, 100)
-	memUploader := eventstest.NewMemoryUploader(eventsC)
+	memUploader := events.NewMemoryUploader(eventsC)
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       memUploader,
 		MinUploadBytes: 1024,
@@ -643,7 +642,7 @@ func emitStream(ctx context.Context, t *testing.T, streamer events.Streamer, inE
 }
 
 // readStream reads and decodes the audit stream from uploadID
-func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *eventstest.MemoryUploader) []apievents.AuditEvent {
+func readStream(ctx context.Context, t *testing.T, uploadID string, uploader *events.MemoryUploader) []apievents.AuditEvent {
 	parts, err := uploader.GetParts(uploadID)
 	require.Nil(t, err)
 

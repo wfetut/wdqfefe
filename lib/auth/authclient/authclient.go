@@ -99,7 +99,6 @@ func connectViaAuthDirect(cfg *Config) (auth.ClientI, error) {
 		// This client didn't work for us, so we close it.
 		_ = directDialClient.Close()
 		return nil, trace.Wrap(err)
-
 	}
 	return directDialClient, nil
 }
@@ -130,7 +129,6 @@ func connectViaProxyTunnel(ctx context.Context, cfg *Config) (auth.ClientI, erro
 		ClientConfig:          cfg.SSH,
 		Log:                   cfg.Log,
 		InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
-		ClusterCAs:            cfg.TLS.RootCAs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

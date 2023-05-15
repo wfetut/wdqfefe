@@ -38,7 +38,6 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	mssql "github.com/microsoft/go-mssqldb"
-	opensearchclt "github.com/opensearch-project/opensearch-go/v2"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -72,7 +71,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
-	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
@@ -88,7 +86,6 @@ func TestMain(m *testing.M) {
 	native.PrecomputeTestKeys(m)
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
-	registerTestOpenSearchEngine()
 	registerTestSQLServerEngine()
 	registerTestDynamoDBEngine()
 	os.Exit(m.Run())
@@ -1247,8 +1244,6 @@ type testContext struct {
 	cassandra map[string]testCassandra
 	// elasticsearch is a collection of Elasticsearch databases the test uses.
 	elasticsearch map[string]testElasticsearch
-	// opensearch is a collection of OpenSearch databases the test uses.
-	opensearch map[string]testOpenSearch
 	// dynamodb is a collection of DynamoDB databases the test uses.
 	dynamodb map[string]testDynamoDB
 	// clock to override clock in tests.
@@ -1314,13 +1309,6 @@ type testElasticsearch struct {
 	// db is the test elasticsearch database server.
 	db *elasticsearch.TestServer
 	// resource is the resource representing this elasticsearch database.
-	resource types.Database
-}
-
-type testOpenSearch struct {
-	// db is the test OpenSearch database server.
-	db *opensearch.TestServer
-	// resource is the resource representing this OpenSearch database.
 	resource types.Database
 }
 
@@ -1756,34 +1744,6 @@ func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbS
 	return db, proxy, nil
 }
 
-// openSearchClient returns an OpenSearch test DB client.
-func (c *testContext) openSearchClient(ctx context.Context, teleportUser, dbService, dbUser string) (*opensearchclt.Client, *alpnproxy.LocalProxy, error) {
-	route := tlsca.RouteToDatabase{
-		ServiceName: dbService,
-		Protocol:    defaults.ProtocolOpenSearch,
-		Username:    dbUser,
-	}
-
-	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	db, err := opensearch.MakeTestClient(ctx, common.TestClientConfig{
-		AuthClient:      c.authClient,
-		AuthServer:      c.authServer,
-		Address:         proxy.GetAddr(),
-		Cluster:         c.clusterName,
-		Username:        teleportUser,
-		RouteToDatabase: route,
-	})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return db, proxy, nil
-}
-
 // dynamodbClient returns a DynamoDB test client.
 func (c *testContext) dynamodbClient(ctx context.Context, teleportUser, dbService, dbUser string) (*dynamodb.Client, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
@@ -1815,7 +1775,7 @@ func (c *testContext) dynamodbClient(ctx context.Context, teleportUser, dbServic
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
 func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string) (types.User, types.Role) {
-	user, role, err := auth.CreateUserAndRole(c.tlsServer.Auth(), userName, []string{roleName}, nil)
+	user, role, err := auth.CreateUserAndRole(c.tlsServer.Auth(), userName, []string{roleName})
 	require.NoError(t, err)
 	role.SetDatabaseUsers(types.Allow, dbUsers)
 	role.SetDatabaseNames(types.Allow, dbNames)
@@ -1873,7 +1833,6 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		sqlServer:     make(map[string]testSQLServer),
 		snowflake:     make(map[string]testSnowflake),
 		elasticsearch: make(map[string]testElasticsearch),
-		opensearch:    make(map[string]testOpenSearch),
 		cassandra:     make(map[string]testCassandra),
 		dynamodb:      make(map[string]testDynamoDB),
 		clock:         clockwork.NewFakeClockAt(time.Now()),

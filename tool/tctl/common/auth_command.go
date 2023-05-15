@@ -42,14 +42,14 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AuthCommand implements `tctl auth` group of commands
 type AuthCommand struct {
-	config                     *servicecfg.Config
+	config                     *service.Config
 	authType                   string
 	genPubPath                 string
 	genPrivPath                string
@@ -94,7 +94,7 @@ type AuthCommand struct {
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	a.config = config
 	// operations with authorities
 	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs)").Hidden()
@@ -145,7 +145,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 		Default(fmt.Sprintf("%v", defaults.RotationGracePeriod)).
 		DurationVar(&a.rotateGracePeriod)
 	a.authRotate.Flag("manual", "Activate manual rotation , set rotation phases manually").BoolVar(&a.rotateManualMode)
-	a.authRotate.Flag("type", fmt.Sprintf("Certificate authority to rotate, one of: %s", strings.Join(getCertAuthTypes(), ", "))).Required().EnumVar(&a.rotateType, getCertAuthTypes()...)
+	a.authRotate.Flag("type", fmt.Sprintf("Certificate authority to rotate, one of: %s", strings.Join(getCertAuthTypes(), ", "))).EnumVar(&a.rotateType, getCertAuthTypes()...)
 	a.authRotate.Flag("phase", fmt.Sprintf("Target rotation phase to set, used in manual rotation, one of: %v", strings.Join(types.RotatePhases, ", "))).StringVar(&a.rotateTargetPhase)
 
 	a.authLS = auth.Command("ls", "List connected auth servers")
@@ -302,7 +302,6 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI auth.C
 	}
 
 	certDER, _, err := windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
-		CAType:             types.UserCA,
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
 		ActiveDirectorySID: a.windowsSID,
@@ -373,6 +372,13 @@ func (a *AuthCommand) generateSnowflakeKey(ctx context.Context, clusterAPI auth.
 
 // RotateCertAuthority starts or restarts certificate authority rotation process
 func (a *AuthCommand) RotateCertAuthority(ctx context.Context, client auth.ClientI) error {
+	if a.rotateType == "" {
+		return trace.BadParameter("required flag --type not provided; previous versions defaulted to --type=all which is deprecated and will be removed in a future version")
+	}
+	if a.rotateType == string(types.CertAuthTypeAll) {
+		fmt.Println("\033[0;31mNOTICE:\033[0m --type=all will be deprecated in a future version")
+	}
+
 	req := auth.RotateRequest{
 		Type:        types.CertAuthType(a.rotateType),
 		GracePeriod: &a.rotateGracePeriod,
@@ -1064,5 +1070,6 @@ func getCertAuthTypes() []string {
 	for _, at := range types.CertAuthTypes {
 		t = append(t, string(at))
 	}
+	t = append(t, string(types.CertAuthTypeAll))
 	return t
 }

@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -33,7 +32,6 @@ import (
 	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -111,7 +109,7 @@ func alwaysSucceeds(context.Context, string, authztypes.SelfSubjectAccessReviewI
 	return nil
 }
 
-func failsForCluster(clusterName string) servicecfg.ImpersonationPermissionsChecker {
+func failsForCluster(clusterName string) ImpersonationPermissionsChecker {
 	return func(ctx context.Context, cluster string, a authztypes.SelfSubjectAccessReviewInterface) error {
 		if cluster == clusterName {
 			return errors.New("Kaboom")
@@ -121,13 +119,14 @@ func failsForCluster(clusterName string) servicecfg.ImpersonationPermissionsChec
 }
 
 func TestGetKubeCreds(t *testing.T) {
-	t.Parallel()
-	logger := utils.NewLoggerForTests()
 	ctx := context.TODO()
 	const teleClusterName = "teleport-cluster"
-	dir := t.TempDir()
-	kubeconfigPath := filepath.Join(dir, "kubeconfig")
-	data := []byte(`
+
+	tmpFile, err := os.CreateTemp("", "teleport")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+	kubeconfigPath := tmpFile.Name()
+	_, err = tmpFile.Write([]byte(`
 apiVersion: v1
 kind: Config
 clusters:
@@ -150,16 +149,16 @@ contexts:
 users:
 - name: creds
 current-context: foo
-`)
-	err := os.WriteFile(kubeconfigPath, data, 0o600)
+`))
 	require.NoError(t, err)
+	require.NoError(t, tmpFile.Close())
 
 	tests := []struct {
 		desc               string
 		kubeconfigPath     string
 		kubeCluster        string
 		serviceType        KubeServiceType
-		impersonationCheck servicecfg.ImpersonationPermissionsChecker
+		impersonationCheck ImpersonationPermissionsChecker
 		want               map[string]*kubeDetails
 		assertErr          require.ErrorAssertionFunc
 	}{
@@ -278,10 +277,8 @@ current-context: foo
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			t.Parallel()
-			got, err := getKubeDetails(ctx, logger, teleClusterName, "", tt.kubeconfigPath, tt.serviceType, tt.impersonationCheck)
+			got, err := getKubeDetails(ctx, utils.NewLoggerForTests(), teleClusterName, "", tt.kubeconfigPath, tt.serviceType, tt.impersonationCheck)
 			tt.assertErr(t, err)
 			if err != nil {
 				return
@@ -289,11 +286,9 @@ current-context: foo
 			require.Empty(t, cmp.Diff(got, tt.want,
 				cmp.AllowUnexported(staticKubeCreds{}),
 				cmp.AllowUnexported(kubeDetails{}),
-				cmp.AllowUnexported(httpTransport{}),
 				cmp.Comparer(func(a, b *transport.Config) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b *kubernetes.Clientset) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b *rest.Config) bool { return (a == nil) == (b == nil) }),
-				cmp.Comparer(func(a, b httpTransport) bool { return true }),
 			))
 		})
 	}

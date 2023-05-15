@@ -326,16 +326,11 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		}
 	}
 
-	clustername, err := cfg.AccessPoint.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	ctx, close := context.WithCancel(context.Background())
 	s := &WindowsService{
 		cfg: cfg,
 		middleware: &auth.Middleware{
-			ClusterName:   clustername.GetClusterName(),
+			AccessPoint:   cfg.AccessPoint,
 			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
 		},
 		dnsResolver: resolver,
@@ -1176,7 +1171,6 @@ type generateCredentialsRequest struct {
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func (s *WindowsService) generateCredentials(ctx context.Context, request generateCredentialsRequest) (certDER, keyDER []byte, err error) {
 	return windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
-		CAType:             types.UserCA,
 		Username:           request.username,
 		Domain:             request.domain,
 		TTL:                request.ttl,

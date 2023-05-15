@@ -39,13 +39,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
-	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -422,8 +420,6 @@ func TestDiscoveryKube(t *testing.T) {
 		gcpMatchers                   []services.GCPMatcher
 		expectedClustersToExistInAuth []types.KubeCluster
 		clustersNotUpdated            []string
-		expectedAssumedRoles          []string
-		expectedExternalIDs           []string
 	}{
 		{
 			name:                 "no clusters in auth server, import 2 prod clusters from EKS",
@@ -439,36 +435,6 @@ func TestDiscoveryKube(t *testing.T) {
 				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
 				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
 			},
-		},
-		{
-			name:                 "no clusters in auth server, import 2 prod clusters from EKS with assumed roles",
-			existingKubeClusters: []types.KubeCluster{},
-			awsMatchers: []services.AWSMatcher{
-				{
-					Types:   []string{"eks"},
-					Regions: []string{"eu-west-1"},
-					Tags:    map[string]utils.Strings{"env": {"prod"}},
-					AssumeRole: services.AssumeRole{
-						RoleARN:    "arn:aws:iam::123456789012:role/teleport-role",
-						ExternalID: "external-id",
-					},
-				},
-				{
-					Types:   []string{"eks"},
-					Regions: []string{"eu-west-1"},
-					Tags:    map[string]utils.Strings{"env": {"prod"}},
-					AssumeRole: services.AssumeRole{
-						RoleARN:    "arn:aws:iam::123456789012:role/teleport-role2",
-						ExternalID: "external-id2",
-					},
-				},
-			},
-			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
-			},
-			expectedAssumedRoles: []string{"arn:aws:iam::123456789012:role/teleport-role", "arn:aws:iam::123456789012:role/teleport-role2"},
-			expectedExternalIDs:  []string{"external-id", "external-id2"},
 		},
 		{
 			name:                 "no clusters in auth server, import 2 stg clusters from EKS",
@@ -612,9 +578,8 @@ func TestDiscoveryKube(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			sts := &mocks.STSMock{}
+
 			testClients := cloud.TestCloudClients{
-				STS:            sts,
 				AzureAKSClient: newPopulatedAKSMock(),
 				EKS:            newPopulatedEKSMock(),
 				GCPGKE:         newPopulatedGCPMock(),
@@ -724,9 +689,6 @@ func TestDiscoveryKube(t *testing.T) {
 				}
 				return len(clustersNotUpdated) == 0 && clustersFoundInAuth
 			}, 5*time.Second, 200*time.Millisecond)
-
-			require.Equal(t, tc.expectedAssumedRoles, sts.GetAssumedRoleARNs(), "roles incorrectly assumed")
-			require.Equal(t, tc.expectedExternalIDs, sts.GetAssumedRoleExternalIDs(), "external IDs incorrectly assumed")
 		})
 	}
 }
@@ -987,22 +949,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 		mainDiscoveryGroup = "main"
 	)
 	awsRedshiftResource, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", mainDiscoveryGroup)
-	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", mainDiscoveryGroup)
 	azRedisResource, azRedisDB := makeAzureRedisServer(t, "az-redis", "sub1", "group1", "East US", mainDiscoveryGroup)
 
-	role := services.AssumeRole{RoleARN: "arn:aws:iam::123456789012:role/test-role", ExternalID: "test123"}
-	awsRDSDBWithRole := awsRDSDB.Copy()
-	awsRDSDBWithRole.SetAWSAssumeRole("arn:aws:iam::123456789012:role/test-role")
-	awsRDSDBWithRole.SetAWSExternalID("test123")
-
 	testClients := &cloud.TestCloudClients{
-		STS: &mocks.STSMock{},
-		RDS: &mocks.RDSMock{
-			DBInstances: []*rds.DBInstance{awsRDSInstance},
-			DBEngineVersions: []*rds.DBEngineVersion{
-				{Engine: aws.String(services.RDSEnginePostgres)},
-			},
-		},
 		Redshift: &mocks.RedshiftMock{
 			Clusters: []*redshift.Cluster{awsRedshiftResource},
 		},
@@ -1030,16 +979,6 @@ func TestDiscoveryDatabase(t *testing.T) {
 				Regions: []string{"us-east-1"},
 			}},
 			expectDatabases: []types.Database{awsRedshiftDB},
-		},
-		{
-			name: "discover AWS database with assumed role",
-			awsMatchers: []services.AWSMatcher{{
-				Types:      []string{services.AWSMatcherRDS},
-				Tags:       map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
-				Regions:    []string{"us-west-1"},
-				AssumeRole: role,
-			}},
-			expectDatabases: []types.Database{awsRDSDBWithRole},
 		},
 		{
 			name: "discover Azure database",
@@ -1075,26 +1014,6 @@ func TestDiscoveryDatabase(t *testing.T) {
 				Regions: []string{"us-east-1"},
 			}},
 			expectDatabases: []types.Database{awsRedshiftDB},
-		},
-		{
-			name: "update existing database with assumed role",
-			existingDatabases: []types.Database{
-				mustNewDatabase(t, types.Metadata{
-					Name:        "aws-rds",
-					Description: "should be updated",
-					Labels:      map[string]string{types.OriginLabel: types.OriginCloud, types.TeleportInternalDiscoveryGroupName: mainDiscoveryGroup},
-				}, types.DatabaseSpecV3{
-					Protocol: "postgres",
-					URI:      "should.be.updated.com:12345",
-				}),
-			},
-			awsMatchers: []services.AWSMatcher{{
-				Types:      []string{services.AWSMatcherRDS},
-				Tags:       map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
-				Regions:    []string{"us-west-1"},
-				AssumeRole: role,
-			}},
-			expectDatabases: []types.Database{awsRDSDBWithRole},
 		},
 		{
 			name: "delete existing database",
@@ -1212,31 +1131,10 @@ func TestDiscoveryDatabase(t *testing.T) {
 					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 				))
 			case <-time.After(time.Second):
-				t.Fatal("Didn't receive reconcile event after 1s")
+				t.Fatal("Didn't receive reconcile event after 1s.")
 			}
 		})
 	}
-}
-
-func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (*rds.DBInstance, types.Database) {
-	instance := &rds.DBInstance{
-		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db:%v", region, name)),
-		DBInstanceIdentifier: aws.String(name),
-		DbiResourceId:        aws.String(uuid.New().String()),
-		Engine:               aws.String(services.RDSEnginePostgres),
-		DBInstanceStatus:     aws.String("available"),
-		Endpoint: &rds.Endpoint{
-			Address: aws.String("localhost"),
-			Port:    aws.Int64(5432),
-		},
-	}
-	database, err := services.NewDatabaseFromRDSInstance(instance)
-	require.NoError(t, err)
-	database.SetOrigin(types.OriginCloud)
-	staticLabels := database.GetStaticLabels()
-	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
-	database.SetStaticLabels(staticLabels)
-	return instance, database
 }
 
 func makeRedshiftCluster(t *testing.T, name, region string, discoveryGroup string) (*redshift.Cluster, types.Database) {

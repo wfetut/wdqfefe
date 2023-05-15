@@ -59,7 +59,7 @@ export function ClusterLoginPresentation({
         <Text typography="h4">
           Login to <b>{title}</b>
         </Text>
-        <ButtonIcon ml="auto" p={3} onClick={onCloseDialog} aria-label="Close">
+        <ButtonIcon ml="auto" p={3} onClick={onCloseDialog}>
           <Icons.Close fontSize="20px" />
         </ButtonIcon>
       </DialogHeader>

@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"sort"
 	"time"
@@ -45,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
@@ -60,7 +59,7 @@ type ResourceKind string
 // ResourceCommand implements `tctl get/create/list` commands for manipulating
 // Teleport resources
 type ResourceCommand struct {
-	config      *servicecfg.Config
+	config      *service.Config
 	ref         services.Ref
 	refs        services.Refs
 	format      string
@@ -100,33 +99,32 @@ Same as above, but using JSON output:
 `
 
 // Initialize allows ResourceCommand to plug itself into the CLI parser
-func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
-		types.KindUser:                     rc.createUser,
-		types.KindRole:                     rc.createRole,
-		types.KindTrustedCluster:           rc.createTrustedCluster,
-		types.KindGithubConnector:          rc.createGithubConnector,
-		types.KindCertAuthority:            rc.createCertAuthority,
-		types.KindClusterAuthPreference:    rc.createAuthPreference,
-		types.KindClusterNetworkingConfig:  rc.createClusterNetworkingConfig,
-		types.KindClusterMaintenanceConfig: rc.createClusterMaintenanceConfig,
-		types.KindSessionRecordingConfig:   rc.createSessionRecordingConfig,
-		types.KindUIConfig:                 rc.createUIConfig,
-		types.KindLock:                     rc.createLock,
-		types.KindNetworkRestrictions:      rc.createNetworkRestrictions,
-		types.KindApp:                      rc.createApp,
-		types.KindDatabase:                 rc.createDatabase,
-		types.KindKubernetesCluster:        rc.createKubeCluster,
-		types.KindToken:                    rc.createToken,
-		types.KindInstaller:                rc.createInstaller,
-		types.KindNode:                     rc.createNode,
-		types.KindOIDCConnector:            rc.createOIDCConnector,
-		types.KindSAMLConnector:            rc.createSAMLConnector,
-		types.KindLoginRule:                rc.createLoginRule,
-		types.KindSAMLIdPServiceProvider:   rc.createSAMLIdPServiceProvider,
-		types.KindDevice:                   rc.createDevice,
-		types.KindOktaImportRule:           rc.createOktaImportRule,
-		types.KindIntegration:              rc.createIntegration,
+		types.KindUser:                    rc.createUser,
+		types.KindRole:                    rc.createRole,
+		types.KindTrustedCluster:          rc.createTrustedCluster,
+		types.KindGithubConnector:         rc.createGithubConnector,
+		types.KindCertAuthority:           rc.createCertAuthority,
+		types.KindClusterAuthPreference:   rc.createAuthPreference,
+		types.KindClusterNetworkingConfig: rc.createClusterNetworkingConfig,
+		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
+		types.KindUIConfig:                rc.createUIConfig,
+		types.KindLock:                    rc.createLock,
+		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
+		types.KindApp:                     rc.createApp,
+		types.KindDatabase:                rc.createDatabase,
+		types.KindKubernetesCluster:       rc.createKubeCluster,
+		types.KindToken:                   rc.createToken,
+		types.KindInstaller:               rc.createInstaller,
+		types.KindNode:                    rc.createNode,
+		types.KindOIDCConnector:           rc.createOIDCConnector,
+		types.KindSAMLConnector:           rc.createSAMLConnector,
+		types.KindLoginRule:               rc.createLoginRule,
+		types.KindSAMLIdPServiceProvider:  rc.createSAMLIdPServiceProvider,
+		types.KindDevice:                  rc.createDevice,
+		types.KindOktaImportRule:          rc.createOktaImportRule,
+		types.KindIntegration:             rc.createIntegration,
 	}
 	rc.config = config
 
@@ -350,7 +348,7 @@ func (rc *ResourceCommand) createCertAuthority(ctx context.Context, client auth.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := client.UpsertCertAuthority(ctx, certAuthority); err != nil {
+	if err := client.UpsertCertAuthority(certAuthority); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("certificate authority '%s' has been updated\n", certAuthority.GetName())
@@ -492,29 +490,6 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, cl
 		return trace.Wrap(err)
 	}
 	fmt.Printf("cluster networking configuration has been updated\n")
-	return nil
-}
-
-func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	var cmc types.ClusterMaintenanceConfigV1
-	if err := utils.FastUnmarshal(raw.Raw, &cmc); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := cmc.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if rc.force {
-		// max nonce forces "upsert" behavior
-		cmc.Nonce = math.MaxUint64
-	}
-
-	if err := client.UpdateClusterMaintenanceConfig(ctx, &cmc); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Println("maintenance window has been updated")
 	return nil
 }
 
@@ -681,22 +656,9 @@ func (rc *ResourceCommand) createNode(ctx context.Context, client auth.ClientI, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := server.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
 
-	name := server.GetName()
-	_, err = client.GetNode(ctx, server.GetNamespace(), name)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	exists := (err == nil)
-	if !rc.IsForced() && exists {
-		return trace.AlreadyExists("node %q with Hostname %q and Addr %q already exists, use --force flag to override",
-			name,
-			server.GetHostname(),
-			server.GetAddr(),
-		)
+	if !rc.force {
+		return trace.AlreadyExists("nodes cannot be created, only upserted")
 	}
 
 	_, err = client.UpsertNode(ctx, server)
@@ -810,6 +772,10 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 }
 
 func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	if rc.IsForced() {
+		fmt.Printf("Warning: Devices cannot be overwritten with the --force flag\n")
+	}
+
 	res, err := types.UnmarshalDevice(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
@@ -819,33 +785,16 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI
 		return trace.Wrap(err)
 	}
 
-	if rc.IsForced() {
-		_, err = client.DevicesClient().UpsertDevice(ctx, &devicepb.UpsertDeviceRequest{
-			Device:           dev,
-			CreateAsResource: true,
-		})
-		// err checked below
-	} else {
-		_, err = client.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-			Device:           dev,
-			CreateAsResource: true,
-		})
-		// err checked below
-	}
+	// TODO(codingllama): Figure out a way to call BulkCreateDevices here?
+	_, err = client.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device:           dev,
+		CreateAsResource: true,
+	})
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
 
-	verb := "created"
-	if rc.IsForced() {
-		verb = "updated"
-	}
-
-	fmt.Printf("Device %v/%v %v\n",
-		dev.AssetTag,
-		devicetrust.FriendlyOSType(dev.OsType),
-		verb,
-	)
+	fmt.Printf("Device %v/%v added to the inventory\n", dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType))
 	return nil
 }
 
@@ -982,7 +931,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		}
 		fmt.Printf("trusted cluster %q has been deleted\n", rc.ref.Name)
 	case types.KindRemoteCluster:
-		if err = client.DeleteRemoteCluster(ctx, rc.ref.Name); err != nil {
+		if err = client.DeleteRemoteCluster(rc.ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("remote cluster %q has been deleted\n", rc.ref.Name)
@@ -1001,6 +950,11 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("semaphore '%s/%s' has been deleted\n", rc.ref.SubKind, rc.ref.Name)
+	case types.KindKubeService:
+		if err = client.DeleteKubeService(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("kubernetes service %v has been deleted\n", rc.ref.Name)
 	case types.KindClusterAuthPreference:
 		if err = resetAuthPreference(ctx, client); err != nil {
 			return trace.Wrap(err)
@@ -1106,7 +1060,7 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 				types.KindCertAuthority, types.KindCertAuthority, types.HostCA,
 			)
 		}
-		err := client.DeleteCertAuthority(ctx, types.CertAuthID{
+		err := client.DeleteCertAuthority(types.CertAuthID{
 			Type:       types.CertAuthType(rc.ref.SubKind),
 			DomainName: rc.ref.Name,
 		})
@@ -1517,6 +1471,21 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &semaphoreCollection{sems: sems}, nil
+	case types.KindKubeService:
+		servers, err := client.GetKubeServices(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if rc.ref.Name == "" {
+			return &serverCollection{servers: servers}, nil
+		}
+		for _, server := range servers {
+			if server.GetName() == rc.ref.Name || server.GetHostname() == rc.ref.Name {
+				return &serverCollection{servers: []types.Server{server}}, nil
+			}
+		}
+		return nil, trace.NotFound("kube_service with ID %q not found", rc.ref.Name)
+
 	case types.KindClusterAuthPreference:
 		if rc.ref.Name != "" {
 			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterAuthPreference)
@@ -1535,17 +1504,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &netConfigCollection{netConfig}, nil
-	case types.KindClusterMaintenanceConfig:
-		if rc.ref.Name != "" {
-			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterMaintenanceConfig)
-		}
-
-		cmc, err := client.GetClusterMaintenanceConfig(ctx)
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-
-		return &maintenanceWindowCollection{cmc}, nil
 	case types.KindSessionRecordingConfig:
 		if rc.ref.Name != "" {
 			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindSessionRecordingConfig)

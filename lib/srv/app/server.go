@@ -317,13 +317,8 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clustername, err := s.c.AccessPoint.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Create and configure HTTP server with authorizing middleware.
-	s.httpServer = s.newHTTPServer(clustername.GetClusterName())
+	s.httpServer = s.newHTTPServer()
 
 	// TCP server will handle TCP applications.
 	tcpServer, err := s.newTCPServer()
@@ -708,7 +703,6 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 	}
 
 	ctx := authz.ContextWithUser(s.closeContext, user)
-	ctx = authz.ContextWithClientAddr(ctx, conn.RemoteAddr())
 	authCtx, _, err := s.authorizeContext(ctx)
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
@@ -1025,12 +1019,11 @@ func (s *Server) appWithUpdatedLabels(app types.Application) *types.AppV3 {
 
 // newHTTPServer creates an *http.Server that can authorize and forward
 // requests to a target application.
-func (s *Server) newHTTPServer(clusterName string) *http.Server {
+func (s *Server) newHTTPServer() *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
-
 	s.authMiddleware = &auth.Middleware{
-		ClusterName:   clusterName,
+		AccessPoint:   s.c.AccessPoint,
 		AcceptedUsage: []string{teleport.UsageAppsOnly},
 	}
 	s.authMiddleware.Wrap(s)

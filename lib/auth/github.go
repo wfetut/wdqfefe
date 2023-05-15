@@ -106,7 +106,7 @@ func (g *GithubConverter) UpsertGithubConnector(ctx context.Context, connector t
 	return g.ClientI.UpsertGithubConnector(ctx, convertedConnector)
 }
 
-// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
+// CreateGithubAuthRequest creates a new request for GitHub OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
 	_, client, err := a.getGithubConnectorAndClient(ctx, req)
 	if err != nil {
@@ -127,7 +127,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 	return &req, nil
 }
 
-// upsertGithubConnector creates or updates a Github connector.
+// upsertGithubConnector creates or updates a GitHub connector.
 func (a *Server) upsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
 	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.githubOrgSSOCache, nil); err != nil {
 		return trace.Wrap(err)
@@ -508,7 +508,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 		// optional parameter: error_description
 		errDesc := q.Get("error_description")
 		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, errParam, q)
-		return nil, trace.WithUserMessage(oauthErr, "GitHub returned error: %v [%v]", errDesc, errParam)
+		return nil, trace.WithUserMessage(oauthErr, "Github returned error: %v [%v]", errDesc, errParam)
 	}
 
 	code := q.Get("code")

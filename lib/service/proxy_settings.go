@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -38,12 +37,18 @@ type networkConfigGetter interface {
 // proxySettings is a helper type that allows to fetch the current proxy configuration.
 type proxySettings struct {
 	// cfg is the Teleport service configuration.
-	cfg *servicecfg.Config
+	cfg *Config
 	// proxySSHAddr is the address of the proxy ssh service. It can be assigned during runtime when a user set the
 	// proxy listener address to a random port (e.g. `127.0.0.1:0`).
 	proxySSHAddr utils.NetAddr
 	// accessPoint is the caching client connected to the auth server.
 	accessPoint networkConfigGetter
+}
+
+// GetOpenAIAPIKey returns the OpenAI API key.
+// TODO(jakule): Remove once plugin support is added to OSS.
+func (p *proxySettings) GetOpenAIAPIKey() string {
+	return p.cfg.Proxy.AssistAPIKey
 }
 
 // GetProxySettings allows returns current proxy configuration.

@@ -52,12 +52,9 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/athena"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -68,7 +65,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestServiceSelfSignedHTTPS(t *testing.T) {
-	cfg := &servicecfg.Config{
+	cfg := &Config{
 		DataDir:  t.TempDir(),
 		Hostname: "example.com",
 		Log:      utils.WrapLogger(logrus.New().WithField("test", "TestServiceSelfSignedHTTPS")),
@@ -82,13 +79,13 @@ func TestServiceSelfSignedHTTPS(t *testing.T) {
 func TestAdditionalExpectedRoles(t *testing.T) {
 	tests := []struct {
 		name          string
-		cfg           func() *servicecfg.Config
+		cfg           func() *Config
 		expectedRoles map[types.SystemRole]string
 	}{
 		{
 			name: "everything enabled",
-			cfg: func() *servicecfg.Config {
-				cfg := servicecfg.MakeDefaultConfig()
+			cfg: func() *Config {
+				cfg := MakeDefaultConfig()
 				cfg.DataDir = t.TempDir()
 				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
@@ -118,8 +115,8 @@ func TestAdditionalExpectedRoles(t *testing.T) {
 		},
 		{
 			name: "everything enabled with additional roles",
-			cfg: func() *servicecfg.Config {
-				cfg := servicecfg.MakeDefaultConfig()
+			cfg: func() *Config {
+				cfg := MakeDefaultConfig()
 				cfg.DataDir = t.TempDir()
 				cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 				cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
@@ -135,7 +132,7 @@ func TestAdditionalExpectedRoles(t *testing.T) {
 				cfg.WindowsDesktop.Enabled = true
 				cfg.Discovery.Enabled = true
 
-				cfg.AdditionalExpectedRoles = []servicecfg.RoleAndIdentityEvent{
+				cfg.AdditionalExpectedRoles = []RoleAndIdentityEvent{
 					{
 						Role:          types.RoleOkta,
 						IdentityEvent: "some-identity-event",
@@ -176,7 +173,7 @@ func TestMonitor(t *testing.T) {
 	t.Parallel()
 	fakeClock := clockwork.NewFakeClock()
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := MakeDefaultConfig()
 	cfg.Clock = fakeClock
 	var err error
 	cfg.DataDir = t.TempDir()
@@ -376,7 +373,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend)
+			loggers, err := initAuthAuditLog(context.Background(), auditConfig, backend)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -392,72 +389,31 @@ func TestServiceInitExternalLog(t *testing.T) {
 	}
 }
 
-func TestAthenaAuditLogSetup(t *testing.T) {
-	sampleValidConfig := "athena://db.table?topicArn=arn:aws:sns:eu-central-1:accnr:topicName&queryResultsS3=s3://testbucket/query-result/&workgroup=workgroup&locationS3=s3://testbucket/events-location&queueURL=https://sqs.eu-central-1.amazonaws.com/accnr/sqsname&largeEventsS3=s3://testbucket/largeevents"
-	tests := []struct {
-		name   string
-		uri    string
-		wantFn func(*testing.T, events.AuditLogger, error)
-	}{
-		{
-			name: "valid athena config",
-			uri:  sampleValidConfig,
-			wantFn: func(t *testing.T, alog events.AuditLogger, err error) {
-				require.NoError(t, err)
-				v, ok := alog.(*athena.Log)
-				require.True(t, ok, "invalid logger type, got %T", v)
-			},
-		},
-		{
-			name: "config with rate limit - should use events.SearchEventsLimiter",
-			uri:  sampleValidConfig + "&limiterRefillAmount=3&limiterBurst=2",
-			wantFn: func(t *testing.T, alog events.AuditLogger, err error) {
-				require.NoError(t, err)
-				_, ok := alog.(*events.SearchEventsLimiter)
-				require.True(t, ok, "invalid logger type, got %T", alog)
-			},
-		},
-	}
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			auditConfig, err := types.NewClusterAuditConfig(types.ClusterAuditConfigSpecV2{
-				AuditEventsURI:   []string{tt.uri},
-				AuditSessionsURI: "s3://testbucket/sessions-rec",
-			})
-			require.NoError(t, err)
-			log, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend)
-			tt.wantFn(t, log, err)
-		})
-	}
-}
-
 func TestGetAdditionalPrincipals(t *testing.T) {
 	p := &TeleportProcess{
-		Config: &servicecfg.Config{
+		Config: &Config{
 			Hostname:    "global-hostname",
 			HostUUID:    "global-uuid",
 			AdvertiseIP: "1.2.3.4",
-			Proxy: servicecfg.ProxyConfig{
+			Proxy: ProxyConfig{
 				PublicAddrs:         utils.MustParseAddrList("proxy-public-1", "proxy-public-2"),
 				SSHPublicAddrs:      utils.MustParseAddrList("proxy-ssh-public-1", "proxy-ssh-public-2"),
 				TunnelPublicAddrs:   utils.MustParseAddrList("proxy-tunnel-public-1", "proxy-tunnel-public-2"),
 				PostgresPublicAddrs: utils.MustParseAddrList("proxy-postgres-public-1", "proxy-postgres-public-2"),
 				MySQLPublicAddrs:    utils.MustParseAddrList("proxy-mysql-public-1", "proxy-mysql-public-2"),
-				Kube: servicecfg.KubeProxyConfig{
+				Kube: KubeProxyConfig{
 					Enabled:     true,
 					PublicAddrs: utils.MustParseAddrList("proxy-kube-public-1", "proxy-kube-public-2"),
 				},
 				WebAddr: *utils.MustParseAddr(":443"),
 			},
-			Auth: servicecfg.AuthConfig{
+			Auth: AuthConfig{
 				PublicAddrs: utils.MustParseAddrList("auth-public-1", "auth-public-2"),
 			},
-			SSH: servicecfg.SSHConfig{
+			SSH: SSHConfig{
 				PublicAddrs: utils.MustParseAddrList("node-public-1", "node-public-2"),
 			},
-			Kube: servicecfg.KubeConfig{
+			Kube: KubeConfig{
 				PublicAddrs: utils.MustParseAddrList("kube-public-1", "kube-public-2"),
 			},
 		},
@@ -596,7 +552,7 @@ func TestDesktopAccessFIPS(t *testing.T) {
 	t.Parallel()
 
 	// Create and configure a default Teleport configuration.
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := MakeDefaultConfig()
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clockwork.NewFakeClock()
 	cfg.DataDir = t.TempDir()
@@ -643,7 +599,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake-ping",
 				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
-				"teleport-opensearch-ping",
 				"teleport-dynamodb-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
@@ -661,7 +616,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake",
 				"teleport-cassandra",
 				"teleport-elasticsearch",
-				"teleport-opensearch",
 				"teleport-dynamodb",
 			},
 		},
@@ -679,7 +633,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake-ping",
 				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
-				"teleport-opensearch-ping",
 				"teleport-dynamodb-ping",
 				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
@@ -700,7 +653,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake",
 				"teleport-cassandra",
 				"teleport-elasticsearch",
-				"teleport-opensearch",
 				"teleport-dynamodb",
 			},
 		},
@@ -708,7 +660,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := servicecfg.MakeDefaultConfig()
+			cfg := MakeDefaultConfig()
 			cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			cfg.Proxy.ACME.Enabled = tc.acmeEnabled
 			cfg.DataDir = t.TempDir()
@@ -742,7 +694,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	t.Parallel()
 	// Create and configure a default Teleport configuration.
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := MakeDefaultConfig()
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clockwork.NewRealClock()
 	cfg.DataDir = t.TempDir()
@@ -801,7 +753,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	token := "join-token"
 
 	// Create Node process.
-	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg := MakeDefaultConfig()
 	nodeCfg.SetAuthServerAddress(listenAddr)
 	nodeCfg.DataDir = t.TempDir()
 	nodeCfg.SetToken(token)
@@ -829,7 +781,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	authCfg := servicecfg.MakeDefaultConfig()
+	authCfg := MakeDefaultConfig()
 	authCfg.SetAuthServerAddress(listenAddr)
 	authCfg.DataDir = t.TempDir()
 	authCfg.Auth.Enabled = true
@@ -858,7 +810,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	})
 }
 
-func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck bool) {
+func testVersionCheck(t *testing.T, nodeCfg *Config, skipVersionCheck bool) {
 	nodeCfg.SkipVersionCheck = skipVersionCheck
 
 	nodeProc, err := NewTeleport(nodeCfg)
@@ -1017,7 +969,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			cfg := &servicecfg.Config{
+			cfg := &Config{
 				DataDir:    dataDir,
 				Log:        logrus.New(),
 				JoinMethod: types.JoinMethodToken,
@@ -1116,12 +1068,8 @@ func TestProxyGRPCServers(t *testing.T) {
 	log := logrus.New()
 	process := &TeleportProcess{
 		Supervisor: NewSupervisor(hostID, log),
-		Config: &servicecfg.Config{
-			Proxy: servicecfg.ProxyConfig{
-				Kube: servicecfg.KubeProxyConfig{
-					Enabled: true,
-				},
-			},
+		Config: &Config{
+			Proxy: ProxyConfig{Kube: KubeProxyConfig{Enabled: true}},
 		},
 		log: log,
 	}
@@ -1239,14 +1187,14 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 	tests := []struct {
 		name       string
 		enterprise bool
-		config     *servicecfg.Config
+		config     *Config
 		expected   bool
 	}{
 		{
 			name:       "enterprise enabled, okta enabled",
 			enterprise: true,
-			config: &servicecfg.Config{
-				Okta: servicecfg.OktaConfig{
+			config: &Config{
+				Okta: OktaConfig{
 					Enabled: true,
 				},
 			},
@@ -1255,8 +1203,8 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 		{
 			name:       "enterprise disabled, okta enabled",
 			enterprise: false,
-			config: &servicecfg.Config{
-				Okta: servicecfg.OktaConfig{
+			config: &Config{
+				Okta: OktaConfig{
 					Enabled: true,
 				},
 			},
@@ -1265,8 +1213,8 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 		{
 			name:       "enterprise enabled, okta disabled",
 			enterprise: true,
-			config: &servicecfg.Config{
-				Okta: servicecfg.OktaConfig{
+			config: &Config{
+				Okta: OktaConfig{
 					Enabled: false,
 				},
 			},
@@ -1289,124 +1237,6 @@ func TestEnterpriseServicesEnabled(t *testing.T) {
 			}
 
 			require.Equal(t, tt.expected, process.enterpriseServicesEnabled())
-		})
-	}
-}
-
-func TestSingleProcessModeResolver(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		mode      types.ProxyListenerMode
-		config    servicecfg.Config
-		wantError bool
-		wantAddr  string
-	}{
-		{
-			name: "not single process mode",
-			mode: types.ProxyListenerMode_Separate,
-			config: servicecfg.Config{
-				Proxy: servicecfg.ProxyConfig{
-					Enabled: true,
-				},
-				Auth: servicecfg.AuthConfig{
-					Enabled: false,
-				},
-			},
-			wantError: true,
-		},
-		{
-			name: "reverse tunnel disabled",
-			mode: types.ProxyListenerMode_Separate,
-			config: servicecfg.Config{
-				Proxy: servicecfg.ProxyConfig{
-					Enabled:              true,
-					DisableReverseTunnel: true,
-				},
-				Auth: servicecfg.AuthConfig{
-					Enabled: true,
-				},
-			},
-			wantError: true,
-		},
-		{
-			name: "separate port localhost",
-			mode: types.ProxyListenerMode_Separate,
-			config: servicecfg.Config{
-				Proxy: servicecfg.ProxyConfig{
-					Enabled: true,
-				},
-				Auth: servicecfg.AuthConfig{
-					Enabled: true,
-				},
-			},
-			wantAddr: "tcp://localhost:3024",
-		},
-		{
-			name: "separate port tunnel addr",
-			mode: types.ProxyListenerMode_Separate,
-			config: servicecfg.Config{
-				Proxy: servicecfg.ProxyConfig{
-					Enabled: true,
-					TunnelPublicAddrs: []utils.NetAddr{
-						*utils.MustParseAddr("example.com:12345"),
-						*utils.MustParseAddr("example.org:12345"),
-					},
-				},
-				Auth: servicecfg.AuthConfig{
-					Enabled: true,
-				},
-			},
-			wantAddr: "tcp://example.com:12345",
-		},
-		{
-			name: "multiplex public addr",
-			mode: types.ProxyListenerMode_Multiplex,
-			config: servicecfg.Config{
-				Proxy: servicecfg.ProxyConfig{
-					Enabled: true,
-					PublicAddrs: []utils.NetAddr{
-						*utils.MustParseAddr("example.com:12345"),
-						*utils.MustParseAddr("example.org:12345"),
-					},
-				},
-				Auth: servicecfg.AuthConfig{
-					Enabled: true,
-				},
-			},
-			wantAddr: "tcp://example.com:12345",
-		},
-		{
-			name: "multiplex web addr with https scheme",
-			mode: types.ProxyListenerMode_Multiplex,
-			config: servicecfg.Config{
-				Proxy: servicecfg.ProxyConfig{
-					Enabled: true,
-					WebAddr: *utils.MustParseAddr("https://example.com:12345"),
-				},
-				Auth: servicecfg.AuthConfig{
-					Enabled: true,
-				},
-			},
-			wantAddr: "tcp://example.com:12345",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			process := TeleportProcess{Config: &test.config}
-			resolver := process.SingleProcessModeResolver(test.mode)
-			require.NotNil(t, resolver)
-			addr, mode, err := resolver(context.Background())
-			if test.wantError {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-			require.Equal(t, mode, test.mode)
-			require.Equal(t, addr.FullAddress(), test.wantAddr)
 		})
 	}
 }

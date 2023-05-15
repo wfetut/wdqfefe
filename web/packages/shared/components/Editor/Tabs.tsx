@@ -33,7 +33,7 @@ export function Tabs(props: TabsProps) {
       onClick={() => props.onSelect(index)}
     >
       <TabIcon>
-        <Icons.Code color="white" />
+        <Icons.Code />
       </TabIcon>
       {name}
     </Tab>
@@ -52,7 +52,6 @@ export const Tab = styled.div<{ active: boolean }>`
   padding: 8px 20px 10px 15px;
   cursor: pointer;
   position: relative;
-  color: white;
 
   &:after {
     content: '';

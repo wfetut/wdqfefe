@@ -97,13 +97,9 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
+		contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout)
 		httpDialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
-				contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout,
-					client.WithInsecureSkipVerify(httpTLS.InsecureSkipVerify),
-					client.WithALPNConnUpgrade(cfg.ALPNConnUpgradeRequired),
-					client.WithPROXYHeaderGetter(cfg.PROXYHeaderGetter),
-				)
 				conn, err = contextDialer.DialContext(ctx, network, addr)
 				if err == nil {
 					return conn, nil
@@ -135,95 +131,14 @@ func (c *Client) Close() error {
 }
 
 // CreateCertAuthority not implemented: can only be called locally.
-func (c *Client) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) error {
+func (c *Client) CreateCertAuthority(ca types.CertAuthority) error {
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertCertAuthority updates or inserts new cert authority
-func (c *Client) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) error {
-	if err := services.ValidateCertAuthority(ca); err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err := c.APIClient.UpsertCertAuthority(ctx, ca)
-	switch {
-	case err == nil:
-		return nil
-	// Fallback to HTTP API
-	// DELETE IN 14.0.0
-	case trace.IsNotImplemented(err):
-		err := c.HTTPClient.UpsertCertAuthority(ctx, ca)
-		return trace.Wrap(err)
-	default:
-		return trace.Wrap(err)
-	}
 }
 
 // CompareAndSwapCertAuthority updates existing cert authority if the existing cert authority
 // value matches the value stored in the backend.
 func (c *Client) CompareAndSwapCertAuthority(new, existing types.CertAuthority) error {
 	return trace.BadParameter("this function is not supported on the client")
-}
-
-// GetCertAuthorities returns a list of certificate authorities
-func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
-	if err := caType.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cas, err := c.APIClient.GetCertAuthorities(ctx, caType, loadKeys)
-	switch {
-	case err == nil:
-		return cas, nil
-	// Fallback to HTTP API
-	// DELETE IN 14.0.0
-	case trace.IsNotImplemented(err):
-		cas, err := c.HTTPClient.GetCertAuthorities(ctx, caType, loadKeys)
-		return cas, trace.Wrap(err)
-	default:
-		return nil, trace.Wrap(err)
-	}
-}
-
-// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
-// controls if signing keys are loaded
-func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
-	if err := id.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	ca, err := c.APIClient.GetCertAuthority(ctx, id, loadSigningKeys)
-	switch {
-	case err == nil:
-		return ca, nil
-	// Fallback to HTTP API
-	// DELETE IN 14.0.0
-	case trace.IsNotImplemented(err):
-		ca, err := c.HTTPClient.GetCertAuthority(ctx, id, loadSigningKeys)
-		return ca, trace.Wrap(err)
-	default:
-		return nil, trace.Wrap(err)
-	}
-}
-
-// DeleteCertAuthority deletes cert authority by ID
-func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
-	if err := id.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	err := c.APIClient.DeleteCertAuthority(ctx, id)
-	switch {
-	case err == nil:
-		return nil
-	// Fallback to HTTP API
-	// DELETE IN 14.0.0
-	case trace.IsNotImplemented(err):
-		err = c.HTTPClient.DeleteCertAuthority(ctx, id)
-		return trace.Wrap(err)
-	default:
-		return trace.Wrap(err)
-	}
 }
 
 // ActivateCertAuthority not implemented: can only be called locally.
@@ -566,6 +481,16 @@ type IdentityService interface {
 	// ChangePassword changes user password
 	ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) error
 
+	// GenerateToken creates a special provisioning token for a new SSH server
+	// that is valid for ttl period seconds.
+	//
+	// This token is used by SSH server to authenticate with Auth server
+	// and get signed certificate and private key from the auth server.
+	//
+	// If token is not supplied, it will be auto generated and returned.
+	// If TTL is not supplied, token will be valid until removed.
+	GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (string, error)
+
 	// GenerateHostCert takes the public key in the Open SSH ``authorized_keys``
 	// plain text format, signs it using Host Certificate Authority private key and returns the
 	// resulting certificate.
@@ -686,7 +611,7 @@ type ClientI interface {
 	IdentityService
 	ProvisioningService
 	services.Trust
-	events.AuditLogSessionStreamer
+	events.IAuditLog
 	events.Streamer
 	apievents.Emitter
 	services.Presence
@@ -752,9 +677,6 @@ type ClientI interface {
 	// GenerateHostCerts generates new host certificates (signed
 	// by the host certificate authority) for a node
 	GenerateHostCerts(context.Context, *proto.HostCertsRequest) (*proto.Certs, error)
-	// GenerateOpenSSHCert signs a SSH certificate with OpenSSH CA that
-	// can be used to connect to Agentless nodes.
-	GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error)
 	// AuthenticateWebUser authenticates web user, creates and  returns web session
 	// in case if authentication is successful
 	AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error)
@@ -826,12 +748,6 @@ type ClientI interface {
 	// ListReleases returns a list of Teleport Enterprise releases
 	ListReleases(ctx context.Context) ([]*types.Release, error)
 
-	// PluginsClient returns a Plugins client.
-	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
-	// still get a plugins client when calling this method, but all RPCs will return
-	// "not implemented" errors (as per the default gRPC behavior).
-	PluginsClient() pluginspb.PluginServiceClient
-
 	// SAMLIdPClient returns a SAML IdP client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
 	// still get a SAML IdP client when calling this method, but all RPCs will return
@@ -844,9 +760,12 @@ type ClientI interface {
 	// "not implemented" errors (as per the default gRPC behavior).
 	OktaClient() services.Okta
 
+	// PluginsClient returns a Plugins client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a plugins client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	PluginsClient() pluginspb.PluginServiceClient
+
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
-
-	// GetResources returns a paginated list of resources.
-	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
 }

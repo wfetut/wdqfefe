@@ -37,8 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 type suite struct {
@@ -56,7 +54,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		Version: "v2",
 		Global: config.Global{
 			DataDir:  t.TempDir(),
-			NodeName: "rootnode",
+			NodeName: "localnode",
 		},
 		SSH: config.SSH{
 			Service: config.Service{
@@ -78,13 +76,12 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 				EnabledFlag:   "true",
 				ListenAddress: localListenerAddr(),
 			},
-			ClusterName: "root",
+			ClusterName: "localhost",
 		},
 	}
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.Log = utils.NewLoggerForTests()
 	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
@@ -145,7 +142,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		Version: "v2",
 		Global: config.Global{
 			DataDir:  t.TempDir(),
-			NodeName: "leafnode",
+			NodeName: "localnode",
 		},
 		SSH: config.SSH{
 			Service: config.Service{
@@ -172,9 +169,8 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		},
 	}
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.Log = utils.NewLoggerForTests()
 	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
 
@@ -216,21 +212,21 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 }
 
 type testSuiteOptions struct {
-	rootConfigFunc func(cfg *servicecfg.Config)
-	leafConfigFunc func(cfg *servicecfg.Config)
+	rootConfigFunc func(cfg *service.Config)
+	leafConfigFunc func(cfg *service.Config)
 	leafCluster    bool
 	validationFunc func(*suite) bool
 }
 
 type testSuiteOptionFunc func(o *testSuiteOptions)
 
-func withRootConfigFunc(fn func(cfg *servicecfg.Config)) testSuiteOptionFunc {
+func withRootConfigFunc(fn func(cfg *service.Config)) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.rootConfigFunc = fn
 	}
 }
 
-func withLeafConfigFunc(fn func(cfg *servicecfg.Config)) testSuiteOptionFunc {
+func withLeafConfigFunc(fn func(cfg *service.Config)) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.leafConfigFunc = fn
 	}
@@ -283,7 +279,7 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 	return s
 }
 
-func runTeleport(t *testing.T, cfg *servicecfg.Config) *service.TeleportProcess {
+func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
 	if cfg.InstanceMetadataClient == nil {
 		// Disables cloud auto-imported labels when running tests in cloud envs
 		// such as Github Actions.

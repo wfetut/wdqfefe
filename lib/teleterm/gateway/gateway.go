@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/keys"
 	alpn "github.com/gravitational/teleport/lib/srv/alpnproxy"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -67,6 +68,16 @@ func New(cfg Config) (*Gateway, error) {
 
 	cfg.LocalPort = port
 
+	protocol, err := alpncommon.ToALPNProtocol(cfg.Protocol)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	address, err := utils.ParseAddr(cfg.WebProxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	tlsCert, err := keys.LoadX509KeyPair(cfg.CertPath, cfg.KeyPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -78,13 +89,14 @@ func New(cfg Config) (*Gateway, error) {
 	}
 
 	localProxyConfig := alpn.LocalProxyConfig{
-		InsecureSkipVerify:      cfg.Insecure,
-		RemoteProxyAddr:         cfg.WebProxyAddr,
-		Listener:                listener,
-		ParentContext:           closeContext,
-		Certs:                   []tls.Certificate{tlsCert},
-		Clock:                   cfg.Clock,
-		ALPNConnUpgradeRequired: cfg.TLSRoutingConnUpgradeRequired,
+		InsecureSkipVerify: cfg.Insecure,
+		RemoteProxyAddr:    cfg.WebProxyAddr,
+		Protocols:          []alpncommon.Protocol{protocol},
+		Listener:           listener,
+		ParentContext:      closeContext,
+		SNI:                address.Host(),
+		Certs:              []tls.Certificate{tlsCert},
+		Clock:              cfg.Clock,
 	}
 
 	localProxyMiddleware := &localProxyMiddleware{
@@ -96,10 +108,7 @@ func New(cfg Config) (*Gateway, error) {
 		localProxyConfig.Middleware = localProxyMiddleware
 	}
 
-	localProxy, err := alpn.NewLocalProxy(localProxyConfig,
-		alpn.WithDatabaseProtocol(cfg.Protocol),
-		alpn.WithClusterCAsIfConnUpgrade(closeContext, cfg.RootClusterCACertPoolFunc),
-	)
+	localProxy, err := alpn.NewLocalProxy(localProxyConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

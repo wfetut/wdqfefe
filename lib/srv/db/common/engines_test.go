@@ -37,8 +37,6 @@ func TestRegisterEngine(t *testing.T) {
 		RegisterEngine(nil, "test")
 	})
 
-	cloudClients, err := cloud.NewClients()
-	require.NoError(t, err)
 	ec := EngineConfig{
 		Context:      context.Background(),
 		Clock:        clockwork.NewFakeClock(),
@@ -46,7 +44,7 @@ func TestRegisterEngine(t *testing.T) {
 		Auth:         &testAuth{},
 		Audit:        &testAudit{},
 		AuthClient:   &auth.Client{},
-		CloudClients: cloudClients,
+		CloudClients: cloud.NewClients(),
 	}
 
 	// No engine is registered initially.

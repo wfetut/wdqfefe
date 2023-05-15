@@ -47,7 +47,7 @@ export function ConnectionDiagnosticResult({
   } else if (attempt.status === 'failed' || (diagnosis && !diagnosis.success)) {
     $diagnosisStateComponent = (
       <TextIcon>
-        <Icons.Warning ml={1} color="error.main" />
+        <Icons.Warning ml={1} color="danger" />
         Testing failed
       </TextIcon>
     );
@@ -142,7 +142,7 @@ const ErrorWithDetails = ({
   const [showMore, setShowMore] = useState(false);
   return (
     <TextIcon css={{ alignItems: 'baseline' }}>
-      <Icons.CircleCross mr={1} color="error.main" />
+      <Icons.CircleCross mr={1} color="danger" />
       <div>
         <div>{details}</div>
         <div>
@@ -158,7 +158,7 @@ const ErrorWithDetails = ({
 
 const StyledBox = styled(Box)`
   max-width: 800px;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
+  background-color: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   padding: 20px;
 `;

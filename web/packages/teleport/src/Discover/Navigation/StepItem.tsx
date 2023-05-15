@@ -147,7 +147,7 @@ const ActiveBullet = styled(Bullet)`
     height: 8px;
     width: 8px;
     border-radius: 50%;
-    border: 2px solid ${props => props.theme.colors.levels.surface};
+    border: 2px solid ${props => props.theme.colors.levels.surfaceSecondary};
   }
 `;
 

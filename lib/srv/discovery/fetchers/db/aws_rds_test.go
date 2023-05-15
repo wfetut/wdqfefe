@@ -55,7 +55,12 @@ func TestRDSFetchers(t *testing.T) {
 	auroraClusterUnknownStatus, auroraDatabaseUnknownStatus := makeRDSCluster(t, "cluster-5", "us-east-1", nil, withRDSClusterStatus("status-does-not-exist"))
 	auroraClusterNoWriter, auroraDatabasesNoWriter := makeRDSClusterWithExtraEndpoints(t, "cluster-6", "us-east-1", envDevLabels, false)
 
-	tests := []awsFetcherTest{
+	tests := []struct {
+		name          string
+		inputClients  cloud.AWSClients
+		inputMatchers []services.AWSMatcher
+		wantDatabases types.Databases
+	}{
 		{
 			name: "fetch all",
 			inputClients: &cloud.TestCloudClients{
@@ -201,7 +206,16 @@ func TestRDSFetchers(t *testing.T) {
 			wantDatabases: auroraDatabasesNoWriter,
 		},
 	}
-	testAWSFetchers(t, tests...)
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			fetchers := mustMakeAWSFetchers(t, test.inputClients, test.inputMatchers)
+			require.ElementsMatch(t, test.wantDatabases, mustGetDatabases(t, fetchers))
+		})
+	}
 }
 
 func makeRDSInstance(t *testing.T, name, region string, labels map[string]string, opts ...func(*rds.DBInstance)) (*rds.DBInstance, types.Database) {

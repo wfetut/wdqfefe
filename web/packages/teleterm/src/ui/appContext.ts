@@ -27,6 +27,7 @@ import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { TerminalsService } from 'teleterm/ui/services/terminals';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
+import { QuickInputService } from 'teleterm/ui/services/quickInput';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
@@ -36,7 +37,6 @@ import { ReloginService } from 'teleterm/services/relogin';
 import { TshdNotificationsService } from 'teleterm/services/tshdNotifications';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
-import { ConfigService } from 'teleterm/services/config';
 import { IAppContext } from 'teleterm/ui/types';
 
 import { CommandLauncher } from './commandLauncher';
@@ -47,6 +47,7 @@ export default class AppContext implements IAppContext {
   notificationsService: NotificationsService;
   terminalsService: TerminalsService;
   keyboardShortcutsService: KeyboardShortcutsService;
+  quickInputService: QuickInputService;
   statePersistenceService: StatePersistenceService;
   workspacesService: WorkspacesService;
   mainProcessClient: MainProcessClient;
@@ -71,17 +72,15 @@ export default class AppContext implements IAppContext {
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
   usageService: UsageService;
-  configService: ConfigService;
 
   constructor(config: ElectronGlobals) {
     const { tshClient, ptyServiceClient, mainProcessClient } = config;
     this.subscribeToTshdEvent = config.subscribeToTshdEvent;
     this.mainProcessClient = mainProcessClient;
     this.notificationsService = new NotificationsService();
-    this.configService = this.mainProcessClient.configService;
     this.usageService = new UsageService(
       tshClient,
-      this.configService,
+      this.mainProcessClient.configService,
       this.notificationsService,
       clusterUri => this.clustersService.findCluster(clusterUri),
       mainProcessClient.getRuntimeSettings()
@@ -111,10 +110,17 @@ export default class AppContext implements IAppContext {
 
     this.keyboardShortcutsService = new KeyboardShortcutsService(
       this.mainProcessClient.getRuntimeSettings().platform,
-      this.configService
+      this.mainProcessClient.configService
     );
 
     this.commandLauncher = new CommandLauncher(this);
+
+    this.quickInputService = new QuickInputService(
+      this.commandLauncher,
+      this.clustersService,
+      this.resourcesService,
+      this.workspacesService
+    );
 
     this.connectionTracker = new ConnectionTrackerService(
       this.statePersistenceService,

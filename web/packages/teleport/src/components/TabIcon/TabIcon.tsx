@@ -52,6 +52,6 @@ const StyledTab = styled(Text)`
     active &&
     `
     font-weight: 500;
-    border-bottom: 4px solid ${theme.colors.brand};
+    border-bottom: 4px solid ${theme.colors.brandAccent};
   `}
 `;

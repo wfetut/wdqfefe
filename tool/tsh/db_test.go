@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -61,43 +60,43 @@ func TestDatabaseLogin(t *testing.T) {
 	alice.SetRoles([]string{"access"})
 
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice),
-		withAuthConfig(func(cfg *servicecfg.AuthConfig) {
+		withAuthConfig(func(cfg *service.AuthConfig) {
 			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
-		withConfig(func(cfg *servicecfg.Config) {
+		withConfig(func(cfg *service.Config) {
 			// separate MySQL port with TLS routing.
 			cfg.Proxy.MySQLAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 		}))
 	makeTestDatabaseServer(t, authProcess, proxyProcess,
-		servicecfg.Database{
+		service.Database{
 			Name:     "postgres",
 			Protocol: defaults.ProtocolPostgres,
 			URI:      "localhost:5432",
-		}, servicecfg.Database{
+		}, service.Database{
 			Name:     "mysql",
 			Protocol: defaults.ProtocolMySQL,
 			URI:      "localhost:3306",
-		}, servicecfg.Database{
+		}, service.Database{
 			Name:     "cassandra",
 			Protocol: defaults.ProtocolCassandra,
 			URI:      "localhost:9042",
-		}, servicecfg.Database{
+		}, service.Database{
 			Name:     "snowflake",
 			Protocol: defaults.ProtocolSnowflake,
 			URI:      "localhost.snowflakecomputing.com",
-		}, servicecfg.Database{
+		}, service.Database{
 			Name:     "mongo",
 			Protocol: defaults.ProtocolMongoDB,
 			URI:      "localhost:27017",
-		}, servicecfg.Database{
+		}, service.Database{
 			Name:     "mssql",
 			Protocol: defaults.ProtocolSQLServer,
 			URI:      "localhost:1433",
-		}, servicecfg.Database{
+		}, service.Database{
 			Name:     "dynamodb",
 			Protocol: defaults.ProtocolDynamoDB,
 			URI:      "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
-			AWS: servicecfg.DatabaseAWS{
+			AWS: service.DatabaseAWS{
 				AccountID:  "123456789012",
 				ExternalID: "123123123",
 				Region:     "us-west-1",
@@ -235,7 +234,7 @@ func TestLocalProxyRequirement(t *testing.T) {
 	alice.SetRoles([]string{"access"})
 
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice),
-		withAuthConfig(func(cfg *servicecfg.AuthConfig) {
+		withAuthConfig(func(cfg *service.AuthConfig) {
 			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}))
 
@@ -340,19 +339,19 @@ func TestListDatabase(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	s := newTestSuite(t,
-		withRootConfigFunc(func(cfg *servicecfg.Config) {
+		withRootConfigFunc(func(cfg *service.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
-			cfg.Databases.Databases = []servicecfg.Database{{
+			cfg.Databases.Databases = []service.Database{{
 				Name:     "root-postgres",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
 			}}
 		}),
 		withLeafCluster(),
-		withLeafConfigFunc(func(cfg *servicecfg.Config) {
+		withLeafConfigFunc(func(cfg *service.Config) {
 			cfg.Databases.Enabled = true
-			cfg.Databases.Databases = []servicecfg.Database{{
+			cfg.Databases.Databases = []service.Database{{
 				Name:     "leaf-postgres",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
@@ -525,11 +524,11 @@ func TestDBInfoHasChanged(t *testing.T) {
 	}
 }
 
-func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *service.TeleportProcess, dbs ...servicecfg.Database) (db *service.TeleportProcess) {
+func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *service.TeleportProcess, dbs ...service.Database) (db *service.TeleportProcess) {
 	// Proxy uses self-signed certificates in tests.
 	lib.SetInsecureDevMode(true)
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -557,7 +556,7 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	return db
 }
 
-func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
+func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service.Database) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {

@@ -15,10 +15,10 @@
  */
 
 import React from 'react';
-import { useTheme } from 'styled-components';
 import ReactSelectCreatable from 'react-select/creatable';
+import theme from 'design/theme';
 
-const styles = theme => ({
+const styles = {
   multiValue: (base, state) => {
     return state.data.isFixed ? { ...base, backgroundColor: 'gray' } : base;
   },
@@ -45,7 +45,7 @@ const styles = theme => ({
   menuList: base => {
     return { ...base, color: theme.colors.text.primaryInverse };
   },
-});
+};
 
 export type SelectCreatableProps = {
   inputValue: string;
@@ -74,23 +74,20 @@ export const SelectCreatable = ({
   isDisabled = false,
   autoFocus = false,
   ...rest
-}: SelectCreatableProps) => {
-  const theme = useTheme();
-  return (
-    <ReactSelectCreatable
-      className="react-select"
-      components={{
-        DropdownIndicator: null,
-      }}
-      styles={styles(theme)}
-      {...rest}
-      isMulti={isMulti}
-      isClearable={isClearable}
-      isDisabled={isDisabled}
-      autoFocus={autoFocus}
-    />
-  );
-};
+}: SelectCreatableProps) => (
+  <ReactSelectCreatable
+    className="react-select"
+    components={{
+      DropdownIndicator: null,
+    }}
+    styles={styles}
+    {...rest}
+    isMulti={isMulti}
+    isClearable={isClearable}
+    isDisabled={isDisabled}
+    autoFocus={autoFocus}
+  />
+);
 
 export type Option = {
   // value is the actual value used inlieu of label.

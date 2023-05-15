@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import Popover from 'design/Popover';
+import theme from 'design/theme';
 import { Box } from 'design';
 import { debounce } from 'shared/utils/highbar';
 
@@ -103,11 +104,11 @@ const StyledUsers = styled.div`
   justify-content: center;
   margin-right: 3px;
   background-color: ${props =>
-    props.active ? props.theme.colors.brand : props.theme.colors.grey[900]};
+    props.active ? theme.colors.brandAccent : theme.colors.grey[900]};
 `;
 
 const StyledAvatar = styled.div`
-  background: ${props => props.theme.colors.brand};
+  background: ${props => props.theme.colors.brandAccent};
   color: ${props => props.theme.colors.light};
   border-radius: 50%;
   display: flex;
@@ -121,8 +122,8 @@ const StyledAvatar = styled.div`
 `;
 
 const UserItem = styled.div`
-  border-bottom: 1px solid ${props => props.theme.colors.grey[50]};
-  color: ${props => props.theme.colors.grey[600]};
+  border-bottom: 1px solid ${theme.colors.grey[50]};
+  color: ${theme.colors.grey[600]};
   font-size: 12px;
   align-items: center;
   display: flex;

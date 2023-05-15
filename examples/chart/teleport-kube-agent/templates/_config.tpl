@@ -1,13 +1,18 @@
 {{- define "teleport-kube-agent.config" -}}
 {{- $logLevel := (coalesce .Values.logLevel .Values.log.level "INFO") -}}
-{{- if (ge (include "teleport-kube-agent.version" . | semver).Major 11) }}
+{{- if .Values.teleportVersionOverride -}}
+  {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride -}}
+{{- else -}}
+  {{- $_ := set . "teleportVersion" .Chart.Version -}}
+{{- end -}}
+{{- if (ge (semver .teleportVersion).Major 11) }}
 version: v3
 {{- end }}
 teleport:
   join_params:
     method: "{{ .Values.joinParams.method }}"
     token_name: "/etc/teleport-secrets/auth-token"
-  {{- if (ge (include "teleport-kube-agent.version" . | semver).Major 11) }}
+  {{- if (ge (semver .teleportVersion).Major 11) }}
   proxy_server: {{ required "proxyAddr is required in chart values" .Values.proxyAddr }}
   {{- else }}
   auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]

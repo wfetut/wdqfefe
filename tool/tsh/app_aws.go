@@ -17,6 +17,8 @@ limitations under the License.
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"os"
@@ -26,7 +28,6 @@ import (
 
 	awsarn "github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -93,11 +95,6 @@ func newAWSApp(cf *CLIConf, profile *client.ProfileStatus, appName string) (*aws
 	}, nil
 }
 
-// GetAppName returns the app name.
-func (a *awsApp) GetAppName() string {
-	return a.appName
-}
-
 // StartLocalProxies sets up local proxies for serving AWS clients.
 //
 // There are two ways clients can connect to the local proxies.
@@ -151,16 +148,29 @@ func (a *awsApp) GetAWSCredentials() (*credentials.Credentials, error) {
 	// There is no specific format or value required for access key and secret,
 	// as long as the AWS clients and the local proxy are using the same
 	// credentials. The only constraint is the access key must have a length
-	// between 16 and 128. AWS access key and secret typically have size of 20
-	// and 40 respectively. New UUIDs are generated for each tsh command.
+	// between 16 and 128. Here access key and secret are generated based on
+	// current profile and app name so the same values can be recreated.
 	//
 	// https://docs.aws.amazon.com/STS/latest/APIReference/API_Credentials.html
 	a.credentialsOnce.Do(func() {
-		a.credentials = credentials.NewStaticCredentials(
-			getEnvOrDefault(awsAccessKeyIDEnvVar, uuid.NewString()),
-			getEnvOrDefault(awsSecretAccessKeyEnvVar, uuid.NewString()),
-			"",
+		keyPem, err := utils.ReadPath(a.profile.KeyPath())
+		if err != nil {
+			log.WithError(err).Errorf("Failed to read key.")
+			return
+		}
+
+		hashData := append(
+			keyPem,
+			[]byte(a.profile.Name+a.profile.Username+a.appName)...,
 		)
+
+		// AWS access key and secret typically have size of 20 and 40
+		// respectively.
+		sum := sha256.Sum256(hashData)
+		sumEncoded := hex.EncodeToString(sum[:])
+		if len(sumEncoded) > 60 {
+			a.credentials = credentials.NewStaticCredentials(sumEncoded[:20], sumEncoded[20:60], "")
+		}
 	})
 
 	if a.credentials == nil {

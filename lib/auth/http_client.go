@@ -360,20 +360,26 @@ func (c *HTTPClient) RotateExternalCertAuthority(ctx context.Context, ca types.C
 }
 
 // UpsertCertAuthority updates or inserts new cert authority
-// DELETE IN 14.0.0
-func (c *HTTPClient) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) error {
+func (c *HTTPClient) UpsertCertAuthority(ca types.CertAuthority) error {
+	if err := services.ValidateCertAuthority(ca); err != nil {
+		return trace.Wrap(err)
+	}
+
 	data, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = c.PostJSON(ctx, c.Endpoint("authorities", string(ca.GetType())),
+	_, err = c.PostJSON(context.TODO(), c.Endpoint("authorities", string(ca.GetType())),
 		&upsertCertAuthorityRawReq{CA: data})
 	return trace.Wrap(err)
 }
 
 // GetCertAuthorities returns a list of certificate authorities
-// DELETE IN 14.0.0
 func (c *HTTPClient) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+	if err := caType.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	resp, err := c.Get(ctx, c.Endpoint("authorities", string(caType)), url.Values{
 		"load_keys": []string{fmt.Sprintf("%t", loadKeys)},
 	})
@@ -399,22 +405,27 @@ func (c *HTTPClient) GetCertAuthorities(ctx context.Context, caType types.CertAu
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-// DELETE IN 14.0.0
-func (c *HTTPClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
+func (c *HTTPClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+	if err := id.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	out, err := c.Get(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName), url.Values{
 		"load_keys": []string{fmt.Sprintf("%t", loadSigningKeys)},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := services.UnmarshalCertAuthority(out.Bytes())
+	ca, err := services.UnmarshalCertAuthority(out.Bytes(), opts...)
 	return ca, trace.Wrap(err)
 }
 
 // DeleteCertAuthority deletes cert authority by ID
-// DELETE IN 14.0.0
-func (c *HTTPClient) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
-	_, err := c.Delete(ctx, c.Endpoint("authorities", string(id.Type), id.DomainName))
+func (c *HTTPClient) DeleteCertAuthority(id types.CertAuthID) error {
+	if err := id.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	_, err := c.Delete(context.TODO(), c.Endpoint("authorities", string(id.Type), id.DomainName))
 	return trace.Wrap(err)
 }
 
@@ -603,11 +614,11 @@ func (c *HTTPClient) GetRemoteCluster(clusterName string) (types.RemoteCluster, 
 }
 
 // DeleteRemoteCluster deletes remote cluster by name
-func (c *HTTPClient) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
+func (c *HTTPClient) DeleteRemoteCluster(clusterName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
-	_, err := c.Delete(ctx, c.Endpoint("remoteclusters", clusterName))
+	_, err := c.Delete(context.TODO(), c.Endpoint("remoteclusters", clusterName))
 	return trace.Wrap(err)
 }
 
@@ -967,13 +978,16 @@ func (c *HTTPClient) GetSessionChunk(namespace string, sid session.ID, offsetByt
 //
 // afterN allows to filter by "newer than N" value where N is the cursor ID
 // of previously returned bunch (good for polling for latest)
-func (c *HTTPClient) GetSessionEvents(namespace string, sid session.ID, afterN int) (retval []events.EventFields, err error) {
+func (c *HTTPClient) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) (retval []events.EventFields, err error) {
 	if namespace == "" {
 		return nil, trace.BadParameter(MissingNamespaceError)
 	}
 	query := make(url.Values)
 	if afterN > 0 {
 		query.Set("after", strconv.Itoa(afterN))
+	}
+	if includePrintEvents {
+		query.Set("print", fmt.Sprintf("%v", includePrintEvents))
 	}
 	response, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(sid), "events"), query)
 	if err != nil {

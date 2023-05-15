@@ -27,7 +27,6 @@ export const TeleportIcon = styled.div`
   width: 30px;
   height: 30px;
   background-size: contain;
-  filter: invert(${p => (p.light ? '100%' : '0%')});
 `;
 
 export const TooltipLogos = styled.div`
