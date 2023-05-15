@@ -1580,6 +1580,8 @@ type fakeAccessPoint struct {
 	auth.DiscoveryAccessPoint
 	updateKube     bool
 	updateDatabase bool
+
+	upsertedServerInfos []types.ServerInfo
 }
 
 func (f *fakeAccessPoint) CreateDatabase(ctx context.Context, database types.Database) error {
@@ -1598,5 +1600,12 @@ func (f *fakeAccessPoint) CreateKubernetesCluster(ctx context.Context, cluster t
 // UpdateKubernetesCluster updates existing kubernetes cluster resource.
 func (f *fakeAccessPoint) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
 	f.updateKube = true
+	return nil
+}
+
+func (f *fakeAccessPoint) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
+	fmt.Println("fakeAccessPoint: upserting", si.GetName())
+	f.upsertedServerInfos = append(f.upsertedServerInfos, si)
+	fmt.Println(len(f.upsertedServerInfos))
 	return nil
 }
