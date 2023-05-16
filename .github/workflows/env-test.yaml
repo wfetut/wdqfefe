@@ -2,11 +2,6 @@ name: Environment Leak Tests
 run-name: Environment Leak Tests (Go) - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
-  pull_request:
-    branches: [ "master" ]
-    paths-ignore:
-      - 'docs/**'
-      - 'examples/**'
   merge_group:
     branches: [ "master" ]
     paths-ignore:
@@ -17,7 +12,7 @@ jobs:
   test:
     name: Environment Leak Test
     if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
-    runs-on: ubuntu-22.04-32core
+    runs-on: ubuntu-22.04-16core
 
     permissions:
       contents: read
