@@ -184,6 +184,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 			Emitter: s.Emitter,
 		})
 		lr, err := newLabelReconciler(&labelReconcilerConfig{
+			log:         s.Log,
 			accessPoint: s.AccessPoint,
 		})
 		if err != nil {

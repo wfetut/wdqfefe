@@ -22,6 +22,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/jonboulle/clockwork"
@@ -84,7 +86,8 @@ func generateServerInfos(t *testing.T, n int) []types.ServerInfo {
 	serverInfos := make([]types.ServerInfo, 0, n)
 	for i := 0; i < n; i++ {
 		si, err := types.NewServerInfo(types.Metadata{
-			Name: fmt.Sprintf("instance-%d", i),
+			Name:   fmt.Sprintf("instance-%d", i),
+			Labels: map[string]string{"foo": "bar"},
 		}, types.ServerInfoSpecV1{})
 		require.NoError(t, err)
 		serverInfos = append(serverInfos, si)
@@ -92,21 +95,20 @@ func generateServerInfos(t *testing.T, n int) []types.ServerInfo {
 	return serverInfos
 }
 
-func initLabelReconcilerForTests(t *testing.T) (*labelReconciler, clockwork.FakeClock, *fakeAccessPoint) {
-	clock := clockwork.NewFakeClock()
+func initLabelReconcilerForTests(t *testing.T, clock clockwork.Clock) (*labelReconciler, *fakeAccessPoint) {
 	ap := &fakeAccessPoint{}
 	lr, err := newLabelReconciler(&labelReconcilerConfig{
 		clock:       clock,
 		accessPoint: ap,
 	})
 	require.NoError(t, err)
-
-	return lr, clock, ap
+	return lr, ap
 }
 
 func TestLabelReconciler(t *testing.T) {
 	t.Parallel()
-	lr, clock, ap := initLabelReconcilerForTests(t)
+	clock := clockwork.NewFakeClock()
+	lr, ap := initLabelReconcilerForTests(t, clock)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	t.Cleanup(cancel)
 	go lr.run(ctx)
@@ -128,5 +130,74 @@ func TestLabelReconciler(t *testing.T) {
 
 		require.Equal(t, serverInfos[b*i:b*(i+1)], ap.upsertedServerInfos)
 		ap.upsertedServerInfos = []types.ServerInfo{}
+	}
+}
+
+func TestQueueServerInfos(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	nearFuture := clock.Now().Add(10 * time.Minute)
+	farFuture := clock.Now().Add(time.Hour)
+
+	newServerInfo := func(mod func(si types.ServerInfo)) types.ServerInfo {
+		defaultServerInfo, err := types.NewServerInfo(types.Metadata{
+			Name:    "default",
+			Labels:  map[string]string{"foo": "bar"},
+			Expires: &farFuture,
+		}, types.ServerInfoSpecV1{})
+		require.NoError(t, err)
+
+		if mod != nil {
+			mod(defaultServerInfo)
+		}
+		return defaultServerInfo
+	}
+
+	defaultServerInfos := []types.ServerInfo{newServerInfo(nil)}
+
+	tests := []struct {
+		name          string
+		existingInfos []types.ServerInfo
+		newInfos      []types.ServerInfo
+		expectedInfos []types.ServerInfo
+	}{
+		{
+			name:          "new info",
+			newInfos:      defaultServerInfos,
+			expectedInfos: defaultServerInfos,
+		},
+		{
+			name:          "ignore existing info",
+			existingInfos: defaultServerInfos,
+			newInfos:      defaultServerInfos,
+			expectedInfos: []types.ServerInfo{},
+		},
+		{
+			name: "re-queue updated labels",
+			existingInfos: []types.ServerInfo{newServerInfo(func(si types.ServerInfo) {
+				si.SetStaticLabels(map[string]string{"foo": "baz"})
+			})},
+			newInfos:      defaultServerInfos,
+			expectedInfos: defaultServerInfos,
+		},
+		{
+			name: "re-queue expiring soon",
+			existingInfos: []types.ServerInfo{newServerInfo(func(si types.ServerInfo) {
+				si.SetExpiry(nearFuture)
+			})},
+			newInfos:      defaultServerInfos,
+			expectedInfos: defaultServerInfos,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			lr, _ := initLabelReconcilerForTests(t, clock)
+			for _, si := range tc.existingInfos {
+				lr.discoveredServers[si.GetName()] = si
+			}
+			lr.queueServerInfos(tc.newInfos)
+			require.Empty(t, cmp.Diff(tc.expectedInfos, lr.serverInfoQueue,
+				cmpopts.IgnoreFields(types.Metadata{}, "Expires")))
+		})
 	}
 }

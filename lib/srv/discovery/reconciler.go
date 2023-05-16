@@ -18,7 +18,6 @@ package discovery
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -88,17 +87,14 @@ func getUpsertBatchSize(queueLen, lastBatchSize int) int {
 }
 
 func (r *labelReconciler) run(ctx context.Context) {
-	fmt.Println("reconciler started")
 	ticker := r.cfg.clock.NewTicker(time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.Chan():
-			fmt.Println("tick")
 			r.mu.Lock()
 			if len(r.serverInfoQueue) == 0 {
-				fmt.Println("queue is empty")
 				r.mu.Unlock()
 				continue
 			}
@@ -108,23 +104,19 @@ func (r *labelReconciler) run(ctx context.Context) {
 			batch := r.serverInfoQueue[:batchSize]
 			r.serverInfoQueue = r.serverInfoQueue[batchSize:]
 			r.mu.Unlock()
-			fmt.Println("batch size: ", batchSize)
 
 			for _, si := range batch {
-				fmt.Println("upserting ", si.GetName())
 				if err := r.cfg.accessPoint.UpsertServerInfo(ctx, si); err != nil {
 					r.cfg.log.WithError(err).Error("Failed to upsert server info.")
 				}
 			}
 		case <-ctx.Done():
-			fmt.Println("canceled")
 			return
 		}
 	}
 }
 
 func (r *labelReconciler) queueServerInfos(serverInfos []types.ServerInfo) {
-	fmt.Printf("queueing up to %d server infos\n", len(serverInfos))
 	jitter := retryutils.NewSeventhJitter()
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -142,9 +134,6 @@ func (r *labelReconciler) queueServerInfos(serverInfos []types.ServerInfo) {
 			existingInfo.Expiry().Before(now.Add(30*time.Minute)) {
 			r.discoveredServers[si.GetName()] = si
 			r.serverInfoQueue = append(r.serverInfoQueue, si)
-			fmt.Printf("\tqueueing %v\n", si.GetName())
-		} else {
-			fmt.Printf("\tskipping %v\n", si.GetName())
 		}
 	}
 }
