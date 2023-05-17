@@ -2223,26 +2223,28 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 }
 
 func (tc *TeleportClient) ListCommandsWithFilters(ctx context.Context) ([]types.Command, error) {
+	req := tc.ResourceFilter(types.KindCommand)
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ListNodesWithFilters",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("resource", req.ResourceType),
+			attribute.Int("limit", int(req.Limit)),
+			attribute.String("predicate", req.PredicateExpression),
+			attribute.StringSlice("keywords", req.SearchKeywords),
+		),
 	)
 	defer span.End()
 
-	// connect to the proxy and ask it to return a full list of commands
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clt, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clt.Close()
 
-	commands, err := proxyClient.FindCommandsByFilters(ctx, *tc.DefaultResourceFilter())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return commands, nil
+	servers, err := client.GetAllResources[types.Command](ctx, clt.AuthClient, req)
+	return servers, trace.Wrap(err)
 }
 
 // GetClusterAlerts returns a list of matching alerts from the current cluster.

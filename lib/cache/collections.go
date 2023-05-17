@@ -350,7 +350,7 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections.byKing[resourceKind] = &genericCollection[types.Command, commandExecutor]{
+			collections.byKind[resourceKind] = &genericCollection[types.Command, commandGetter, commandExecutor]{
 				cache: c,
 				watch: watch,
 			}
@@ -878,7 +878,11 @@ type nodeGetter interface {
 
 var _ executor[types.Server, nodeGetter] = nodeExecutor{}
 
-var _ executor[types.Command] = commandExecutor{}
+type commandGetter interface {
+	GetCommands(ctx context.Context, namespace string) ([]types.Command, error)
+}
+
+var _ executor[types.Command, commandGetter] = commandExecutor{}
 
 type commandExecutor struct{}
 
@@ -903,6 +907,13 @@ func (commandExecutor) delete(ctx context.Context, cache *Cache, resource types.
 }
 
 func (commandExecutor) isSingleton() bool { return false }
+
+func (commandExecutor) getReader(cache *Cache, cacheOK bool) commandGetter {
+	if cacheOK {
+		return cache.presenceCache
+	}
+	return cache.Config.Presence
+}
 
 type namespaceExecutor struct{}
 

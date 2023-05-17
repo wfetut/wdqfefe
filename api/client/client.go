@@ -1953,7 +1953,7 @@ func (c *Client) GetCommand(ctx context.Context, namespace, name string) (types.
 	resp, err := c.grpc.GetCommand(ctx, &types.ResourceInNamespaceRequest{
 		Name:      name,
 		Namespace: namespace,
-	}, c.callOpts...)
+	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -1995,7 +1995,7 @@ func (c *Client) UpsertCommand(ctx context.Context, node types.Command) (*types.
 	if !ok {
 		return nil, trace.BadParameter("invalid type %T", node)
 	}
-	keepAlive, err := c.grpc.UpsertCommand(ctx, commandV1, c.callOpts...)
+	keepAlive, err := c.grpc.UpsertCommand(ctx, commandV1)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
