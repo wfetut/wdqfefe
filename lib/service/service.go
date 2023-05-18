@@ -63,6 +63,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1908,6 +1909,53 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	process.RegisterFunc("auth.heartbeat", heartbeat.Run)
+
+	// Periodically update labels on discovered instances.
+	process.RegisterFunc("auth.server_info", func() error {
+		ctx := process.GracefulExitContext()
+		ticker := process.Clock.NewTicker(time.Second)
+		defer ticker.Stop()
+		const batchSize = 100
+		infoStream := process.localAuth.GetServerInfos(ctx)
+		nodes, err := process.localAuth.GetNodes(ctx, apidefaults.Namespace)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for {
+			select {
+			case <-ticker.Chan():
+				items, more := stream.Take(infoStream, batchSize)
+				if !more {
+					// When we finish the stream, start again from the beginning.
+					if err := infoStream.Done(); err != nil {
+						return trace.Wrap(err)
+					}
+					infoStream = process.localAuth.GetServerInfos(ctx)
+					nodes, err = process.localAuth.GetNodes(ctx, apidefaults.Namespace)
+					if err != nil {
+						return trace.Wrap(err)
+					}
+				}
+
+				for _, si := range items {
+					for _, node := range nodes {
+						if si.Matches(node.GetServerInfo()) {
+							err := process.localAuth.UpdateLabels(ctx, proto.InventoryUpdateLabelsRequest{
+								ServerID: node.GetName(),
+								Labels:   si.GetStaticLabels(),
+							})
+							if err != nil {
+								return trace.Wrap(err)
+							}
+						}
+					}
+				}
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	})
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
 		// The listeners have to be closed here, because if shutdown

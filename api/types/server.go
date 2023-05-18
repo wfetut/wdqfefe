@@ -90,6 +90,11 @@ type Server interface {
 
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
+
+	// GetServerInfo gets the ServerInfo for the server.
+	GetServerInfo() ServerInfo
+	// SetServerInfo sets the server's ServerInfo.
+	SetServerInfo(si ServerInfo) error
 }
 
 // NewServer creates an instance of Server.
@@ -469,6 +474,21 @@ func (s *ServerV2) MatchSearch(values []string) bool {
 // DeepCopy creates a clone of this server value
 func (s *ServerV2) DeepCopy() Server {
 	return utils.CloneProtoMsg(s)
+}
+
+// GetServerInfo gets the ServerInfo for the server.
+func (s *ServerV2) GetServerInfo() ServerInfo {
+	return s.Spec.ServerInfo
+}
+
+// SetServerInfo sets the server's ServerInfo.
+func (s *ServerV2) SetServerInfo(si ServerInfo) error {
+	siV1, ok := si.(*ServerInfoV1)
+	if !ok {
+		return trace.BadParameter("expected *ServerInfoV1, got %T", si)
+	}
+	s.Spec.ServerInfo = siV1
+	return nil
 }
 
 // IsAWSConsole returns true if this app is AWS management console.

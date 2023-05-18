@@ -762,6 +762,8 @@ message ServerSpecV2 {
   reserved 8;
   reserved 10;
   reserved "KubernetesClusters";
+  // ServerInfo contains info about where the server was discovered.
+  ServerInfoV1 ServerInfo = 14 [(gogoproto.jsontag) = "server_info,omitempty"];
 }
 
 // AppServerV3 represents a single proxied web app.

@@ -28,6 +28,8 @@ import (
 type ServerInfo interface {
 	// ResourceWithLabels provides common resource headers
 	ResourceWithLabels
+	// Matches checks if two ServerInfos refer to the same resource.
+	Matches(other ServerInfo) bool
 }
 
 // NewServerInfo creates an instance of ServerInfo.
@@ -151,4 +153,23 @@ func (s *ServerInfoV1) setStaticFields() {
 func (s *ServerInfoV1) CheckAndSetDefaults() error {
 	s.setStaticFields()
 	return trace.Wrap(s.Metadata.CheckAndSetDefaults())
+}
+
+// Matches checks if two ServerInfos refer to the same resource.
+func (s *ServerInfoV1) Matches(other ServerInfo) bool {
+	if other == nil {
+		return false
+	}
+	otherV1, ok := other.(*ServerInfoV1)
+	if !ok {
+		return false
+	}
+	if s.Spec.AWS != nil && !s.Spec.AWS.equals(otherV1.Spec.AWS) {
+		return false
+	}
+	return true
+}
+
+func (aws *ServerInfoSpecV1_AWSInfo) equals(other *ServerInfoSpecV1_AWSInfo) bool {
+	return other != nil && other.AccountID == aws.AccountID && other.InstanceID == aws.InstanceID
 }
