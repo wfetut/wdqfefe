@@ -3,25 +3,16 @@ title: Teleport Access Requests with Jira
 description: How to set up the Teleport Jira plugin to notify users when another user requests elevated privileges.
 ---
 
-This guide will explain how to set up Teleport with Jira. Teleport's Jira
-integration allows you to treat Teleport access and permission requests using
-Jira tickets.
+This guide will explain how to set up the Teleport Access Request plugin for
+Jira. Teleport's Jira integration allows you to manage Teleport Access Requests
+as Jira issues.
 
-{/* TODO: Edit this explanation if I need to after updating the rest of the
-guide*/}
-
-{/* TODO: Update the description of the way the guide works here and see if
-other details within the guide need updating as well. See:
-
-https://github.com/gravitational/teleport/issues/17528
-
--*/}
-
-{/* TODO:
-
-Document the `/status` endpoint.
-
--*/}
+After installing the Jira plugin, you create a Jira project board to organize
+your Access Requests, and the Jira plugin performs a two-way synchronization
+between the project board and the Access Requests processed by your Teleport
+cluster. When you change the status of an Access Request within Teleport, the
+plugin updates the board. And when you update the status of an Access Request on
+the board, the plugin updates the Access Request in Teleport.
 
 {/* TODO:
 
@@ -59,7 +50,7 @@ proxy<--Forward gRPC traffic-->auth
 
   - A Kubernetes cluster.
 
-(!/docs/pages/includes/tctl.mdx!)
+- (!/docs/pages/includes/tctl.mdx!)
 
 ## Step 1/9. Define RBAC resources
 
@@ -244,12 +235,8 @@ domain name you created earlier:
 </TabItem>
 <TabItem label="Helm Chart">
 
-{/*TODO: Create cert-manager Certificate*/}
-
 Use cert-manager to communicate with Let's Encrypt and generate a Kubernetes
 secret containing TLS credentials that the pugin can use. 
-
-{/*TODO: Test this out*/}
 
 If you do not have `cert-manager` already configured in the Kubernetes cluster
 where you are installing Teleport, add the Jetstack Helm chart repository which
@@ -270,11 +257,9 @@ web server to Let's Encrypt:
 ```code
 $ helm upgrade --install ingress-nginx ingress-nginx \
 --repo https://kubernetes.github.io/ingress-nginx \
---namespace cert-manager
+--namespace cert-manager \
+--set extraArgs="{--issuer-ambient-credentials}"
 ```
-
-{/* TODO: Not sure if we need the `set
-extraArgs="{--issuer-ambient-credentials}` line from the AWS Helm guide here*/}
 
 Once `cert-manager` is installed, create and apply an `Issuer` resource that
 configures `cert-manager` to fetch TLS credentials from Let's Encrypt. Create a
@@ -313,7 +298,37 @@ $ kubectl create namespace teleport
 $ kubectl create -f issuer.yaml
 ```
 
-{/* TODO: Step to verify that this worked*/}
+Next, create a cert-manager `Certificate` resource. Add the following to a file
+called `certificate.yaml`:
+
+{/* TODO: Fill in the template below, which I copied from the teleport-cluster
+Helm chart*/} 
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+spec:
+  secretName: teleport-tls
+  {{- if $proxy.highAvailability.certManager.addCommonName }}
+  commonName: {{ quote $domain }}
+  {{- end }}
+  dnsNames:
+  - {{ quote $domain }}
+  - {{ quote $domainWildcard }}
+  issuerRef:
+    name: {{ required "highAvailability.certManager.issuerName is required in chart values" $proxy.highAvailability.certManager.issuerName }}
+    kind: {{ required "highAvailability.certManager.issuerKind is required in chart values" $proxy.highAvailability.certManager.issuerKind }}
+    group: {{ required "highAvailability.certManager.issuerGroup is required in chart values" $proxy.highAvailability.certManager.issuerGroup }}
+  {{- with $proxy.annotations.certSecret }}
+  secretTemplate:
+    annotations: {{- toYaml . | nindent 6 }}
+  {{- end }}
+```
+
 </TabItem>
 </Tabs>
 
@@ -323,10 +338,7 @@ $ kubectl create -f issuer.yaml
 
 ## Step 5/9. Export the access plugin identity
 
-{/* TODO: Indicate where you should run the commands in this partial (e.g., on
-the VM where the plugin runs*/}
-
-(!docs/pages/includes/plugins/identity-export.mdx!)
+(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin"!)
 
 ## Step 6/9. Set up a Jira project
 
@@ -351,14 +363,19 @@ receives the key `TAR` by default. Click **Create project**.
 
 In the three-dots menu on the upper right of your new board, click **Board
 settings**, then click **Columns**. Edit the columns in your board so it
-contains the following three:
+contains the following four:
 
 1. Pending
-2. Approved
-3. Denied
+1. Approved
+1. Denied
+1. Expired
 
-{/* TODO: What happens if the project contains additional/inadequate columns? Do
-the names need to be exact?*/}
+<Notice type="warning">
+
+If your project board does not contain these (and only these) columns, the Jira
+Access Request plugin will behave in unexpected ways.
+
+</Notice>
 
 Teleport's Jira plugin will create a new issue for each new permission request
 in the first available column on the board. When you drag the request task to
@@ -368,6 +385,8 @@ request task to the Denied column in Jira, the request will be denied.
 Click **Back to board** to review your changes.
 
 ### Set up a request ID field on Jira
+
+{/* TODO: See if this is correct based on the plugin source*/}
 
 The Teleport Jira plugin expects tasks in the Teleport Access Requests project
 to include a field called `TeleportAccessRequestId`, which it uses to track
@@ -544,6 +563,15 @@ $ helm install teleport-plugin-jira teleport/teleport-plugin-jira \
 ```
 </TabItem>
 </Tabs>
+
+### Check the status of the webhook
+
+Confirm that the Jira webhook has started serving by sending a GET request to
+the `/status` endpoint.
+
+{/* TODO: Show how to do this*/}
+
+If the webhook returns a `200` status, it measn that the webhook is running.
 
 ### Create an Access Request
 
