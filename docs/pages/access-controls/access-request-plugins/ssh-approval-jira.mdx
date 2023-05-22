@@ -330,7 +330,25 @@ spec:
 
 ## Step 5/9. Export the access plugin identity
 
+<Tabs>
+<TabItem label="Executable">
+
 (!docs/pages/includes/plugins/identity-export.mdx user="access-plugin"!)
+
+</TabItem>
+<TabItem label="Helm Chart">
+
+(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin"!)
+
+Use the following command to create the Kubernetes secret referenced in the
+values file from the identity file you generated earlier:
+
+```console
+kubectl create secret generic teleport-plugin-jira-identity --from-file=auth_id=auth.pem
+```
+
+</TabItem>
+</Tabs>
 
 ## Step 6/9. Set up a Jira project
 
@@ -517,16 +535,6 @@ The final configuration will resemble the following:
 (!examples/resources/plugins/teleport-jira-helm-cloud.yaml!)
 ```
 
-{/* TODO: Move the secret creation instructions elsewhere, since the
-section of this guide re: configuring the Helm chart already refers to the
-identity file secret*/}
-
-Use the following command to create the Kubernetes secret referenced in the
-values file from the identity file you generated earlier:
-
-```console
-kubectl create secret generic teleport-plugin-jira-identity --from-file=auth_id=auth.pem
-```
 </TabItem>
 </Tabs>
 
@@ -566,11 +574,9 @@ If the webhook returns a `200` status, it measn that the webhook is running.
 When you create the request, you will see a new task in the "Pending" column of
 the Teleport Access Requests board:
 
-![New Access Request](../../../img/enterprise/plugins/jira/new-request.png)
+{/* TODO: Retake this screenshot with the correct setup*/}
 
-{/* TODO: The instructions for editing column names are wrong, since "Backlog"
-is still the first column. Change this, then edit the screenshot to include the
-correct column in the dropdown menu*/}
+![New Access Request](../../../img/enterprise/plugins/jira/new-request.png)
 
 ### Resolve the request
 
