@@ -10,6 +10,28 @@ Jira tickets.
 {/* TODO: Edit this explanation if I need to after updating the rest of the
 guide*/}
 
+{/* TODO: Update the description of the way the guide works here and see if
+other details within the guide need updating as well. See:
+
+https://github.com/gravitational/teleport/issues/17528
+
+-*/}
+
+{/* TODO:
+
+Document the `/status` endpoint.
+
+-*/}
+
+{/* TODO:
+
+Document the `type` configuration parameter for setting the Jira type to a
+custom value besides "Task"
+
+-*/}
+
+{/*TODO: Add an architecture diagram here*/}
+
 ## Prerequisites
 
 (!/docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -112,6 +134,9 @@ Teleport Web UI.
 
 ### Create a domain name for the webhook
 
+{/* TODO: No need for complex DNS instructions. Assume users know how to create
+records*/}
+
 Jira will need to access your webhook over the public internet, so you will need
 to assign a domain name to your webhook. Create a DNS record that associates
 your domain name with the Jira webhook. Here are some examples of how to create
@@ -213,6 +238,8 @@ managing TLS credentials, and that is the system you should use in production.
 
 </Notice>
 <Tabs>
+
+{/*TODO: Create cert-manager Certificate*/}
 
 <TabItem label="Executable">
 
