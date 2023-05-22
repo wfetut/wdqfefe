@@ -30,7 +30,19 @@ custom value besides "Task"
 
 -*/}
 
-{/*TODO: Add an architecture diagram here*/}
+```mermaid
+flowchart LR
+subgraph teleport[Teleport cluster]
+  proxy[Teleport Proxy Service]
+  auth[Teleport Auth Service]
+end
+
+plugin[Jira Access Request plugin]
+jira[Jira API]-- "Receive Jira updates\n(via webhook)"-->plugin
+plugin--Receive Access Request events-->proxy
+plugin--Update project board-->jira
+proxy<--Forward gRPC traffic-->auth
+```
 
 ## Prerequisites
 
