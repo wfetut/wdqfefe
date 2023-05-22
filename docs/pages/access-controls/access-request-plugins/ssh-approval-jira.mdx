@@ -113,9 +113,8 @@ Run `./install` from `teleport-jira` or place the executable in `/usr/bin` or `/
 The Jira Access Request plugin serves a Jira webhook, which Jira notifies when
 there are any changes in your Jira project (e.g., a user moves a task from one
 column to another). When a change has to do with an Access Request, the Jira
-plugin applies changes to Access Requests in Teleport.
-
-{/* TODO: Be more specific about what the webhook does*/}
+plugin updates your project board and applies changes to Access Requests in
+Teleport.
 
 Jira requires webhooks to use HTTPS, which prevents third parties from
 intercepting data about your Jira project and Teleport cluster. To enable HTTPS
@@ -342,14 +341,10 @@ spec:
 
 ## Step 6/9. Set up a Jira project
 
-{/* TODO: Add an intro paragraph re: how the plugin works with the Jira project*/}
-
 The Teleport Jira plugin assumes that you have created a project where it can
 post tasks when a Teleport user creates an Access Request. The plugin then uses
 the Jira webhook to monitor the state of the board and respond to any changes in
 the tickets it creates.
-
-{/* TODO: Make sure this section is still accurate*/}
 
 ### Create a project for managing Access Requests
 
@@ -586,27 +581,20 @@ the Teleport Access Requests board:
 is still the first column. Change this, then edit the screenshot to include the
 correct column in the dropdown menu*/}
 
-{/* TODO: What happens when you move the card between columns*/}
-
 ### Resolve the request
 
-(!docs/pages/includes/plugins/resolve-request.mdx!)
-
-{/* TODO: Indicate what happens in Jira when you resolve the request */}
+Move the card corresponding to your new Access Request to the "Denied" column,
+then click the card and navigate to Teleport. You will see that the Access
+Request has been denied.
 
 <Admonition title="Auditing Access Requests">
 
-When the Jira plugin posts an Access Request notification to a project, anyone
-with access to the project  can view the notification and follow the link. While
-users must be authorized via their Teleport roles to review Access Requests, you
-should still check the Teleport audit log to ensure that the right users are
-reviewing the right requests.
+Anyone with access to the Jira project board can modify the status of Access
+Requests reflected on teh board. You can check the Teleport audit log to ensure
+that the right users are reviewing the right requests.
 
 When auditing Access Request reviews, check for events with the type `Access
-Request Reviewed` in the Teleport Web UI <ScopedBlock scope={["oss", "enterprise"]}>
-and `access_request.review` if reviewing the audit log on the
-Auth Service host
-</ScopedBlock>.
+Request Reviewed` in the Teleport Web UI.
 
 </Admonition>
 
