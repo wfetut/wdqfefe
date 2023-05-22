@@ -427,37 +427,7 @@ each value below.
 
 ### `[teleport]`
 
-<Tabs>
-<TabItem label="Teleport Enterprise" scope={["oss", "enterprise"]}>
-
-**`addr`**: Include the hostname and HTTPS port of your Teleport Proxy Service
-(e.g., `mytenant.teleport.sh:443`). If you are configuring your plugin to
-connect directly to the Teleport Auth Service, use your Auth Service's gRPC
-endpoint (e.g., `teleport.example.com:3025`).
-
-**`identity`**, **`client_key`**, **`client_crt`**, **`root_cas`**: The values
-you will use for these fields depend on whether the email plugin will
-connect to the Proxy Service or the Auth Service. 
-
-If you exported an identity file earlier, fill in the `identity` field with the
-path to the file and comment out the other fields.
-
-If you exported a client key, client certificate, and root CAs earlier, fill in
-the `client_key`, `client_crt`, and `root_cas` fields with the paths to these
-files and leave `identity` commented out.
-
-</TabItem>
-<TabItem label="Teleport Cloud" scope="cloud">
-
-**`addr`**: Include the hostname and HTTPS port of your Teleport Cloud tenant
-(e.g., `mytenant.teleport.sh:443`).
-
-**`identity`**, **`client_key`**, **`client_crt`**, **`root_cas`**: Fill in the
-`identity` field with the path to the identity file you exported earlier and
-comment out the other fields.
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/plugins/config-toml-teleport.mdx!)
 
 ### `[jira]`
 
@@ -492,24 +462,14 @@ with the domain name you created for the plugin earlier:
 The final configuration will resemble the following:
 
 <Tabs>
-<TabItem options="Executable" label="Connect to the Proxy Service">
+<TabItem label="Executable">
 
 ```toml
 (!examples/resources/plugins/teleport-jira-cloud.toml!)
 ```
 
 </TabItem>
-<TabItem options="Executable" label="Connect to the Auth Service">
-
-```toml
-(!examples/resources/plugins/teleport-jira-self-hosted.toml!)
-```
-
-</TabItem> 
-<TabItem 
-options="Helm Chart" 
-label="Connect to the Proxy Service "
->
+<TabItem label="Helm Chart" >
 
 Create a file called `values.yaml` with the following content, which configures
 the Helm chart for the plugin. It should resemble the following:
