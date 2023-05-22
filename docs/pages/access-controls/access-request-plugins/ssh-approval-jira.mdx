@@ -120,9 +120,6 @@ on your Jira plugin, we will fetch TLS credentials from Let's Encrypt.
 
 ### Create a domain name for the webhook
 
-{/* TODO: No need for complex DNS instructions. Assume users know how to create
-records*/}
-
 Jira will need to access your webhook over the public internet, so you will need
 to assign a domain name to your webhook. Create a DNS record that associates
 your domain name with the Jira webhook.
@@ -423,13 +420,14 @@ $ sudo mv teleport-jira.toml /etc
 Edit the configuration file for your environment. We will show you how to set
 each value below.
 
-{/* TODO: Add Helm tabs for each config section*/}
-
-### `[teleport]`
+### `teleport`
 
 (!docs/pages/includes/plugins/config-toml-teleport.mdx!)
 
-### `[jira]`
+### `jira`
+
+<Tabs>
+<TabItem label="Executable">
 
 Assign `url` to the URL of your Jira tenant, e.g.,
 `https://[your-jira].atlassian.net`, `username` to the username you were logged
@@ -437,10 +435,26 @@ in as when you created your API token, and `api_token` to the API token you
 retrieved earlier. Also assign `project` to the project key for your project,
 which in our case is `TAR`.
 
-You can leave `issue_type` as `Task` ore remove the field, as `Task` is the
+You can leave `issue_type` as `Task` or remove the field, as `Task` is the
 default.
+</TabItem>
+<TabItem label="Helm Chart">
 
-### `[http]`
+Assign `url` to the URL of your Jira tenant, e.g.,
+`https://[your-jira].atlassian.net`, `username` to the username you were logged
+in as when you created your API token, and `apiToken` to the API token you
+retrieved earlier. Also assign `project` to the project key for your project,
+which in our case is `TAR`.
+
+You can leave `issueType` as `Task` or remove the field, as `Task` is the
+default.
+</TabItem>
+</Tabs>
+
+### `http`
+
+<Tabs>
+<TabItem label="Executable">
 
 The `[http]` setting block describes how the plugin's webhook works. 
 
@@ -455,9 +469,20 @@ added to the DNS A record you created earlier.
 generated earlier via Caddy. Use the following values, replacing `example.com`
 with the domain name you created for the plugin earlier:
 
-
 - `https_key_file`: `/var/teleport-jira/tls/certificates/acme-v02.api.letsencrypt.org-directory/example.com/example.com.key`
 - `https_cert_file`: `/var/teleport-jira/tls/certificates/acme-v02.api.letsencrypt.org-directory/example.com/example.com.crt`
+
+</TabItem>
+<TabItem label="Helm Chart">
+
+The `http` setting block describes how the plugin's webhook works. 
+
+`publicAddress` is the public address of your webhook. This is the domain name you
+added to the DNS A record you created earlier.
+
+`tlsKeySecretPath` and `tlsCertSecretPath` correspond to the name of the TLS key and certificate inside the secret you created earlier.
+</TabItem>
+</Tabs>
 
 The final configuration will resemble the following:
 
@@ -471,12 +496,13 @@ The final configuration will resemble the following:
 </TabItem>
 <TabItem label="Helm Chart" >
 
-Create a file called `values.yaml` with the following content, which configures
-the Helm chart for the plugin. It should resemble the following:
-
 ```yaml
 (!examples/resources/plugins/teleport-jira-helm-cloud.yaml!)
 ```
+
+{/* TODO: Move the secret creation instructions elsewhere, since the
+section of this guide re: configuring the Helm chart already refers to the
+identity file secret*/}
 
 Use the following command to create the Kubernetes secret referenced in the
 values file from the identity file you generated earlier:
