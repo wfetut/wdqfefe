@@ -281,32 +281,29 @@ ACME-HTTP01 challenge, to prove that you have control over your domain name.
 Next, create a cert-manager `Certificate` resource. Add the following to a file
 called `certificate.yaml`:
 
-{/* TODO: Fill in the template below, which I copied from the teleport-cluster
-Helm chart*/} 
-
 ```yaml
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ .Release.Name }}
-  namespace: {{ .Release.Namespace }}
-  labels: {{- include "teleport-cluster.proxy.labels" . | nindent 4 }}
+  name: teleport-plugin-jira
+  namespace: teleport 
 spec:
   secretName: teleport-tls
-  {{- if $proxy.highAvailability.certManager.addCommonName }}
-  commonName: {{ quote $domain }}
-  {{- end }}
   dnsNames:
-  - {{ quote $domain }}
-  - {{ quote $domainWildcard }}
+  - "example.com"
   issuerRef:
-    name: {{ required "highAvailability.certManager.issuerName is required in chart values" $proxy.highAvailability.certManager.issuerName }}
-    kind: {{ required "highAvailability.certManager.issuerKind is required in chart values" $proxy.highAvailability.certManager.issuerKind }}
-    group: {{ required "highAvailability.certManager.issuerGroup is required in chart values" $proxy.highAvailability.certManager.issuerGroup }}
-  {{- with $proxy.annotations.certSecret }}
-  secretTemplate:
-    annotations: {{- toYaml . | nindent 6 }}
-  {{- end }}
+    name: letsencrypt-production
+    kind: Issuer
+    group: cert-manager.io
+```
+
+Replace `example.com` in the `dnsNames` section with the domain name you plan to
+use for the Jira webhook.
+
+Create the certificate:
+
+```code
+$ kubectl apply -f certificate.yaml
 ```
 
 </TabItem>
