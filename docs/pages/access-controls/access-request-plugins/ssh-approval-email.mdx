@@ -36,21 +36,6 @@ in your Teleport cluster.
 
 ## Step 2/7. Install the Teleport email plugin
 
-<ScopedBlock scope={["enterprise", "oss"]}>
-
-We recommend installing Teleport plugins on the same host as the Teleport Proxy
-Service. This is an ideal location as plugins have a low memory footprint, and
-will require both public internet access and Teleport Auth Service access. 
-
-</ScopedBlock>
-
-<ScopedBlock scope="cloud">
-
-Install the Teleport email plugin on a host that can access both your
-Teleport Cloud tenant and your SMTP service.
-
-</ScopedBlock>
-
 <Details title="Using a local SMTP server?">
 
 If you are using a local SMTP server to test the plugin, you should install the
@@ -62,41 +47,7 @@ the plugin dials out to the Proxy Service or Auth Service.
 
 </Details>
 
-We currently only provide Linux amd64 binaries. You can also compile the plugin
-from source.
-
-<Tabs>
-<TabItem label="Download">
-  ```code
-  $ curl -L https://get.gravitational.com/teleport-access-email-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ tar -xzf teleport-access-email-v(=teleport.version=)-linux-amd64-bin.tar.gz
-  $ cd teleport-access-email
-  $ ./install
-  ```
-</TabItem>
-<TabItem label="From Source">
-
-  To install from source you need `git` and `go` installed. If you do not have
-  Go installed, visit the Go [downloads page](https://go.dev/dl/).
-
-  ```code
-  # Checkout teleport-plugins
-  $ git clone https://github.com/gravitational/teleport-plugins.git
-  $ cd teleport-plugins/access/email
-  $ make
-  ```
-
-  Move the `teleport-email` binary from `teleport-plugins/access/email/build`
-  into a directory in your `PATH`.
-
-</TabItem>
-</Tabs>
-
-Ensure that the plugin is installed correctly:
-
-```code
-$ teleport-email version
-```
+(!docs/pages/includes/plugins/install-access-request.mdx name="email"!)
 
 ## Step 3/7. Create a user and role for the plugin
 
