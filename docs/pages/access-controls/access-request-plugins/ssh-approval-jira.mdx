@@ -379,8 +379,9 @@ sidebar, then **Create custom field**. Add a **Short Text** field named
 associate that field with this screen. Click **Update**.
 
 Next, add the custom field to your Teleport Access Requests project. Click
-**Project settings**. Click **Issues** -> **Types** on the left sidebar, then
-click **Task**. Find the dropdown menu called **Select Field**, then select the
+**Projects** > **Teleport Access Requests (TAR)**, then **Project settings**.
+Click **Issues** -> **Types** on the left sidebar, then click **Task** >
+**Fields**. Find the dropdown menu called **Select Field**, then select the
 `teleportAccessRequestId` field you added earlier.
 
 ### Retrieve your Jira API token
@@ -399,8 +400,8 @@ Now that you have generated an API key that the Teleport Jira plugin will use to
 manage your project, enable Jira to notify the Teleport Jira plugin when your
 project is updated by creating a webhook.
 
-Click the gear menu on the upper right of the screen. Click **System** ->
-**WebHooks** -> **Create a WebHook**. 
+Return to Jira. Click the gear menu on the upper right of the screen. Click
+**System** -> **WebHooks** -> **Create a WebHook**. 
 
 Enter "Teleport Access Request Plugin" in the "Name" field. In the "URL" field,
 enter the domain name you created for the plugin earlier, plus port `8081`.
@@ -412,12 +413,11 @@ Click **Create**.
 
 ## Step 6/8. Configure the plugin
 
-At this point, you have retrieved credentials that the Jira plugin will use to
-connect to Teleport and the Jira API. You will now configure the plugin to use
-these credentials and run the Jira webhook at the address you configured
-earlier.
+Earlier, you retrieved credentials that the Jira plugin will use to connect to
+Teleport and the Jira API. You will now configure the plugin to use these
+credentials and run the Jira webhook at the address you configured earlier.
 
-The Teleport email plugin uses a config file in TOML format. On the host where
+The Teleport Jira plugin uses a config file in TOML format. On the host where
 you will run the Jira plugin, generate a boilerplate config by running the
 following command:
 
@@ -475,11 +475,20 @@ the guide, you can leave this option unset.
 added to the DNS A record you created earlier.
 
 `key_file` and `cert_file` correspond to the private key and certificate you
-generated earlier via Caddy. Use the following values, replacing `example.com`
-with the domain name you created for the plugin earlier:
+generated earlier via Caddy. Use the following values, assigning <Var
+name="example.com" /> to the domain name you created for the plugin earlier:
 
-- `https_key_file`: `/var/teleport-jira/tls/certificates/acme-v02.api.letsencrypt.org-directory/example.com/example.com.key`
-- `https_cert_file`: `/var/teleport-jira/tls/certificates/acme-v02.api.letsencrypt.org-directory/example.com/example.com.crt`
+**https_key_file:** 
+
+```code
+$ /var/teleport-jira/tls/certificates/acme-v02.api.letsencrypt.org-directory/<Var name="example.com" />/<Var name="example.com" />.key
+```
+
+**https_cert_file:** 
+
+```code
+$ /var/teleport-jira/tls/certificates/acme-v02.api.letsencrypt.org-directory/<Var name="example.com" />/<Var name="example.com" />.crt
+```
 
 </TabItem>
 <TabItem label="Helm Chart">
@@ -520,7 +529,9 @@ Jira-based Access Request flow:
 <Tabs>
 <TabItem label="Executable" scopes={["oss", "enterprise", "cloud"]}>
 ```code
-$ teleport-jira start
+$ sudo teleport-jira start
+INFO   Starting Teleport Jira Plugin 12.1.1: jira/app.go:112
+INFO   Plugin is ready jira/app.go:142
 ```
 </TabItem>
 <TabItem label="Helm Chart" scopes={["oss", "enterprise", "cloud"]}>
@@ -535,11 +546,13 @@ $ helm install teleport-plugin-jira teleport/teleport-plugin-jira \
 ### Check the status of the webhook
 
 Confirm that the Jira webhook has started serving by sending a GET request to
-the `/status` endpoint.
+the `/status` endpoint. If the webhook is running, it will return a `200` status
+code with no document body:
 
-{/* TODO: Show how to do this*/}
-
-If the webhook returns a `200` status, it measn that the webhook is running.
+```code
+$ curl -v https://<Var name="example.com" />:8081/status 2>&1 | grep "^< HTTP/2"
+< HTTP/2 200
+```
 
 ### Create an Access Request
 
