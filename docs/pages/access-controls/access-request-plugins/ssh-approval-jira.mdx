@@ -556,12 +556,13 @@ $ curl -v https://<Var name="example.com" />:8081/status 2>&1 | grep "^< HTTP/2"
 
 ### Create an Access Request
 
+Sign in to your cluster as the `myuser` user you created earlier and create an
+Access Request:
+
 (!docs/pages/includes/plugins/create-request.mdx!)
 
 When you create the request, you will see a new task in the "Pending" column of
 the Teleport Access Requests board:
-
-{/* TODO: Retake this screenshot with the correct setup*/}
 
 ![New Access Request](../../../img/enterprise/plugins/jira/new-request.png)
 
