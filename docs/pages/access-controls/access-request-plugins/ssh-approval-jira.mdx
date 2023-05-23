@@ -34,12 +34,15 @@ proxy<--Forwarded gRPC traffic-->auth
 
 - A Jira account with permissions to create applications and webhooks.
 
+- A registered domain name for the Jira webhook. Jira notifies the webhook of
+  changes in your project board.
+
 - An environment on AWS or Google Cloud where you will run the Jira plugin. This
   is either:
 
-  - A Linux virtual machine with port `80` and `8081` open, plus a means of
-  accessing the host (e.g., OpenSSH with an SSH port exposed to your
-  workstation). 
+  - A Linux virtual machine with ports `80` and `8081` open, plus a means of
+    accessing the host (e.g., OpenSSH with an SSH port exposed to your
+    workstation). 
 
   - A Kubernetes cluster.
 
@@ -65,51 +68,23 @@ access both your Teleport Cloud tenant and the Jira API. The installation
 instructions depend on whether you are installing the plugin as a binary or on
 Kubernetes via Helm: 
 
-<Tabs>
-<TabItem label="Download">
-  ```code
-  $ curl -L -O https://get.gravitational.com/teleport-access-jira-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-  $ tar -xzf teleport-access-jira-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-  $ cd teleport-access-jira
-  $ sudo ./install
-  ```
-</TabItem>
-<TabItem label="From Source">
-  To install from source you need `git` and `go` installed. If you do not have Go installed, visit the Go [downloads page](https://go.dev/dl/).
-
-  ```code
-  # Checkout teleport-plugins
-  $ git clone https://github.com/gravitational/teleport-plugins.git
-  $ cd teleport-plugins/access/jira
-  $ make
-  ```
-Run `./install` from `teleport-jira` or place the executable in `/usr/bin` or `/usr/local/bin` on the server installation.
-</TabItem>
-<TabItem label="Helm Chart">
-  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
-</TabItem>
-</Tabs>
+(!docs/pages/includes/plugins/install-access-request.mdx name="jira"!)
 
 ## Step 3/8. Set up HTTPS for the plugin
 
 The Jira Access Request plugin serves a Jira webhook, which Jira notifies when
 there are any changes in your Jira project (e.g., a user moves a task from one
-column to another). When a change has to do with an Access Request, the Jira
-plugin updates your project board and applies changes to Access Requests in
-Teleport.
+column to another).
 
 Jira requires webhooks to use HTTPS, which prevents third parties from
 intercepting data about your Jira project and Teleport cluster. To enable HTTPS
 on your Jira plugin, we will fetch TLS credentials from Let's Encrypt. 
 
-### Create a domain name for the webhook
+### Create a DNS record for the webhook
 
 Jira will need to access your webhook over the public internet, so you will need
-to assign a domain name to your webhook. Create a DNS record that associates
-your domain name with the Jira webhook.
-
-{/* TODO: How to find the value of the DNS record?* After that, add a simple
-table of DNS record types and values*/}
+to assign a domain name to your webhook. Create a DNS `A` record that associates
+your domain name with the IP address of your Jira webhook.
 
 ### Set up TLS credentials for the webhook
 
@@ -128,10 +103,10 @@ managing TLS credentials, and that is the system you should use in production.
 <Tabs>
 <TabItem label="Executable">
 
-We will use Caddy to run a webserver to communicate with Let's Encrypt and
-manage TLS credentials. Caddy is an open source webserver with automatic HTTPS
-provisioning functionality. We will use it only to provide a TLS key and
-certificate to the Jira plugin.
+Use Caddy to run a webserver to communicate with Let's Encrypt and manage TLS
+credentials. Caddy is an open source webserver with automatic HTTPS provisioning
+functionality. We will use it only to provide a TLS key and certificate to the
+Jira plugin.
 
 Install Caddy on the host where you will run the plugin. For example, run the
 following commands on Debian or Ubuntu hosts:
@@ -194,7 +169,8 @@ $ sudo caddy run --config /etc/caddy/Caddyfile
 </Details>
 
 Caddy will fetch credentials from Let's Encrypt automatically and place them in
-`/var/teleport-jira/tls`. Your Caddy logs should be similar to the following:
+`/var/teleport-jira/tls`. After a minute or so, your Caddy logs should be
+similar to the following:
 
 ```code
 $ sudo journalctl -u caddy | grep "success"
@@ -207,12 +183,23 @@ Aug 26 17:04:27 ip-000-000-000-000 caddy[17719]:
 obtained successfully","identifier":"example.com"}
 ```
 
-You can find your credentials at the following paths, where `example.com` is the
-domain name you created earlier:
+If you don't see these logs, try viewing all logs for the `caddy` service:
 
-- `/var/teleport-jira/tls/certificates/acme-v02.api.letsencrypt.org-directory/example.com/example.com.crt`
-- `/var/teleport-jira/tls/certificates/acme-v02.api.letsencrypt.org-directory/example.com/example.com.key`
+```code
+$ sudo journalctl -u caddy
+```
 
+If Let's Encrypt cannot reach the Teleport Jira plugin on port `80`, you will
+see error messages in the logs.
+
+Find your credentials, replacing <Var name="example.com" /> with the domain name
+you are using for the Jira webhook:
+
+```code
+$ sudo find /var/teleport-jira/tls/certificates/acme-v02.api.letsencrypt.org-directory/<Var name="example.com" /> -name "*.crt" -or -name "*.key"
+/var/teleport-jira/tls/certificates/acme-v02.api.letsencrypt.org-directory/example.com/example.com.crt
+/var/teleport-jira/tls/certificates/acme-v02.api.letsencrypt.org-directory/example.com/example.com.key
+```
 </TabItem>
 <TabItem label="Helm Chart">
 
