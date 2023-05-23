@@ -300,7 +300,7 @@ spec:
 </TabItem>
 </Tabs>
 
-## Step 5/8. Export the access plugin identity
+## Step 4/8. Export the access plugin identity
 
 <Tabs>
 <TabItem label="Executable">
@@ -322,12 +322,12 @@ kubectl create secret generic teleport-plugin-jira-identity --from-file=auth_id=
 </TabItem>
 </Tabs>
 
-## Step 6/8. Set up a Jira project
+## Step 5/8. Set up a Jira project
 
-The Teleport Jira plugin assumes that you have created a project where it can
-post tasks when a Teleport user creates an Access Request. The plugin then uses
-the Jira webhook to monitor the state of the board and respond to any changes in
-the tickets it creates.
+In this section, you will create a Jira a project that the Teleport plugin can
+modify when a Teleport user creates or updates an Access Request. The plugin
+then uses the Jira webhook to monitor the state of the board and respond to any
+changes in the tickets it creates.
 
 ### Create a project for managing Access Requests
 
@@ -337,10 +337,12 @@ project**. Select **Kanban** for the template, then **Use template**. Click
 
 You'll see a screen where you can enter a name for your project. In this guide,
 we will assume that your project is called "Teleport Access Requests", which
-receives the key `TAR` by default. Click **Create project**. 
+receives the key `TAR` by default. 
+
+Unset "Connect repositories, documents, and more", then click **Next**.
 
 In the three-dots menu on the upper right of your new board, click **Board
-settings**, then click **Columns**. Edit the columns in your board so it
+settings**, then click **Columns**. Edit the statuses in your board so it
 contains the following four:
 
 1. Pending
@@ -348,17 +350,17 @@ contains the following four:
 1. Denied
 1. Expired
 
+Create a column with the same name as each status. The result should be the
+following:
+
+![Jira board setup](../../../img/enterprise/plugins/jira/board-setup.png)
+
 <Notice type="warning">
 
 If your project board does not contain these (and only these) columns, the Jira
 Access Request plugin will behave in unexpected ways.
 
 </Notice>
-
-Teleport's Jira plugin will create a new issue for each new permission request
-in the first available column on the board. When you drag the request task to
-the Approved column in Jira, the request will be approved. If you drag the
-request task to the Denied column in Jira, the request will be denied.
 
 Click **Back to board** to review your changes.
 
@@ -408,7 +410,7 @@ deleted. You can leave all the other boxes empty.
 
 Click **Create**.
 
-## Step 7/8. Configure the plugin
+## Step 6/8. Configure the plugin
 
 At this point, you have retrieved credentials that the Jira plugin will use to
 connect to Teleport and the Jira API. You will now configure the plugin to use
@@ -510,7 +512,7 @@ The final configuration will resemble the following:
 </TabItem>
 </Tabs>
 
-## Step 8/8. Test the Jira plugin
+## Step 7/8. Test the Jira plugin
 
 After finishing your configuration, you can now run the plugin and test your
 Jira-based Access Request flow:
@@ -567,7 +569,7 @@ Request Reviewed` in the Teleport Web UI.
 
 </Admonition>
 
-## Step 9/9. Set up systemd
+## Step 8/8. Set up systemd
 
 In production, we recommend starting the Teleport plugin daemon via an init
 system like systemd. Here's the recommended Teleport plugin service unit file
