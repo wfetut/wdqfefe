@@ -45,14 +45,20 @@ proxy<--Forward gRPC traffic-->auth
 
 - (!/docs/pages/includes/tctl.mdx!)
 
-## Step 1/9. Define RBAC resources
+## Step 1/8. Define RBAC resources
+
+### Enable Role Access Requests
 
 Before you set up the Jira plugin, you will need to enable Role Access Requests
 in your Teleport cluster.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
-## Step 2/9. Install the Teleport Jira plugin
+### Create a user and role for the plugin
+
+(!docs/pages/includes/plugins/rbac.mdx!)
+
+## Step 2/8. Install the Teleport Jira plugin
 
 Install the Teleport Jira plugin following the instructions below, which depend
 on whether you are deploying the plugin on a host (e.g., an EC2 instance) or a
@@ -101,7 +107,7 @@ Run `./install` from `teleport-jira` or place the executable in `/usr/bin` or `/
 </TabItem>
 </Tabs>
 
-## Step 3/9. Set up HTTPS for the plugin
+## Step 3/8. Set up HTTPS for the plugin
 
 The Jira Access Request plugin serves a Jira webhook, which Jira notifies when
 there are any changes in your Jira project (e.g., a user moves a task from one
@@ -324,11 +330,7 @@ spec:
 </TabItem>
 </Tabs>
 
-## Step 4/9. Create a user and role for the plugin
-
-(!docs/pages/includes/plugins/rbac.mdx!)
-
-## Step 5/9. Export the access plugin identity
+## Step 5/8. Export the access plugin identity
 
 <Tabs>
 <TabItem label="Executable">
@@ -350,7 +352,7 @@ kubectl create secret generic teleport-plugin-jira-identity --from-file=auth_id=
 </TabItem>
 </Tabs>
 
-## Step 6/9. Set up a Jira project
+## Step 6/8. Set up a Jira project
 
 The Teleport Jira plugin assumes that you have created a project where it can
 post tasks when a Teleport user creates an Access Request. The plugin then uses
@@ -436,7 +438,7 @@ deleted. You can leave all the other boxes empty.
 
 Click **Create**.
 
-## Step 7/9. Configure the plugin
+## Step 7/8. Configure the plugin
 
 At this point, you have retrieved credentials that the Jira plugin will use to
 connect to Teleport and the Jira API. You will now configure the plugin to use
@@ -538,7 +540,7 @@ The final configuration will resemble the following:
 </TabItem>
 </Tabs>
 
-## Step 8/9. Test the Jira plugin
+## Step 8/8. Test the Jira plugin
 
 After finishing your configuration, you can now run the plugin and test your
 Jira-based Access Request flow:
