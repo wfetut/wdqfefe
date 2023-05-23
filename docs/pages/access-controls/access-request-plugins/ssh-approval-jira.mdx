@@ -440,6 +440,9 @@ Earlier, you retrieved credentials that the Jira plugin will use to connect to
 Teleport and the Jira API. You will now configure the plugin to use these
 credentials and run the Jira webhook at the address you configured earlier.
 
+<Tabs>
+<TabItem label="Executable">
+
 The Teleport Jira plugin uses a config file in TOML format. On the host where
 you will run the Jira plugin, generate a boilerplate config by running the
 following command:
@@ -454,12 +457,17 @@ each value below.
 
 ### `teleport`
 
-(!docs/pages/includes/plugins/config-toml-teleport.mdx!)
+**`addr`**: Include the hostname and HTTPS port of your Teleport Proxy Service
+or Teleport Enterprise Cloud tenant (e.g., `teleport.example.com:443` or
+`mytenant.teleport.sh:443`).
+
+**`identity`**: Fill this in with the path to the identity file you exported
+earlier.
+
+**`client_key`**, **`client_crt`**, **`root_cas`**: Comment these out, since we
+are not using them in this configuration.
 
 ### `jira`
-
-<Tabs>
-<TabItem label="Executable">
 
 Assign `url` to the URL of your Jira tenant, e.g.,
 `https://[your-jira].atlassian.net`, `username` to the username you were logged
@@ -469,24 +477,8 @@ which in our case is `TAR`.
 
 You can leave `issue_type` as `Task` or remove the field, as `Task` is the
 default.
-</TabItem>
-<TabItem label="Helm Chart">
-
-Assign `url` to the URL of your Jira tenant, e.g.,
-`https://[your-jira].atlassian.net`, `username` to the username you were logged
-in as when you created your API token, and `apiToken` to the API token you
-retrieved earlier. Also assign `project` to the project key for your project,
-which in our case is `TAR`.
-
-You can leave `issueType` as `Task` or remove the field, as `Task` is the
-default.
-</TabItem>
-</Tabs>
 
 ### `http`
-
-<Tabs>
-<TabItem label="Executable">
 
 The `[http]` setting block describes how the plugin's webhook works. 
 
@@ -516,12 +508,38 @@ $ /var/teleport-jira/tls/certificates/acme-v02.api.letsencrypt.org-directory/<Va
 </TabItem>
 <TabItem label="Helm Chart">
 
+Create a file called `values.yaml` on your workstation. We will show you how to
+set each value below.
+
+### `teleport` 
+
+**`address`**: Include the hostname and HTTPS port of your Teleport Proxy Service
+or Teleport Enterprise Cloud tenant (e.g., `teleport.example.com:443` or
+`mytenant.teleport.sh:443`).
+
+**`identitySecretName`**: Fill in the `identitySecretName` field with the name
+of the Kubernetes secret you created earlier.
+
+### `jira`
+
+Assign `url` to the URL of your Jira tenant, e.g.,
+`https://[your-jira].atlassian.net`, `username` to the username you were logged
+in as when you created your API token, and `apiToken` to the API token you
+retrieved earlier. Also assign `project` to the project key for your project,
+which in our case is `TAR`.
+
+You can leave `issueType` as `Task` or remove the field, as `Task` is the
+default.
+
+### `http`
+
 The `http` setting block describes how the plugin's webhook works. 
 
 `publicAddress` is the public address of your webhook. This is the domain name you
 added to the DNS A record you created earlier.
 
 `tlsKeySecretPath` and `tlsCertSecretPath` correspond to the name of the TLS key and certificate inside the secret you created earlier.
+
 </TabItem>
 </Tabs>
 
