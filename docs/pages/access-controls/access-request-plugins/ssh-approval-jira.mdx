@@ -7,25 +7,25 @@ This guide will explain how to set up the Teleport Access Request plugin for
 Jira. Teleport's Jira integration allows you to manage Teleport Access Requests
 as Jira issues.
 
-After installing the Jira plugin, you create a Jira project board to organize
-your Access Requests, and the Jira plugin performs a two-way synchronization
-between the project board and the Access Requests processed by your Teleport
-cluster. When you change the status of an Access Request within Teleport, the
-plugin updates the board. And when you update the status of an Access Request on
-the board, the plugin updates the Access Request in Teleport.
+The Jira plugin performs a two-way synchronization between a dedicated project
+board and the Access Requests processed by your Teleport cluster. When you
+change the status of an Access Request within Teleport, the plugin updates the
+board. And when you update the status of an Access Request on the board, the
+plugin updates the Access Request in Teleport.
 
 ```mermaid
 flowchart LR
 subgraph teleport[Teleport cluster]
-  proxy[Teleport Proxy Service]
-  auth[Teleport Auth Service]
+  proxy[Proxy Service]
+  auth[Auth Service]
 end
 
 plugin[Jira Access Request plugin]
-jira[Jira API]-- "Receive Jira updates\n(via webhook)"-->plugin
-plugin--Receive Access Request events-->proxy
-plugin--Update project board-->jira
-proxy<--Forward gRPC traffic-->auth
+jira[Jira API]-- "Jira updates\n(via webhook)"-->plugin
+proxy--Access Request events-->plugin
+plugin--Access Request updates-->proxy
+plugin--Project board updates-->jira
+proxy<--Forwarded gRPC traffic-->auth
 ```
 
 ## Prerequisites
@@ -60,27 +60,10 @@ in your Teleport cluster.
 
 ## Step 2/8. Install the Teleport Jira plugin
 
-Install the Teleport Jira plugin following the instructions below, which depend
-on whether you are deploying the plugin on a host (e.g., an EC2 instance) or a
-Kubernetes cluster.
-
-<ScopedBlock scope={["enterprise", "oss"]}>
-
-We recommend installing Teleport plugins on the same host as the Teleport Proxy
-Service. This is an ideal location as plugins have a low memory footprint, and
-will require both public internet access and Teleport Auth Service access. 
-
-If you are deploying on Kubernetes, we recommend installing the Jira plugin in
-the same Kubernetes cluster as the Teleport Proxy Service so the two services
-can share TLS credentials.
-
-</ScopedBlock>
-<ScopedBlock scope="cloud">
-
 Install the Teleport Jira plugin on a host (or in a Kubernetes cluster) that can
-access both your Teleport Cloud tenant and Jira.
-
-</ScopedBlock>
+access both your Teleport Cloud tenant and the Jira API. The installation
+instructions depend on whether you are installing the plugin as a binary or on
+Kubernetes via Helm: 
 
 <Tabs>
 <TabItem label="Download">
