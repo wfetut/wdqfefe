@@ -256,7 +256,7 @@ spec:
     email: email@address.com                                # Change this
     server: https://acme-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
-      name: teleport-plugin-jira-tls
+      name: teleport-plugin-jira-acme
     solvers:
     - http01:
         ingress:
@@ -277,34 +277,8 @@ $ kubectl create -f issuer.yaml
 `cert-manager` will create a new Kubernetes `Ingress` resource, and the `nginx`
 controller will expose a web server that Let's Encrypt will use, via the
 ACME-HTTP01 challenge, to prove that you have control over your domain name.
-
-Next, create a cert-manager `Certificate` resource. Add the following to a file
-called `certificate.yaml`:
-
-```yaml
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: teleport-plugin-jira
-  namespace: teleport 
-spec:
-  secretName: teleport-tls
-  dnsNames:
-  - "example.com"
-  issuerRef:
-    name: letsencrypt-production
-    kind: Issuer
-    group: cert-manager.io
-```
-
-Replace `example.com` in the `dnsNames` section with the domain name you plan to
-use for the Jira webhook.
-
-Create the certificate:
-
-```code
-$ kubectl apply -f certificate.yaml
-```
+When we spin up the Teleport Jira plugin later in the guide, we will request a
+certificate for the webhook.
 
 </TabItem>
 </Tabs>
@@ -322,10 +296,11 @@ $ kubectl apply -f certificate.yaml
 (!docs/pages/includes/plugins/identity-export.mdx user="access-plugin"!)
 
 Use the following command to create the Kubernetes secret referenced in the
-values file from the identity file you generated earlier:
+values file from the identity file you generated earlier. We will store all
+resources related to the Teleport Jira plugin in the `teleport` namespace:
 
 ```code
-$ kubectl create secret generic teleport-plugin-jira-identity --from-file=auth_id=auth.pem
+$ kubectl -n teleport create secret generic teleport-plugin-jira-identity --from-file=auth_id=auth.pem
 ```
 
 </TabItem>
@@ -412,8 +387,20 @@ project is updated by creating a webhook.
 Return to Jira. Click the gear menu on the upper right of the screen. Click
 **System** > **WebHooks** > **Create a WebHook**. 
 
+<Tabs>
+<TabItem label="Executable">
+
 Enter "Teleport Access Request Plugin" in the "Name" field. In the "URL" field,
 enter the domain name you created for the plugin earlier, plus port `8081`.
+
+</TabItem>
+<TabItem label="Helm Chart">
+
+Enter "Teleport Access Request Plugin" in the "Name" field. In the "URL" field,
+enter the domain name you created for the plugin earlier, plus port `443`.
+
+</TabItem>
+</Tabs>
 
 The webhook needs to be notified only when an issue is created, updated, or
 deleted. You can leave all the other boxes empty.
@@ -525,8 +512,10 @@ The `http` setting block describes how the plugin's webhook works.
 you created for your webhook. (We will create a DNS record for this domain name
 later.)
 
-`tlsFromSecret` is the name of the Kubernetes secret containing TLS credentials
-for the webhook: `teleport-plugin-jira-tls`.
+`tlsFromSecret` is the name of a Kubernetes secret containing TLS credentials
+for the webhook. Use `teleport-plugin-jira-webhook`. We will create a
+`Certificate` resource later that will populate this secret with TLS
+credentials.
 
 </TabItem>
 </Tabs>
@@ -550,7 +539,7 @@ The final configuration will resemble the following:
 </TabItem>
 </Tabs>
 
-## Step 7/8. Test the Jira plugin
+## Step 7/8. Run the Jira plugin
 
 After finishing your configuration, you can now run the plugin and test your
 Jira-based Access Request flow:
@@ -565,13 +554,18 @@ INFO   Plugin is ready jira/app.go:142
 </TabItem>
 <TabItem label="Helm Chart" scopes={["oss", "enterprise", "cloud"]}>
 
+### Install the plugin's Helm chart
+
 Install the Helm chart for the Teleport Jira plugin:
 
 ```code
 $ helm install teleport-plugin-jira teleport/teleport-plugin-jira \
+  --namespace teleport \
   --values values.yaml \
   --version (=teleport.plugin.version=)
 ```
+
+### Create a DNS record for the webhook
 
 At this point, neither Let's Encrypt nor Jira will be able to reach the Jira
 webhook. Create a DNS record that associates the webhook's domain name with the
@@ -580,9 +574,10 @@ address of the Kubernetes load balancer created by the Helm chart.
 See whether the load balancer has a domain name or IP address:
 
 ```code
+$ kubectl -n teleport get services
 NAME                   TYPE           CLUSTER-IP       EXTERNAL-IP                                                             PORT(S)         AGE
 kubernetes             ClusterIP      10.100.0.1       <none>                                                                  443/TCP         116m
-teleport-plugin-jira   LoadBalancer   10.100.213.245   00000000000000000000000000000000000000000.us-west-2.elb.amazonaws.com   443:30720/TCP   53s
+teleport-plugin-jira   LoadBalancer   10.100.213.245   abc123.us-west-2.elb.amazonaws.com   443:30720/TCP   53s
 ```
 
 If the `EXTERNAL-IP` field has a domain name for the value, create a `CNAME`
@@ -591,6 +586,36 @@ the load balancer.
 
 If the `EXTERNAL-IP` field's value is an IP address, create a DNS `A` record
 instead.
+
+### Request a certificate
+
+To request a certificate for the Teleport Jira plugin, creatge a cert-manager
+`Certificate` resource. Add the following to a file called `certificate.yaml`:
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: teleport-plugin-jira-webhook
+  namespace: teleport 
+spec:
+  secretName: teleport-plugin-jira-webhook
+  dnsNames:
+  - "example.com"
+  issuerRef:
+    name: teleport-plugin-jira-tls
+    kind: Issuer
+    group: cert-manager.io
+```
+
+Replace `example.com` in the `dnsNames` section with the domain name you plan to
+use for the Jira webhook.
+
+Create the certificate:
+
+```code
+$ kubectl apply -f certificate.yaml
+```
 
 </TabItem>
 </Tabs>
@@ -601,10 +626,24 @@ Confirm that the Jira webhook has started serving by sending a GET request to
 the `/status` endpoint. If the webhook is running, it will return a `200` status
 code with no document body:
 
+<Tabs>
+<TabItem label="Executable">
+
 ```code
 $ curl -v https://<Var name="example.com" />:8081/status 2>&1 | grep "^< HTTP/2"
 < HTTP/2 200
 ```
+
+</TabItem>
+<TabItem label="Helm Chart">
+
+```code
+$ curl -v https://<Var name="example.com" />:443/status 2>&1 | grep "^< HTTP/2"
+< HTTP/2 200
+```
+
+</TabItem>
+</Tabs>
 
 ### Create an Access Request
 
