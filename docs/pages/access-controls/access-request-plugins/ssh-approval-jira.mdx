@@ -260,7 +260,7 @@ spec:
     solvers:
     - http01:
         ingress:
-          class: nginx
+          ingressClassName: nginx
 ```
 
 Replace `email@address.com` with an email address you will use to receive Let's
@@ -513,7 +513,7 @@ you created for your webhook. (We will create a DNS record for this domain name
 later.)
 
 `tlsFromSecret` is the name of a Kubernetes secret containing TLS credentials
-for the webhook. Use `teleport-plugin-jira-webhook`. We will create a
+for the webhook. Use `teleport-plugin-jira-tls`. We will create a
 `Certificate` resource later that will populate this secret with TLS
 credentials.
 
@@ -596,10 +596,10 @@ To request a certificate for the Teleport Jira plugin, creatge a cert-manager
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: teleport-plugin-jira-webhook
+  name: teleport-plugin-jira-tls
   namespace: teleport 
 spec:
-  secretName: teleport-plugin-jira-webhook
+  secretName: teleport-plugin-jira-tls
   dnsNames:
   - "example.com"
   issuerRef:
