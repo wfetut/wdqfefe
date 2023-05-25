@@ -614,20 +614,6 @@
             {
               "title": "Terraform Provider",
               "slug": "/management/dynamic-configuration/terraform-provider/"
-            }
-	  ]
-	},
-	{
-	  "title": "Using Dynamic Configuration Resources",
-	  "slug": "/management/dynamic-configuration/",
-	  "entries": [            
-	    {
-              "title": "Kubernetes Operator (Preview)",
-              "slug": "/management/dynamic-configuration/teleport-operator/"
-            },
-            {
-              "title": "Terraform Provider",
-              "slug": "/management/dynamic-configuration/terraform-provider/"
             },
 	    {
 	      "title": "Spacelift",
