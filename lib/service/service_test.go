@@ -646,6 +646,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch-ping",
 				"teleport-opensearch-ping",
 				"teleport-dynamodb-ping",
+				"teleport-clickhouse-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
 				"teleport-auth@",
@@ -664,6 +665,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch",
 				"teleport-opensearch",
 				"teleport-dynamodb",
+				"teleport-clickhouse",
 			},
 		},
 		{
@@ -682,6 +684,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch-ping",
 				"teleport-opensearch-ping",
 				"teleport-dynamodb-ping",
+				"teleport-clickhouse-ping",
 				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
 				"h2",
@@ -703,6 +706,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-elasticsearch",
 				"teleport-opensearch",
 				"teleport-dynamodb",
+				"teleport-clickhouse",
 			},
 		},
 	}

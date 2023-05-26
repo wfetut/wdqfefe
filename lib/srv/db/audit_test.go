@@ -223,12 +223,6 @@ func TestAuditClickHouseHTTP(t *testing.T) {
 
 	testCtx.createUserAndRole(ctx, t, "admin", "admin", []string{"admin"}, []string{types.Wildcard})
 
-	t.Run("access denied", func(t *testing.T) {
-		_, _, err := testCtx.clickhouseHTTPClient(ctx, "admin", defaults.ProtocolClickHouseHTTP, "invalid", "")
-		require.Error(t, err)
-		waitForEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
-	})
-
 	t.Run("successful flow", func(t *testing.T) {
 		conn, proxy, err := testCtx.clickhouseHTTPClient(ctx, "admin", defaults.ProtocolClickHouseHTTP, "admin", "")
 		require.NoError(t, err)
@@ -247,6 +241,12 @@ func TestAuditClickHouseHTTP(t *testing.T) {
 		require.NoError(t, conn.Close())
 		requireEvent(t, testCtx, libevents.DatabaseSessionEndCode)
 	})
+	t.Run("access denied", func(t *testing.T) {
+		_, _, err := testCtx.clickhouseHTTPClient(ctx, "admin", defaults.ProtocolClickHouseHTTP, "invalid", "")
+		require.Error(t, err)
+		waitForEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
+	})
+
 }
 
 func requireEvent(t *testing.T, testCtx *testContext, code string) {

@@ -250,6 +250,7 @@ func MakeDBTestClient(ctx context.Context, config common.TestClientConfig) (*sql
 		Addr:     []string{fmt.Sprintf(config.Address)},
 	})
 	if err := conn.Ping(); err != nil {
+		conn.Close()
 		return nil, trace.Wrap(err)
 	}
 	return conn, nil

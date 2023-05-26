@@ -63,7 +63,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	case defaults.ProtocolClickHouse:
 		return e.handleNativeConnection(ctx, sessionCtx)
 	default:
-		return trace.BadParameter("protocol %d is not supported", protocol)
+		return trace.BadParameter("protocol %s is not supported", protocol)
 	}
 }
 

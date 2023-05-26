@@ -1679,6 +1679,7 @@ func (c *testContext) clickhouseHTTPClient(ctx context.Context, teleportUser, db
 		RouteToDatabase: route,
 	})
 	if err != nil {
+		proxy.Close()
 		return nil, nil, trace.Wrap(err)
 	}
 	return client, proxy, nil
