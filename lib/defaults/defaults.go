@@ -507,7 +507,7 @@ func ReadableDatabaseProtocol(p string) string {
 	case ProtocolClickHouse:
 		return "Clickhouse"
 	case ProtocolClickHouseHTTP:
-		return "ClickhouseHTTP"
+		return "Clickhouse (HTTP)"
 	default:
 		// Unknown protocol. Return original string.
 		return p

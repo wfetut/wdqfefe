@@ -1628,8 +1628,8 @@ func (c *testContext) sqlServerClient(ctx context.Context, teleportUser, dbServi
 	return client, proxy, nil
 }
 
-// clickhouseServerClient connects to the specified ClickHouse Server address.
-func (c *testContext) clickhouseNativeClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*ch.Client, *alpnproxy.LocalProxy, error) {
+// clickHouseNativeClient connects to the specified ClickHouse Server address.
+func (c *testContext) clickHouseNativeClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*ch.Client, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
 		ServiceName: dbService,
 		Protocol:    defaults.ProtocolClickHouse,
@@ -1656,8 +1656,8 @@ func (c *testContext) clickhouseNativeClient(ctx context.Context, teleportUser, 
 	return client, proxy, nil
 }
 
-// clickhouseServerClient connects to the specified ClickHouse Server address.
-func (c *testContext) clickhouseHTTPClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*sql.DB, *alpnproxy.LocalProxy, error) {
+// clickHouseHTTPClient connects to the specified ClickHouse Server address.
+func (c *testContext) clickHouseHTTPClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*sql.DB, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
 		ServiceName: dbService,
 		Protocol:    defaults.ProtocolClickHouseHTTP,
@@ -2319,35 +2319,37 @@ func TestAccessClickHouse(t *testing.T) {
 	clickhouseClientFn := func(protocol string) connectFunc {
 		if protocol == defaults.ProtocolClickHouseHTTP {
 			return func(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (io.Closer, io.Closer, error) {
-				return testCtx.clickhouseHTTPClient(ctx, teleportUser, protocol, dbUser, "master")
+				return testCtx.clickHouseHTTPClient(ctx, teleportUser, protocol, dbUser, "master")
 			}
 		}
 		return func(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (io.Closer, io.Closer, error) {
-			return testCtx.clickhouseNativeClient(ctx, teleportUser, protocol, dbUser, "master")
+			return testCtx.clickHouseNativeClient(ctx, teleportUser, protocol, dbUser, "master")
 		}
 	}
 
 	for _, test := range tests {
 		for _, protocol := range []string{defaults.ProtocolClickHouse, defaults.ProtocolClickHouseHTTP} {
-			t.Run(fmt.Sprintf("%s-%s", protocol, test.desc), func(t *testing.T) {
-				// Create user/role with the requested permissions.
-				testCtx.createUserAndRole(ctx, t, test.teleportUser, test.teleportRole, test.allowDbUsers, []string{types.Wildcard})
+			t.Run(protocol, func(t *testing.T) {
+				t.Run(fmt.Sprintf(test.desc), func(t *testing.T) {
+					// Create user/role with the requested permissions.
+					testCtx.createUserAndRole(ctx, t, test.teleportUser, test.teleportRole, test.allowDbUsers, []string{types.Wildcard})
 
-				conn, proxy, err := clickhouseClientFn(protocol)(ctx, test.teleportUser, protocol, test.dbUser, "master")
-				if test.err != "" {
-					require.Error(t, err)
-					// Error message propagation is only implemented for HTTP Clickhouse protocol.
-					if protocol != defaults.ProtocolClickHouse {
-						require.Contains(t, err.Error(), test.err)
+					conn, proxy, err := clickhouseClientFn(protocol)(ctx, test.teleportUser, protocol, test.dbUser, "master")
+					if test.err != "" {
+						require.Error(t, err)
+						// Error message propagation is only implemented for HTTP Clickhouse protocol.
+						if protocol != defaults.ProtocolClickHouse {
+							require.Contains(t, err.Error(), test.err)
+						}
+						return
 					}
-					return
-				}
-				require.NoError(t, err)
+					require.NoError(t, err)
 
-				// Close connection and proxy.
-				t.Cleanup(func() {
-					require.NoError(t, conn.Close())
-					require.NoError(t, proxy.Close())
+					// Close connection and proxy.
+					t.Cleanup(func() {
+						require.NoError(t, conn.Close())
+						require.NoError(t, proxy.Close())
+					})
 				})
 			})
 		}
@@ -2772,7 +2774,7 @@ func withClickhouseNative(name string) withDatabaseOption {
 		server, err := clickhouse.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
-		}, clickhouse.WithClickhouseNativeProtocol())
+		}, clickhouse.WithClickHouseNativeProtocol())
 		require.NoError(t, err)
 		go server.Serve()
 		t.Cleanup(func() {
@@ -2798,7 +2800,7 @@ func withClickhouseHTTP(name string) withDatabaseOption {
 		server, err := clickhouse.NewTestServer(common.TestServerConfig{
 			Name:       name,
 			AuthClient: testCtx.authClient,
-		}, clickhouse.WithClickhouseHTTPProtocol())
+		}, clickhouse.WithClickHouseHTTPProtocol())
 		require.NoError(t, err)
 		go server.Serve()
 		t.Cleanup(func() { server.Close() })

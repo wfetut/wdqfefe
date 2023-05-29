@@ -40,15 +40,15 @@ import (
 // TestServerOption allows setting test server options.
 type TestServerOption func(*TestServer)
 
-// WithClickhouseNativeProtocol specify the Native Protocol for test TestServer.
-func WithClickhouseNativeProtocol() TestServerOption {
+// WithClickHouseNativeProtocol specify the Native Protocol for test TestServer.
+func WithClickHouseNativeProtocol() TestServerOption {
 	return func(server *TestServer) {
 		server.protocol = defaults.ProtocolClickHouse
 	}
 }
 
-// WithClickhouseHTTPProtocol specify the HTTP ClickHouse Protocol for test TestServer.
-func WithClickhouseHTTPProtocol() TestServerOption {
+// WithClickHouseHTTPProtocol specify the HTTP ClickHouse Protocol for test TestServer.
+func WithClickHouseHTTPProtocol() TestServerOption {
 	return func(server *TestServer) {
 		server.protocol = defaults.ProtocolClickHouseHTTP
 	}

@@ -59,9 +59,9 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	switch protocol := sessionCtx.Database.GetProtocol(); protocol {
 	case defaults.ProtocolClickHouseHTTP:
-		return e.handleHTTPConnection(ctx, sessionCtx)
+		return trace.Wrap(e.handleHTTPConnection(ctx, sessionCtx))
 	case defaults.ProtocolClickHouse:
-		return e.handleNativeConnection(ctx, sessionCtx)
+		return trace.Wrap(e.handleNativeConnection(ctx, sessionCtx))
 	default:
 		return trace.BadParameter("protocol %s is not supported", protocol)
 	}

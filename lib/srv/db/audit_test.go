@@ -223,12 +223,12 @@ func TestAuditClickHouseHTTP(t *testing.T) {
 
 	testCtx.createUserAndRole(ctx, t, "admin", "admin", []string{"admin"}, []string{types.Wildcard})
 
-	_, _, err := testCtx.clickhouseHTTPClient(ctx, "admin", defaults.ProtocolClickHouseHTTP, "invalid", "")
+	_, _, err := testCtx.clickHouseHTTPClient(ctx, "admin", defaults.ProtocolClickHouseHTTP, "invalid", "")
 	require.Error(t, err)
 	waitForEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
 
 	t.Run("successful flow", func(t *testing.T) {
-		conn, proxy, err := testCtx.clickhouseHTTPClient(ctx, "admin", defaults.ProtocolClickHouseHTTP, "admin", "")
+		conn, proxy, err := testCtx.clickHouseHTTPClient(ctx, "admin", defaults.ProtocolClickHouseHTTP, "admin", "")
 		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, proxy.Close())

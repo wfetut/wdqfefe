@@ -293,7 +293,7 @@ func TestValidateDatabase(t *testing.T) {
 			expectError: false,
 		},
 		{
-			inputName: "inlaid-clickhouse-uri-http-protocol",
+			inputName: "invalid-clickhouse-uri-http-protocol",
 			inputSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolClickHouseHTTP,
 				URI:      "clickhouse://localhost:1234",
@@ -309,7 +309,7 @@ func TestValidateDatabase(t *testing.T) {
 			expectError: true,
 		},
 		{
-			inputName: "inlaid-clickhouse-uri-native-protocol",
+			inputName: "invalid-clickhouse-uri-native-protocol",
 			inputSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolClickHouse,
 				URI:      "clickhouse://localhost:1234",

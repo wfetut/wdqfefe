@@ -65,12 +65,19 @@ func (e *Engine) handleHTTPConnection(ctx context.Context, sessionCtx *common.Se
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		defer resp.Body.Close()
 
-		if err := resp.Write(e.clientConn); err != nil {
+		if err := e.writeResp(resp); err != nil {
 			return trace.Wrap(err)
 		}
 	}
+}
+
+func (e *Engine) writeResp(resp *http.Response) error {
+	defer resp.Body.Close()
+	if err := resp.Write(e.clientConn); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func (e *Engine) handleRequest(req *http.Request, sessionCtx *common.Session) error {
