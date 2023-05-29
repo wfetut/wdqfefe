@@ -26,14 +26,12 @@ const (
 	// clickHouseNativeClientBin is the ClickHouse CLI program name that support interactive mode
 	// connection with ClickHouse Native protocol to the ClickHouse Database.
 	clickHouseNativeClientBin = "clickhouse-client"
-	// clickHouseHTTPClientBin is the reference to the curl binary that allows to call HTTP ClickHouse API.
-	clickHouseHTTPClientBin = "curl"
 )
 
 func (c *CLICommandBuilder) getClickhouseHTTPCommand() (*exec.Cmd, error) {
 	var curlCommand *exec.Cmd
 	if c.options.noTLS {
-		curlCommand = exec.Command(clickHouseHTTPClientBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
+		curlCommand = exec.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
 	} else {
 		args := []string{
 			fmt.Sprintf("https://%v:%v/", c.host, c.port),

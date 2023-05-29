@@ -2316,15 +2316,13 @@ func TestAccessClickHouse(t *testing.T) {
 	}
 
 	type connectFunc func(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (io.Closer, io.Closer, error)
-	clickhouseClientFn := func(protocol string) connectFunc {
-		if protocol == defaults.ProtocolClickHouseHTTP {
-			return func(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (io.Closer, io.Closer, error) {
-				return testCtx.clickHouseHTTPClient(ctx, teleportUser, protocol, dbUser, "master")
-			}
-		}
-		return func(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (io.Closer, io.Closer, error) {
-			return testCtx.clickHouseNativeClient(ctx, teleportUser, protocol, dbUser, "master")
-		}
+	connectMap := map[string]connectFunc{
+		defaults.ProtocolClickHouseHTTP: func(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (io.Closer, io.Closer, error) {
+			return testCtx.clickHouseHTTPClient(ctx, teleportUser, defaults.ProtocolClickHouseHTTP, dbUser, dbName)
+		},
+		defaults.ProtocolClickHouse: func(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (io.Closer, io.Closer, error) {
+			return testCtx.clickHouseNativeClient(ctx, teleportUser, defaults.ProtocolClickHouse, dbUser, dbName)
+		},
 	}
 
 	for _, test := range tests {
@@ -2334,7 +2332,10 @@ func TestAccessClickHouse(t *testing.T) {
 					// Create user/role with the requested permissions.
 					testCtx.createUserAndRole(ctx, t, test.teleportUser, test.teleportRole, test.allowDbUsers, []string{types.Wildcard})
 
-					conn, proxy, err := clickhouseClientFn(protocol)(ctx, test.teleportUser, protocol, test.dbUser, "master")
+					connectCall, ok := connectMap[protocol]
+					require.True(t, ok)
+
+					conn, proxy, err := connectCall(ctx, test.teleportUser, protocol, test.dbUser, "master")
 					if test.err != "" {
 						require.Error(t, err)
 						// Error message propagation is only implemented for HTTP Clickhouse protocol.
