@@ -461,8 +461,8 @@ type authContext struct {
 	// kubeResource.Namespace is the resource namespace and kubeResource.Name
 	// is the resource name.
 	kubeResource *types.KubernetesResource
-	// httpMethod is the request HTTP Method.
-	httpMethod string
+	// requestVerb is the Kubernetes Verb.
+	requestVerb string
 	// kubeServers are the registered agents for the kubernetes cluster the request
 	// is targeted to.
 	kubeServers []types.KubeServer
@@ -564,7 +564,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 
 	// kubeResource is the Kubernetes Resource the request is targeted at.
 	// Currently only supports Pods and it includes the pod name and namespace.
-	kubeResource, apiResource := getResourceFromRequest(req.URL.Path)
+	kubeResource, apiResource := getResourceFromRequest(req)
 	authContext, err := f.setupContext(ctx, *userContext, req, isRemoteUser, apiResource, kubeResource)
 	if err != nil {
 		f.log.WithError(err).Warn("Unable to setup context.")
@@ -853,7 +853,7 @@ func (f *Forwarder) setupContext(
 			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 			isRemote:   isRemoteCluster,
 		},
-		httpMethod:  req.Method,
+		requestVerb: apiResource.getVerb(req),
 		kubeServers: kubeServers,
 		apiResource: apiResource,
 	}, nil
@@ -1040,7 +1040,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if actx.kubeResource != nil {
 		notFoundMessage = kubeResourceDeniedAccessMsg(
 			actx.User.GetName(),
-			actx.httpMethod,
+			actx.requestVerb,
 			actx.kubeResource,
 		)
 		roleMatchers = services.RoleMatchers{
@@ -2569,7 +2569,7 @@ func (f *Forwarder) listResources(authCtx *authContext, w http.ResponseWriter, r
 		allowedResources, deniedResources := authCtx.Checker.GetKubeResources(authCtx.kubeCluster)
 		// isWatch identifies if the request is long-lived watch stream based on
 		// HTTP connection.
-		isWatch := req.URL.Query().Get("watch") == "true"
+		isWatch := isKubeWatchRequest(req, sess.authContext.apiResource)
 		if !isWatch {
 			// List pods and return immediately.
 			status, err = f.listResourcesList(req, w, sess, allowedResources, deniedResources)
@@ -2603,10 +2603,11 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 	if !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.apiResource.resourceKind)
 	}
+	verb := sess.requestVerb
 	// filterBuffer filters the response to exclude pods the user doesn't have access to.
 	// The filtered payload will be written into memBuffer again.
 	if err := filterBuffer(
-		newResourceFilterer(resourceKind, allowedResources, deniedResources, f.log),
+		newResourceFilterer(resourceKind, verb, allowedResources, deniedResources, f.log),
 		memBuffer,
 	); err != nil {
 		return memBuffer.Status(), trace.Wrap(err)
@@ -2634,11 +2635,13 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 	if !ok {
 		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.apiResource.resourceKind)
 	}
+	verb := sess.requestVerb
 	rw, err := responsewriters.NewWatcherResponseWriter(
 		w,
 		negotiator,
 		newResourceFilterer(
 			resourceKind,
+			verb,
 			allowedResources,
 			deniedResources,
 			f.log,
@@ -3078,7 +3081,7 @@ func parseDeleteCollectionBody(r io.Reader, decoder runtime.Decoder) (metav1.Del
 // kubeResourceDeniedAccessMsg creates a Kubernetes API like forbidden response.
 // Logic from:
 // https://github.com/kubernetes/kubernetes/blob/ea0764452222146c47ec826977f49d7001b0ea8c/staging/src/k8s.io/apiserver/pkg/endpoints/handlers/responsewriters/errors.go#L51
-func kubeResourceDeniedAccessMsg(user, method string, kubeResource *types.KubernetesResource) string {
+func kubeResourceDeniedAccessMsg(user, verb string, kubeResource *types.KubernetesResource) string {
 	resource := pluralize(kubeResource.Kind)
 	// pod api group is ""
 	// Check this code when we introduce new resources.
@@ -3091,12 +3094,12 @@ func kubeResourceDeniedAccessMsg(user, method string, kubeResource *types.Kubern
 		resource,
 		kubeResource.Name,
 		user,
-		getRequestVerb(method),
+		verb,
 		resource,
 		apiGroup,
 		kubeResource.Namespace,
 		kubernetesResourcesKey,
-		getRequestVerb(method),
+		verb,
 		resource,
 		kubeResource.Name,
 		kubeResource.Namespace,
@@ -3105,25 +3108,12 @@ func kubeResourceDeniedAccessMsg(user, method string, kubeResource *types.Kubern
 
 // pluralize adds an s at the end of the input string.
 func pluralize(s string) string {
-	return s + "s"
-}
-
-// getRequestVerb converts the request method into a Kubernetes Verb.
-func getRequestVerb(method string) string {
-	apiVerb := ""
-	switch method {
-	case http.MethodPost:
-		apiVerb = "create"
-	case http.MethodGet:
-		apiVerb = "get"
-	case http.MethodPut:
-		apiVerb = "update"
-	case http.MethodPatch:
-		apiVerb = "patch"
-	case http.MethodDelete:
-		apiVerb = "delete"
+	for k, teleportResource := range allowedResources {
+		if teleportResource == s {
+			return k.resourceKind
+		}
 	}
-	return apiVerb
+	return s
 }
 
 // errorToKubeStatusReason returns an appropriate StatusReason based on the
@@ -3201,7 +3191,7 @@ func deleteResources[T kubeObjectInterface](
 			false,
 			services.NewKubernetesClusterLabelMatcher(params.authCtx.kubeClusterLabels),
 			services.NewKubernetesResourceMatcher(
-				getKubeResource(kind, item),
+				getKubeResource(kind, "deletecollection", item),
 			),
 		)
 		// no match was found, we ignore the request.

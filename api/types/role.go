@@ -1521,6 +1521,15 @@ func validateRoleSpecKubeResources(spec RoleSpecV6) error {
 // - Namespace is not empty
 func validateKubeResources(kubeResources []KubernetesResource) error {
 	for _, kubeResource := range kubeResources {
+		for _, verb := range kubeResource.Verbs {
+			if !slices.Contains(KubernetesVerbs, verb) {
+				return trace.BadParameter("KubernetesResource verb %q is invalid or unsupported; Supported: %v", verb, KubernetesVerbs)
+			}
+			if verb == Wildcard && len(kubeResource.Verbs) > 1 {
+				return trace.BadParameter("KubernetesResource verb %q cannot be used with other verbs", verb)
+			}
+		}
+
 		if !slices.Contains(KubernetesResourcesKinds, kubeResource.Kind) {
 			return trace.BadParameter("KubernetesResource kind %q is invalid or unsupported; Supported: %v", kubeResource.Kind, KubernetesResourcesKinds)
 		}

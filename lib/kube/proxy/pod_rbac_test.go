@@ -48,10 +48,11 @@ import (
 
 func TestListPodRBAC(t *testing.T) {
 	const (
-		usernameWithFullAccess      = "full_user"
-		usernameWithNamespaceAccess = "default_user"
-		usernameWithLimitedAccess   = "limited_user"
-		testPodName                 = "test"
+		usernameWithFullAccess        = "full_user"
+		usernameWithNamespaceAccess   = "default_user"
+		usernameWithLimitedAccess     = "limited_user"
+		usernameWithoutListVerbAccess = "no_list_user"
+		testPodName                   = "test"
 	)
 	// kubeMock is a Kubernetes API mock for the session tests.
 	// Once a new session is created, this mock will write to
@@ -134,6 +135,30 @@ func TestListPodRBAC(t *testing.T) {
 							Kind:      types.KindKubePod,
 							Name:      "nginx-*",
 							Namespace: metav1.NamespaceDefault,
+						},
+					},
+				)
+			},
+		},
+	)
+	// create a moderator user with access to kubernetes
+	// (kubernetes_user and kubernetes_groups specified)
+	userWithoutListVerb, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithoutListVerbAccess,
+		RoleSpec{
+			Name:       usernameWithoutListVerbAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow,
+					[]types.KubernetesResource{
+						{
+							Kind:      types.KindKubePod,
+							Name:      "*",
+							Namespace: metav1.NamespaceDefault,
+							Verbs:     []string{"get"},
 						},
 					},
 				)
@@ -294,6 +319,17 @@ func TestListPodRBAC(t *testing.T) {
 				},
 			},
 		},
+
+		{
+			name: "list default namespace pods for user with limited access",
+			args: args{
+				user:      userWithoutListVerb,
+				namespace: metav1.NamespaceDefault,
+			},
+			want: want{
+				listPodsResult: []string{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -388,6 +424,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: "*",
 						Name:      "*",
+						Verbs:     []string{"*"},
 					},
 				},
 			},
@@ -401,6 +438,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: defaultNamespace,
 						Name:      "*",
+						Verbs:     []string{"*"},
 					},
 				},
 			},
@@ -421,6 +459,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: defaultNamespace,
 						Name:      "otherPod",
+						Verbs:     []string{"*"},
 					},
 				},
 			},
@@ -434,6 +473,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: defaultNamespace,
 						Name:      "rand*",
+						Verbs:     []string{"*"},
 					},
 				},
 			},
@@ -453,7 +493,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			userReader, userWriter := io.Pipe()
 			negotiator := newClientNegotiator()
-			filterWrapper := newResourceFilterer(types.KindKubePod, tt.args.allowed, tt.args.denied, log)
+			filterWrapper := newResourceFilterer(types.KindKubePod, "verb", tt.args.allowed, tt.args.denied, log)
 			// watcher parses the data written into itself and if the user is allowed to
 			// receive the update, it writes the event into target.
 			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter) /*target*/, negotiator, filterWrapper)
