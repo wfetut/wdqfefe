@@ -249,7 +249,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 			case proto.DownstreamInventoryPing:
 				h.handlePing(sender, m)
 			case proto.DownstreamInventoryUpdateLabels:
-				h.handleUpdateLabels(sender, m)
+				h.handleUpdateLabels(m)
 			default:
 				return trace.BadParameter("unexpected downstream message type: %T", m)
 			}
@@ -289,7 +289,7 @@ func (h *downstreamHandle) RegisterPingHandler(handler DownstreamPingHandler) (u
 	}
 }
 
-func (h *downstreamHandle) handleUpdateLabels(sender DownstreamSender, msg proto.DownstreamInventoryUpdateLabels) {
+func (h *downstreamHandle) handleUpdateLabels(msg proto.DownstreamInventoryUpdateLabels) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if msg.Kind == proto.LabelUpdateKind_SSHServer {

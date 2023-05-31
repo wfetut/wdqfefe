@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/inventory"
+	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -40,7 +41,7 @@ type SSHServerHeartbeatConfig struct {
 	// InventoryHandle is used to send heartbeats.
 	InventoryHandle inventory.DownstreamHandle
 	// GetServer gets the latest server spec.
-	GetServer func() *types.ServerV2
+	GetServer func(ctx context.Context) *types.ServerV2
 
 	// -- below values are all optional
 
@@ -434,7 +435,7 @@ type heartbeatV2Driver interface {
 
 // sshServerHeartbeatV2 is the heartbeatV2 implementation for ssh servers.
 type sshServerHeartbeatV2 struct {
-	getServer func() *types.ServerV2
+	getServer func(ctx context.Context) *types.ServerV2
 	announcer auth.Announcer
 	prev      *types.ServerV2
 }
@@ -443,7 +444,7 @@ func (h *sshServerHeartbeatV2) Poll() (changed bool) {
 	if h.prev == nil {
 		return true
 	}
-	return services.CompareServers(h.getServer(), h.prev) == services.Different
+	return services.CompareServers(h.getServer(context.TODO()), h.prev) == services.Different
 }
 
 func (h *sshServerHeartbeatV2) SupportsFallback() bool {
@@ -454,7 +455,7 @@ func (h *sshServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 	if h.announcer == nil {
 		return false
 	}
-	server := h.getServer()
+	server := h.getServer(ctx)
 	_, err := h.announcer.UpsertNode(ctx, server)
 	if err != nil {
 		log.Warnf("Failed to perform fallback heartbeat for ssh server: %v", err)
@@ -465,9 +466,9 @@ func (h *sshServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {
 }
 
 func (h *sshServerHeartbeatV2) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
-	server := h.getServer()
+	server := h.getServer(ctx)
 	err := sender.Send(ctx, proto.InventoryHeartbeat{
-		SSHServer: h.getServer(),
+		SSHServer: h.getServer(ctx),
 	})
 	if err != nil {
 		log.Warnf("Failed to perform inventory heartbeat for ssh server: %v", err)
@@ -475,4 +476,12 @@ func (h *sshServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Do
 	}
 	h.prev = server
 	return true
+}
+
+func SetMetadataForServer(ctx context.Context, s *types.ServerV2) {
+	metadata, err := metadata.Get(ctx)
+	if err != nil {
+		log.Warnf("Failed to get metadata: %v", err)
+	}
+	s.SetServerInfo(metadata.ServerInfo)
 }

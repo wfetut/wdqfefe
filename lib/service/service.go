@@ -1946,6 +1946,10 @@ func (process *TeleportProcess) initAuthService() error {
 								Labels:   si.GetStaticLabels(),
 							})
 							if err != nil {
+								if trace.IsNotFound(err) {
+									process.log.WithError(err).Warnf("no control stream for server %v", node.GetName())
+									break
+								}
 								return trace.Wrap(err)
 							}
 						}

@@ -31,8 +31,10 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Metadata contains the instance "system" metadata.
@@ -55,6 +57,8 @@ type Metadata struct {
 	ContainerOrchestrator string
 	// CloudEnvironment advertises the cloud environment for the instance, if any (e.g. "aws").
 	CloudEnvironment string
+	// ServerInfo contains extra metadata about the instance's cloud environment, if any.
+	ServerInfo types.ServerInfo
 }
 
 // fetchConfig contains the configuration used by the FetchMetadata method.
@@ -112,8 +116,8 @@ func (c *fetchConfig) setDefaults() {
 }
 
 // fetch fetches all metadata.
-func (c *fetchConfig) fetch(ctx context.Context) *Metadata {
-	return &Metadata{
+func (c *fetchConfig) fetch(ctx context.Context) (*Metadata, error) {
+	metadata := &Metadata{
 		OS:                    c.fetchOS(),
 		OSVersion:             c.fetchOSVersion(),
 		HostArchitecture:      c.fetchHostArchitecture(),
@@ -123,6 +127,24 @@ func (c *fetchConfig) fetch(ctx context.Context) *Metadata {
 		ContainerOrchestrator: c.fetchContainerOrchestrator(ctx),
 		CloudEnvironment:      c.fetchCloudEnvironment(ctx),
 	}
+	if metadata.CloudEnvironment == "aws" {
+		iid, err := utils.GetEC2InstanceIdentityDocument(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		metadata.ServerInfo = &types.ServerInfoV1{
+			Spec: types.ServerInfoSpecV1{
+				AWS: &types.ServerInfoSpecV1_AWSInfo{
+					AccountID:  iid.AccountID,
+					InstanceID: iid.InstanceID,
+				},
+			},
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return metadata, nil
 }
 
 // fetchOS returns the value of GOOS.
@@ -347,7 +369,7 @@ func (c *fetchConfig) httpReqSuccess(req *http.Request) bool {
 // boolEnvIsTrue returns true if the environment variable is set to a value
 // that represent true (e.g. true, yes, y, ...).
 func (c *fetchConfig) boolEnvIsTrue(name string) bool {
-	b, err := utils.ParseBool(c.getenv(name))
+	b, err := apiutils.ParseBool(c.getenv(name))
 	if err != nil {
 		return false
 	}

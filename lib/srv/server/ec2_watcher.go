@@ -89,7 +89,7 @@ func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 		for _, tag := range instance.Tags {
 			key := aws.StringValue(tag.Key)
 			if key != "" {
-				tags[key] = aws.StringValue(tag.Value)
+				tags["aws/"+key] = aws.StringValue(tag.Value)
 			}
 		}
 
