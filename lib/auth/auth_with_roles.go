@@ -2418,69 +2418,33 @@ func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) 
 }
 
 func (a *ServerWithRoles) GetUsers(withSecrets bool) ([]types.User, error) {
+	readVerb := types.VerbReadNoSecrets
 	if withSecrets {
-		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
-		// migrated to that model.
-		if !a.hasBuiltinRole(types.RoleAdmin) {
-			err := trace.AccessDenied("user %q requested access to all users with secrets", a.context.User.GetName())
-			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.UserLogin{
-				Metadata: apievents.Metadata{
-					Type: events.UserLoginEvent,
-					Code: events.UserLocalLoginFailureCode,
-				},
-				Method: events.LoginMethodClientCert,
-				Status: apievents.Status{
-					Success:     false,
-					Error:       trace.Unwrap(err).Error(),
-					UserMessage: err.Error(),
-				},
-			}); err != nil {
-				log.WithError(err).Warn("Failed to emit local login failure event.")
-			}
-			return nil, trace.AccessDenied("this request can be only executed by an admin")
-		}
-	} else {
-		if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbList, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		readVerb = types.VerbRead
 	}
+
+	if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbList, readVerb); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return a.authServer.GetUsers(withSecrets)
 }
 
 func (a *ServerWithRoles) GetUser(name string, withSecrets bool) (types.User, error) {
+	readVerb := types.VerbReadNoSecrets
 	if withSecrets {
-		// TODO(fspmarshall): replace admin requirement with VerbReadWithSecrets once we've
-		// migrated to that model.
-		if !a.hasBuiltinRole(types.RoleAdmin) {
-			err := trace.AccessDenied("user %q requested access to user %q with secrets", a.context.User.GetName(), name)
-			log.Warning(err)
-			if err := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.UserLogin{
-				Metadata: apievents.Metadata{
-					Type: events.UserLoginEvent,
-					Code: events.UserLocalLoginFailureCode,
-				},
-				Method: events.LoginMethodClientCert,
-				Status: apievents.Status{
-					Success:     false,
-					Error:       trace.Unwrap(err).Error(),
-					UserMessage: err.Error(),
-				},
-			}); err != nil {
-				log.WithError(err).Warn("Failed to emit local login failure event.")
-			}
-			return nil, trace.AccessDenied("this request can be only executed by an admin")
-		}
-	} else {
-		// if secrets are not being accessed, let users always read
-		// their own info.
-		if err := a.currentUserAction(name); err != nil {
-			// not current user, perform normal permission check.
-			if err := a.action(apidefaults.Namespace, types.KindUser, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
+		readVerb = types.VerbRead
+	}
+
+	// if secrets are not being accessed, let users always read
+	// their own info.
+	if err := a.currentUserAction(name); err != nil {
+		// not current user, perform normal permission check.
+		if err := a.action(apidefaults.Namespace, types.KindUser, readVerb); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
+
 	return a.authServer.GetUser(name, withSecrets)
 }
 
