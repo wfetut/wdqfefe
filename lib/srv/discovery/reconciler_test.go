@@ -25,7 +25,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +41,7 @@ func TestGetUpsertBatchSize(t *testing.T) {
 			name:              "small batches",
 			queueLen:          100,
 			lastBatchSize:     0,
-			expectedBatchSize: defaults.MinBatchSize,
+			expectedBatchSize: minBatchSize,
 		},
 		{
 			name:              "continue previous batch size",
@@ -115,7 +114,7 @@ func TestLabelReconciler(t *testing.T) {
 
 	serverInfos := generateServerInfos(t, 100)
 	lr.queueServerInfos(serverInfos)
-	b := defaults.MinBatchSize
+	b := minBatchSize
 
 	for i := 0; i < 20; i++ {
 		clock.Advance(time.Second)

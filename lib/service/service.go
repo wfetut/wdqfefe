@@ -1938,6 +1938,7 @@ func (process *TeleportProcess) initAuthService() error {
 					}
 				}
 
+				// Match ServerInfos with nodes.
 				for _, si := range items {
 					for _, node := range nodes {
 						if si.Matches(node.GetServerInfo()) {

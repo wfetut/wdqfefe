@@ -382,14 +382,14 @@ func TestTake(t *testing.T) {
 			expectMore:     true,
 		},
 		{
-			name:           "drain stream = n",
+			name:           "drain stream of size n",
 			input:          intSlice(10),
 			n:              10,
 			expectedOutput: intSlice(10),
 			expectMore:     true,
 		},
 		{
-			name:           "drain stream < n",
+			name:           "drain stream of size < n",
 			input:          intSlice(5),
 			n:              10,
 			expectedOutput: intSlice(5),

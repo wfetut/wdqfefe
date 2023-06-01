@@ -41,7 +41,7 @@ type SSHServerHeartbeatConfig struct {
 	// InventoryHandle is used to send heartbeats.
 	InventoryHandle inventory.DownstreamHandle
 	// GetServer gets the latest server spec.
-	GetServer func(ctx context.Context) *types.ServerV2
+	GetServer func() *types.ServerV2
 
 	// -- below values are all optional
 
@@ -74,7 +74,15 @@ func NewSSHServerHeartbeat(cfg SSHServerHeartbeatConfig) (*HeartbeatV2, error) {
 	}
 
 	inner := &sshServerHeartbeatV2{
-		getServer: cfg.GetServer,
+		getServer: func(ctx context.Context) *types.ServerV2 {
+			server := cfg.GetServer()
+			metadata, err := metadata.Get(ctx)
+			if err != nil {
+				log.Warnf("Failed to get metadata: %v", err)
+			}
+			server.SetServerInfo(metadata.ServerInfo)
+			return server
+		},
 		announcer: cfg.Announcer,
 	}
 
@@ -289,14 +297,14 @@ func (h *HeartbeatV2) run() {
 			h.testEvent(hbv2AnnounceInterval)
 			h.shouldAnnounce = true
 		case <-h.poll.Next():
-			if h.inner.Poll() {
+			if h.inner.Poll(h.closeContext) {
 				h.testEvent(hbv2PollDiff)
 				h.shouldAnnounce = true
 			} else {
 				h.testEvent(hbv2PollSame)
 			}
 		case <-h.degradedCheck.Next():
-			if !h.inner.SupportsFallback() || (!h.inner.Poll() && !h.shouldAnnounce) {
+			if !h.inner.SupportsFallback() || (!h.inner.Poll(h.closeContext) && !h.shouldAnnounce) {
 				// if we don't have fallback and/or aren't planning to hit the fallback
 				// soon, then we need to emit a heartbeat error in order to inform the
 				// rest of teleport that we are in a degraded state.
@@ -313,7 +321,7 @@ func (h *HeartbeatV2) run() {
 
 func (h *HeartbeatV2) runWithSender(sender inventory.DownstreamSender) {
 	// poll immediately when sender becomes available.
-	if h.inner.Poll() {
+	if h.inner.Poll(h.closeContext) {
 		h.shouldAnnounce = true
 	}
 
@@ -347,14 +355,14 @@ func (h *HeartbeatV2) runWithSender(sender inventory.DownstreamSender) {
 			h.testEvent(hbv2AnnounceInterval)
 			h.shouldAnnounce = true
 		case <-h.poll.Next():
-			if h.inner.Poll() {
+			if h.inner.Poll(h.closeContext) {
 				h.testEvent(hbv2PollDiff)
 				h.shouldAnnounce = true
 			} else {
 				h.testEvent(hbv2PollSame)
 			}
 		case <-h.degradedCheck.Next():
-			if !h.inner.Poll() && !h.shouldAnnounce {
+			if !h.inner.Poll(h.closeContext) && !h.shouldAnnounce {
 				// its been a while since we announced and we are not in a retry/announce
 				// state now, so clear up any degraded state.
 				h.onHeartbeat(nil)
@@ -421,7 +429,7 @@ func (h *HeartbeatV2) onHeartbeat(err error) {
 type heartbeatV2Driver interface {
 	// Poll is used to check for changes since last *successful* heartbeat (note: Poll should also
 	// return true if no heartbeat has been successfully executed yet).
-	Poll() (changed bool)
+	Poll(ctx context.Context) (changed bool)
 	// FallbackAnnounce is called if a heartbeat is needed but the inventory control stream is
 	// unavailable. In theory this is probably only relevant for cases where the auth has been
 	// downgraded to an earlier version than it should have been, but its still preferable to
@@ -440,11 +448,11 @@ type sshServerHeartbeatV2 struct {
 	prev      *types.ServerV2
 }
 
-func (h *sshServerHeartbeatV2) Poll() (changed bool) {
+func (h *sshServerHeartbeatV2) Poll(ctx context.Context) (changed bool) {
 	if h.prev == nil {
 		return true
 	}
-	return services.CompareServers(h.getServer(context.TODO()), h.prev) == services.Different
+	return services.CompareServers(h.getServer(ctx), h.prev) == services.Different
 }
 
 func (h *sshServerHeartbeatV2) SupportsFallback() bool {
@@ -476,12 +484,4 @@ func (h *sshServerHeartbeatV2) Announce(ctx context.Context, sender inventory.Do
 	}
 	h.prev = server
 	return true
-}
-
-func SetMetadataForServer(ctx context.Context, s *types.ServerV2) {
-	metadata, err := metadata.Get(ctx)
-	if err != nil {
-		log.Warnf("Failed to get metadata: %v", err)
-	}
-	s.SetServerInfo(metadata.ServerInfo)
 }

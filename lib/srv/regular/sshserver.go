@@ -40,6 +40,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -870,12 +871,8 @@ func New(
 		s.Logger.Info("debug -> starting control-stream based heartbeat.")
 		heartbeat, err = srv.NewSSHServerHeartbeat(srv.SSHServerHeartbeatConfig{
 			InventoryHandle: s.inventoryHandle,
-			GetServer: func(ctx context.Context) *types.ServerV2 {
-				server := s.getServerInfo()
-				srv.SetMetadataForServer(ctx, server)
-				return server
-			},
-			OnHeartbeat: s.onHeartbeat,
+			GetServer:       s.getServerInfo,
+			OnHeartbeat:     s.onHeartbeat,
 		})
 	} else {
 		s.Logger.Info("debug -> starting legacy heartbeat.")
@@ -996,7 +993,7 @@ func (s *Server) getStaticLabels() map[string]string {
 	}
 	// Let labels sent over ics override labels from instance metadata.
 	if s.inventoryHandle != nil {
-		for k, v := range s.inventoryHandle.GetUpstreamLabels() {
+		for k, v := range s.inventoryHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServer) {
 			labels[k] = v
 		}
 	}

@@ -24,12 +24,15 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
+
+// minBatchSize is the minimum batch size to send ServerInfos in for discovered
+// instances.
+const minBatchSize = 5
 
 type labelReconcilerConfig struct {
 	clock       clockwork.Clock
@@ -66,19 +69,23 @@ func newLabelReconciler(cfg *labelReconcilerConfig) (*labelReconciler, error) {
 	return &labelReconciler{
 		cfg:               cfg,
 		discoveredServers: make(map[string]types.ServerInfo),
-		serverInfoQueue:   make([]types.ServerInfo, 0, defaults.MinBatchSize),
-		lastBatchSize:     defaults.MinBatchSize,
+		serverInfoQueue:   make([]types.ServerInfo, 0, minBatchSize),
+		lastBatchSize:     minBatchSize,
 	}, nil
 }
 
+// getUpsertBatchSize calculates the size of batch to upsert ServerInfos in.
+//
+// Batches are sent once per second, and the goal is to upsert all ServerInfos
+// within 15 minutes.
 func getUpsertBatchSize(queueLen, lastBatchSize int) int {
-	// TODO: explain batch size algo
 	batchSize := lastBatchSize
+	// Increase batch size so that all upserts can finish within 15 minutes.
 	if dynamicBatchSize := (queueLen / 900) + 1; dynamicBatchSize > batchSize {
 		batchSize = dynamicBatchSize
 	}
-	if batchSize < defaults.MinBatchSize {
-		batchSize = defaults.MinBatchSize
+	if batchSize < minBatchSize {
+		batchSize = minBatchSize
 	}
 	if batchSize > queueLen {
 		batchSize = queueLen
@@ -116,6 +123,7 @@ func (r *labelReconciler) run(ctx context.Context) {
 	}
 }
 
+// queueServerInfos queues a list of ServerInfos to be upserted.
 func (r *labelReconciler) queueServerInfos(serverInfos []types.ServerInfo) {
 	jitter := retryutils.NewSeventhJitter()
 	r.mu.Lock()

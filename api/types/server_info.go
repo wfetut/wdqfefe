@@ -158,10 +158,7 @@ func (s *ServerInfoV1) CheckAndSetDefaults() error {
 // Matches checks if two ServerInfos refer to the same resource.
 func (s *ServerInfoV1) Matches(other ServerInfo) bool {
 	otherV1, ok := other.(*ServerInfoV1)
-	if !ok {
-		return false
-	}
-	if otherV1 == nil {
+	if !ok || otherV1 == nil {
 		return false
 	}
 	if s.Spec.AWS != nil && !s.Spec.AWS.equals(otherV1.Spec.AWS) {

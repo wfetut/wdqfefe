@@ -26,6 +26,7 @@ import (
 // metadata is a cache of all instance metadata.
 var metadata *Metadata
 
+// metadataErr is the error returned when metadata was first fetched.
 var metadataErr error
 
 // metadataReady is a channel that is closed when the metadata has been fetched.

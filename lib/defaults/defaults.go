@@ -905,6 +905,3 @@ const (
 	// creating directories.
 	DirectoryPermissions = 0o755
 )
-
-// MinBatchSize (todo finish)
-const MinBatchSize = 5

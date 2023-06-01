@@ -62,12 +62,21 @@ type EC2Instances struct {
 // discovered.
 type EC2Instance struct {
 	InstanceID string
+	Tags       map[string]string
 }
 
-func toEC2Instance(inst *ec2.Instance) EC2Instance {
-	return EC2Instance{
-		InstanceID: aws.StringValue(inst.InstanceId),
+func toEC2Instance(originalInst *ec2.Instance) EC2Instance {
+	inst := EC2Instance{
+		InstanceID: aws.StringValue(originalInst.InstanceId),
+		Tags:       make(map[string]string, len(originalInst.Tags)),
 	}
+	for _, tag := range originalInst.Tags {
+		key := aws.StringValue(tag.Key)
+		if key != "" {
+			inst.Tags[key] = aws.StringValue(tag.Value)
+		}
+	}
+	return inst
 }
 
 // ToEC2Instances converts aws []*ec2.Instance to []EC2Instance
@@ -81,16 +90,14 @@ func ToEC2Instances(insts []*ec2.Instance) []EC2Instance {
 
 }
 
+// ServerInfos creates a ServerInfo resource for each discovered instance.
 func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 	serverInfos := make([]types.ServerInfo, 0, len(i.Instances))
 	for _, instance := range i.Instances {
-		name := i.AccountID + "-" + aws.StringValue(instance.InstanceId)
+		name := i.AccountID + "-" + instance.InstanceID
 		tags := make(map[string]string, len(instance.Tags))
-		for _, tag := range instance.Tags {
-			key := aws.StringValue(tag.Key)
-			if key != "" {
-				tags["aws/"+key] = aws.StringValue(tag.Value)
-			}
+		for k, v := range instance.Tags {
+			tags["aws/"+k] = v
 		}
 
 		si, err := types.NewServerInfo(types.Metadata{
@@ -99,7 +106,7 @@ func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 		}, types.ServerInfoSpecV1{
 			AWS: &types.ServerInfoSpecV1_AWSInfo{
 				AccountID:  i.AccountID,
-				InstanceID: aws.StringValue(instance.InstanceId),
+				InstanceID: instance.InstanceID,
 			},
 		})
 		if err != nil {
