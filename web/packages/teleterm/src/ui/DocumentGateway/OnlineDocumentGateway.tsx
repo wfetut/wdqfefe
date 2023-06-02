@@ -15,10 +15,21 @@
  */
 
 import React, { useMemo, useRef } from 'react';
+
+import styled from 'styled-components';
 import { debounce } from 'shared/utils/highbar';
-import { Box, ButtonSecondary, Flex, Link, Text } from 'design';
+import {
+  Indicator,
+  Box,
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  Link,
+  Text,
+} from 'design';
 import Validation from 'shared/components/Validation';
 import * as Alerts from 'design/Alert';
+import * as icons from 'design/Icon';
 
 import { CliCommand } from './CliCommand';
 import { ConfigFieldInput, PortFieldInput } from './common';
@@ -75,66 +86,233 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
     </Flex>
   );
 
+  const $landing = (
+    <Flex flexDirection="column" gap={4}>
+      <div>
+        <Text>
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Maecenas
+          gravida viverra accumsan. Ut risus magna, sollicitudin ac purus ac,
+          congue posuere lorem.
+        </Text>
+        <Text>
+          Integer a rutrum nulla, et porttitor nisi. Vivamus pharetra bibendum
+          pretium. Nunc molestie mi dapibus turpis accumsan, nec dignissim sem
+          egestas.
+        </Text>
+      </div>
+
+      <ButtonPrimary mx="auto">Setup the agent</ButtonPrimary>
+    </Flex>
+  );
+
+  const phasesInProgress: { status: PhaseStatus; text: string }[] = [
+    { text: 'Setting up roles', status: 'done' },
+    { text: 'Downloading the agent', status: 'processing' },
+    { text: 'Generating the config file', status: 'waiting' },
+    { text: 'Joining the cluster', status: 'waiting' },
+  ];
+
+  const phasesError: { status: PhaseStatus; text: string }[] =
+    phasesInProgress.map((phase, index) => ({
+      ...phase,
+      status: index === 1 ? 'error' : phase.status,
+    }));
+
+  const phasesDone: { status: PhaseStatus; text: string }[] =
+    phasesInProgress.map(phase => ({
+      ...phase,
+      status: 'done',
+    }));
+
+  const $setupInProgress = (
+    <Flex flexDirection="column" gap={4}>
+      <ProgressBar phases={phasesInProgress} />
+      <ButtonPrimary
+        disabled="disabled"
+        css={`
+          align-self: flex-start;
+        `}
+      >
+        Connect to computer
+      </ButtonPrimary>
+    </Flex>
+  );
+
+  const $setupError = (
+    <Flex flexDirection="column" gap={4}>
+      <ProgressBar phases={phasesError} />
+      <Flex gap={2}>
+        <ButtonPrimary
+          disabled="disabled"
+          css={`
+            align-self: flex-start;
+          `}
+        >
+          Connect to computer
+        </ButtonPrimary>
+        <ButtonPrimary>Retry</ButtonPrimary>
+      </Flex>
+    </Flex>
+  );
+
+  const $setupDone = (
+    <Flex flexDirection="column" gap={4}>
+      <ProgressBar phases={phasesDone} />
+      <ButtonPrimary
+        css={`
+          align-self: flex-start;
+        `}
+      >
+        Connect to computer
+      </ButtonPrimary>
+    </Flex>
+  );
+
+  const $buttonsRunning = (
+    <>
+      <ButtonSecondary size="small">Remove agent</ButtonSecondary>
+      <ButtonSecondary size="small">Stop sharing</ButtonSecondary>
+    </>
+  );
+
+  const $running = (
+    <Flex flexDirection="column" gap={4}>
+      <Text>
+        <icons.CircleCheck color="success" /> Agent running
+      </Text>
+      <Text>
+        Cluster users with the role{' '}
+        <strong>connect-my-computer-robert@acme.com</strong> can now connect to
+        your computer as <strong>bob</strong>.
+      </Text>
+      <ButtonPrimary
+        css={`
+          align-self: flex-start;
+        `}
+      >
+        Start ssh session
+      </ButtonPrimary>
+    </Flex>
+  );
+
   return (
     <Box maxWidth="590px" width="100%" mx="auto" mt="4" px="5">
       <Flex justifyContent="space-between" mb="4" flexWrap="wrap" gap={2}>
-        <Text typography="h3">Database Connection</Text>
-        <ButtonSecondary size="small" onClick={props.disconnect}>
-          Close Connection
-        </ButtonSecondary>
+        <Text typography="h3">Connect My Computer</Text>
+        {/* <Flex gap="2">{$buttonsRunning}</Flex> */}
       </Flex>
-      <Text typography="h4" mb={1}>
-        Connect with CLI
-      </Text>
-      <Flex as="form" ref={formRef}>
-        <Validation>
-          <PortFieldInput
-            label="Port"
-            defaultValue={gateway.localPort}
-            onChange={e => handleChangePort(e.target.value)}
-            mb={2}
-          />
-          <ConfigFieldInput
-            label="Database name"
-            defaultValue={gateway.targetSubresourceName}
-            onChange={e => handleChangeDbName(e.target.value)}
-            spellCheck={false}
-            ml={2}
-            mb={2}
-          />
-        </Validation>
-      </Flex>
-      <CliCommand
-        cliCommand={props.gateway.gatewayCliCommand.preview}
-        isLoading={isPortOrDbNameProcessing}
-        onRun={props.runCliCommand}
-      />
-      {$errors}
-      <Text typography="h4" mt={3} mb={1}>
-        Connect with GUI
-      </Text>
-      <Text
-        // Break long usernames rather than putting an ellipsis.
-        css={`
-          word-break: break-word;
-        `}
-      >
-        Configure the GUI database client to connect to host{' '}
-        <code>{gateway.localAddress}</code> on port{' '}
-        <code>{gateway.localPort}</code> as user{' '}
-        <code>{gateway.targetUser}</code>.
-      </Text>
-      <Text>
-        The connection is made through an authenticated proxy so no extra
-        credentials are necessary. See{' '}
-        <Link
-          href="https://goteleport.com/docs/database-access/guides/gui-clients/"
-          target="_blank"
-        >
-          the documentation
-        </Link>{' '}
-        for more details.
-      </Text>
+      {/* {$running} */}
     </Box>
   );
 }
+
+type ProgressBarProps = {
+  phases: {
+    status: PhaseStatus;
+    text: string;
+  }[];
+};
+
+export type PhaseStatus = 'done' | 'processing' | 'waiting' | 'error';
+
+export default function ProgressBar({ phases }: ProgressBarProps) {
+  return (
+    <Flex flexDirection="column">
+      {phases.map((phase, index) => (
+        <Flex
+          py="12px"
+          px="0"
+          key={phase.text}
+          style={{ position: 'relative' }}
+        >
+          <Phase status={phase.status} isLast={index === phases.length - 1} />
+          {index + 1}. {phase.text}
+        </Flex>
+      ))}
+    </Flex>
+  );
+}
+
+function Phase({ status, isLast }) {
+  let bg = 'action.disabledBackground';
+
+  if (status === 'done') {
+    bg = 'success';
+  }
+
+  if (status === 'error') {
+    bg = 'error.main';
+  }
+
+  return (
+    <>
+      <StyledPhase mr="3" bg={bg}>
+        <PhaseIcon status={status} />
+      </StyledPhase>
+      {!isLast && (
+        <StyledLine
+          color={status === 'done' ? 'success' : 'action.disabledBackground'}
+        />
+      )}
+    </>
+  );
+}
+
+const StyledPhase = styled(Box)`
+  width: 24px;
+  height: 24px;
+  display: inline-block;
+  position: relative;
+  border-radius: 50%;
+
+  span,
+  div {
+    position: absolute;
+    top: 50%;
+    right: 50%;
+    transform: translate(50%, -50%);
+  }
+`;
+
+const StyledLine = styled(Box)`
+  width: 0px;
+  height: 24px;
+  position: absolute;
+  left: 11px;
+  bottom: -12px;
+  border: 1px solid ${props => props.color};
+`;
+
+function PhaseIcon({ status }) {
+  if (status === 'done') {
+    return <icons.Check />;
+  }
+
+  if (status === 'error') {
+    return <icons.Warning />;
+  }
+
+  if (status === 'processing') {
+    return (
+      <>
+        <StyledIndicator fontSize="24px" style={{ top: 0, left: 0 }} />
+        <icons.Restore />
+      </>
+    );
+  }
+
+  return (
+    <Box
+      borderRadius="50%"
+      bg="action.disabledBackground"
+      height="14px"
+      width="14px"
+    />
+  );
+}
+
+const StyledIndicator = styled(Indicator)`
+  color: ${props => props.theme.colors.success};
+  margin: 0;
+  opacity: 1;
+`;

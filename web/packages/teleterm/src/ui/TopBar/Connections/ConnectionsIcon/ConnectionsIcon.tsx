@@ -58,7 +58,7 @@ const Container = styled.div`
 
 const StyledButton = styled(Button)`
   background: ${props => props.theme.colors.spotBackground[0]};
-  padding: 9px;
+  padding: ${props => props.theme.space[2]}px;
   width: 30px;
   height: 30px;
 `;

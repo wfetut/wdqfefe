@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import styled from 'styled-components';
-import { Flex } from 'design';
+import { Flex, Button, Popover } from 'design';
+import * as icons from 'design/Icon';
+
+import { ListItem } from 'teleterm/ui/components/ListItem';
 
 import { SearchBar } from '../Search';
 
@@ -24,12 +27,44 @@ import { Connections } from './Connections';
 import { Clusters } from './Clusters';
 import { Identity } from './Identity';
 import { AdditionalActions } from './AdditionalActions';
+import { ConnectionsIconStatusIndicator } from './Connections/ConnectionsIcon/ConnectionsIconStatusIndicator';
 
 export function TopBar() {
+  const [isOpen, setIsOpen] = useState(false);
+  const iconRef = useRef();
+
   return (
     <Grid>
       <JustifyLeft>
         <Connections />
+        <Container ref={iconRef} onClick={() => setIsOpen(true)}>
+          <ConnectionsIconStatusIndicator connected={false} />
+          <StyledButton
+            kind="secondary"
+            size="small"
+            m="auto"
+            title="Connect My Computer"
+          >
+            <icons.Wand fontSize={16} />
+          </StyledButton>
+        </Container>
+        <Popover
+          open={isOpen}
+          anchorEl={iconRef.current}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          onClose={() => setIsOpen(false)}
+        >
+          <Menu>
+            <StyledListItem>
+              <icons.Link fontSize={2} />
+              Share computer
+            </StyledListItem>
+            <StyledListItem>
+              <icons.Cog fontSize={2} />
+              Manage agent
+            </StyledListItem>
+          </Menu>
+        </Popover>
       </JustifyLeft>
       <CentralContainer>
         <Clusters />
@@ -65,6 +100,7 @@ const JustifyLeft = styled.div`
   justify-self: start;
   align-items: center;
   height: 100%;
+  gap: ${props => props.theme.space[3]}px;
 `;
 
 const JustifyRight = styled.div`
@@ -72,4 +108,41 @@ const JustifyRight = styled.div`
   justify-self: end;
   align-items: center;
   height: 100%;
+`;
+
+const Container = styled.div`
+  position: relative;
+  display: inline-block;
+`;
+
+const StyledButton = styled(Button)`
+  background: ${props => props.theme.colors.spotBackground[0]};
+  padding: ${props => props.theme.space[2]}px;
+  width: 30px;
+  height: 30px;
+`;
+
+const Menu = styled.menu`
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: ${props => props.theme.colors.levels.elevated};
+`;
+
+const StyledListItem = styled(ListItem)`
+  height: 38px;
+  gap: ${props => props.theme.space[3]}px;
+  padding: 0 ${props => props.theme.space[3]}px;
+  border-radius: 0;
+
+  &:disabled {
+    cursor: default;
+    color: ${props => props.theme.colors.text.disabled};
+
+    &:hover {
+      background-color: inherit;
+    }
+  }
 `;

@@ -340,7 +340,7 @@ const EmptyIndicator = ({
       <td colSpan={colSpan}>
         <Text
           typography="paragraph"
-          m="4"
+          mt="4"
           color="text.main"
           style={{
             display: 'flex',
@@ -350,6 +350,18 @@ const EmptyIndicator = ({
         >
           <Icons.Database mr="2" />
           {emptyText}
+        </Text>
+        <Text
+          typography="paragraph"
+          mb="4"
+          color="text.main"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          Quisque sem nisi, aliquet a egestas nec, finibus vel urna.
         </Text>
       </td>
     </tr>

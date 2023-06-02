@@ -29,7 +29,11 @@ export function useServers() {
     useServerSideResources<Server>(
       { fieldName: 'hostname', dir: 'ASC' }, // default sort
       (params: GetResourcesParams) =>
-        appContext.resourcesService.fetchServers(params)
+        Promise.resolve({
+          agentsList: [],
+          totalCount: 0,
+          startKey: '',
+        })
     );
 
   function getSshLogins(serverUri: uri.ServerUri): string[] {
