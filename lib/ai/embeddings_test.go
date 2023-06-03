@@ -17,6 +17,7 @@
 package ai
 
 import (
+	"math"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -25,6 +26,9 @@ import (
 )
 
 func TestKNNRetriever_GetRelevant(t *testing.T) {
+	t.Parallel()
+
+	// Generate random vector. The seed is fixed, so the results are deterministic.
 	randGen := rand.New(rand.NewSource(42))
 
 	generateVector := func() []float64 {
@@ -34,62 +38,70 @@ func TestKNNRetriever_GetRelevant(t *testing.T) {
 		for i := 0; i < 100; i++ {
 			vec[i] = randGen.Float64()
 		}
-		return vec
+		// normalize vector, so the simiarity between two vectors is the dot product
+		// between [0, 1]
+		return normalize(vec)
 	}
 
 	points := make([]*Embedding, 100)
 	for i := 0; i < 100; i++ {
 		points[i] = &Embedding{
-			Vector: generateVector(),
-			Name:   strconv.Itoa(i),
-			Data:   strconv.Itoa(i),
+			Vector:  generateVector(),
+			Name:    strconv.Itoa(i),
+			Content: strconv.Itoa(i),
 		}
 	}
 
+	// Create a query.
 	query := &Embedding{
 		Vector: generateVector(),
 	}
 
-	retriever := NewKNNRetriever(points)
-	docs := retriever.GetRelevant(query, 10)
+	retriever, err := NewKNNRetriever(points)
+	require.NoError(t, err)
 
+	// Get the top 10 most similar documents.
+	docs := retriever.GetRelevant(query, 10)
 	require.Len(t, docs, 10)
-	require.Equal(t, "92", docs[0].Name)
-	require.Equal(t, "57", docs[1].Name)
-	require.Equal(t, "56", docs[2].Name)
-	require.Equal(t, "95", docs[3].Name)
-	require.Equal(t, "49", docs[4].Name)
-	require.Equal(t, "47", docs[5].Name)
-	require.Equal(t, "30", docs[6].Name)
-	require.Equal(t, "99", docs[7].Name)
-	require.Equal(t, "12", docs[8].Name)
-	require.Equal(t, "96", docs[9].Name)
+
+	expectedResults := []int{57, 92, 95, 49, 33, 56, 30, 99, 90, 47}
+	expectedSimilarities := []float64{0.80405, 0.79051, 0.78161, 0.78159,
+		0.77655, 0.77374, 0.77306, 0.76688, 0.76634, 0.76458}
+
+	for i, result := range docs {
+		require.Equal(t, strconv.Itoa(expectedResults[i]), result.Name, "expected order is wrong")
+		require.InDelta(t, expectedSimilarities[i], result.SimilarityScore, 10e-6, "similarity score is wrong")
+	}
 }
 
 func TestKNNRetriever_Insert(t *testing.T) {
+	t.Parallel()
+
 	points := []*Embedding{
 		{
-			Vector: []float64{1, 2, 3},
-			Name:   "1",
-			Data:   "1",
+			Vector:  []float64{1, 2, 3},
+			Name:    "1",
+			Content: "1",
 		},
 		{
-			Vector: []float64{4, 5, 6},
-			Name:   "2",
-			Data:   "2",
+			Vector:  []float64{4, 5, 6},
+			Name:    "2",
+			Content: "2",
 		},
 	}
 
-	retriever := NewKNNRetriever(points)
+	retriever, err := NewKNNRetriever(points)
+	require.NoError(t, err)
+
 	docs1 := retriever.GetRelevant(&Embedding{
 		Vector: []float64{7, 8, 9},
 	}, 10)
 	require.Len(t, docs1, 2)
 
 	retriever.Insert(&Embedding{
-		Vector: []float64{7, 8, 9},
-		Name:   "3",
-		Data:   "3",
+		Vector:  []float64{7, 8, 9},
+		Name:    "3",
+		Content: "3",
 	})
 	docs2 := retriever.GetRelevant(&Embedding{
 		Vector: []float64{7, 8, 9},
@@ -98,36 +110,59 @@ func TestKNNRetriever_Insert(t *testing.T) {
 }
 
 func TestKNNRetriever_Remove(t *testing.T) {
+	t.Parallel()
+
 	points := []*Embedding{
 		{
-			Vector: []float64{1, 2, 3},
-			Name:   "1",
-			Data:   "1",
+			Vector:  []float64{1, 2, 3},
+			Name:    "1",
+			Content: "1",
 		},
 		{
-			Vector: []float64{4, 5, 6},
-			Name:   "2",
-			Data:   "2",
+			Vector:  []float64{4, 5, 6},
+			Name:    "2",
+			Content: "2",
 		},
 		{
-			Vector: []float64{7, 8, 9},
-			Name:   "3",
-			Data:   "3",
+			Vector:  []float64{7, 8, 9},
+			Name:    "3",
+			Content: "3",
 		},
 	}
 
-	retriever := NewKNNRetriever(points)
+	retriever, err := NewKNNRetriever(points)
+	require.NoError(t, err)
+
 	docs1 := retriever.GetRelevant(&Embedding{
 		Vector: []float64{7, 8, 9},
 	}, 10)
 
 	require.Len(t, docs1, 3)
 
-	err := retriever.Remove("2")
+	err = retriever.Remove("2")
 	require.NoError(t, err)
 
 	docs2 := retriever.GetRelevant(&Embedding{
 		Vector: []float64{7, 8, 9},
 	}, 10)
 	require.Len(t, docs2, 2)
+}
+
+// Function to calculate L2 norm
+func L2norm(v []float64) float64 {
+	sum := 0.0
+	for _, value := range v {
+		sum += value * value
+	}
+	return math.Sqrt(sum)
+}
+
+// Function to normalize vector using L2 norm
+func normalize(v []float64) []float64 {
+	norm := L2norm(v)
+	result := make([]float64, len(v))
+	for i, value := range v {
+		result[i] = value / norm
+	}
+	return result
 }
