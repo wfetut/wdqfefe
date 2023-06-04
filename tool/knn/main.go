@@ -39,8 +39,26 @@ func main() {
 	result := tree.KNN(&OpenAIEmbeddings{data: query}, 10)
 
 	for _, item := range result {
-		fmt.Printf("item: %v\n", item.(*OpenAIEmbeddings).idx)
+		fmt.Printf("item: %v ", item.(*OpenAIEmbeddings).idx)
+		similarity, err := dotProduct(query, item.(*OpenAIEmbeddings).data)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("similarity: %v\n", similarity)
 	}
+}
+
+func dotProduct(v1, v2 []float64) (float64, error) {
+	if len(v1) != len(v2) {
+		return 0, fmt.Errorf("vectors must be the same length")
+	}
+
+	var result float64
+	for i, val := range v1 {
+		result += val * v2[i]
+	}
+
+	return result, nil
 }
 
 type OpenAIEmbeddings struct {
