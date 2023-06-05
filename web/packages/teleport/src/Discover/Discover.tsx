@@ -22,14 +22,21 @@ import { Box } from 'design';
 import { FeatureBox } from 'teleport/components/Layout';
 
 import { Navigation } from 'teleport/Discover/Navigation/Navigation';
-import { SelectResource } from 'teleport/Discover/SelectResource';
+import {
+  ExtraResources,
+  ExtraViewConfigs,
+  SelectResource,
+} from 'teleport/Discover/SelectResource';
 import cfg from 'teleport/config';
 
 import { findViewAtIndex } from './flow';
 
 import { DiscoverProvider, useDiscover } from './useDiscover';
+import { ResourceKind } from './Shared';
 
-function DiscoverContent() {
+function DiscoverContent<T = ResourceKind>({
+  extraResources,
+}: DiscoverContentProps<T>) {
   const {
     currentStep,
     viewConfig,
@@ -52,7 +59,10 @@ function DiscoverContent() {
     }
   } else {
     content = (
-      <SelectResource onSelect={resource => onSelectResource(resource)} />
+      <SelectResource
+        onSelect={resource => onSelectResource(resource)}
+        extraResources={extraResources}
+      />
     );
   }
 
@@ -86,10 +96,26 @@ function DiscoverContent() {
   );
 }
 
-export function Discover() {
+export function DiscoverComponent<T>({
+  extraResources = [],
+  extraViewConfigs = [],
+}: Props<T>) {
   return (
-    <DiscoverProvider>
-      <DiscoverContent />
+    <DiscoverProvider<T> extraViewConfigs={extraViewConfigs}>
+      <DiscoverContent<T> extraResources={extraResources} />
     </DiscoverProvider>
   );
 }
+
+export function Discover() {
+  return <DiscoverComponent<ResourceKind> />;
+}
+
+type Props<T> = {
+  extraResources?: ExtraResources<T>;
+  extraViewConfigs?: ExtraViewConfigs<T>;
+};
+
+type DiscoverContentProps<T> = {
+  extraResources?: ExtraResources<T>;
+};

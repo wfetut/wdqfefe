@@ -70,8 +70,6 @@ export const APPLICATIONS: ResourceSpec[] = [
     kind: ResourceKind.Application,
     keywords: 'application',
     icon: 'Application',
-    unguidedLink:
-      'https://goteleport.com/docs/application-access/getting-started/',
     event: DiscoverEventResource.ApplicationHttp,
   },
 ];

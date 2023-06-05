@@ -16,7 +16,10 @@
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
+import { ResourceViewConfig } from '../flow';
+
 import type { DiscoverEventResource } from 'teleport/services/userEvent';
+
 import type { ResourceIconName } from './icons';
 
 export enum DatabaseLocation {
@@ -48,11 +51,11 @@ export enum DatabaseEngine {
   Doc,
 }
 
-export interface ResourceSpec {
+export interface ResourceSpec<T = ResourceKind> {
   dbMeta?: { location: DatabaseLocation; engine: DatabaseEngine };
   name: string;
   popular?: boolean;
-  kind: ResourceKind;
+  kind: T;
   icon: ResourceIconName;
   // keywords are filter words that user may use to search for
   // this resource.
@@ -69,3 +72,10 @@ export interface ResourceSpec {
   // used for usage reporting.
   event: DiscoverEventResource;
 }
+
+/** ExtraResources are extra resources to add to Discover that arent defined in `Discover/SelectResource/resources.tsx`.
+ * This is used to pass in enterprise-only resources. */
+export type ExtraResources<T> = ResourceSpec<T>[];
+/** ExtraResources are extra resources to add to Discover that arent defined in `Discover/resourceViewConfigs.ts`.
+ * This is used to pass in the view configs for enterprise-only resources. */
+export type ExtraViewConfigs<T> = ResourceViewConfig<any, T>[];
