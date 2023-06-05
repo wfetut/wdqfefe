@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"net/url"
-	"time"
 
 	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/mongo/address"
@@ -49,7 +48,7 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 	// over server connections (reading/writing wire messages) but at the
 	// same time get access to logic such as picking a server to connect to
 	// in a replica set.
-	top, err := topology.New(options...)
+	top, err := topology.New(options)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -79,8 +78,8 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 }
 
 // getTopologyOptions constructs topology options for connecting to a MongoDB server.
-func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Session) ([]topology.Option, description.ServerSelector, error) {
-	connString, err := getConnectionString(sessionCtx)
+func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Session) (*topology.Config, description.ServerSelector, error) {
+	connUri, connString, err := getConnectionString(sessionCtx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -92,16 +91,10 @@ func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Sess
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	return []topology.Option{
-		topology.WithConnString(func(cs connstring.ConnString) connstring.ConnString {
-			return connString
-		}),
-		topology.WithServerSelectionTimeout(func(time.Duration) time.Duration {
-			return common.DefaultMongoDBServerSelectionTimeout
-		}),
-		topology.WithServerOptions(func(so ...topology.ServerOption) []topology.ServerOption {
-			return serverOptions
-		}),
+	return &topology.Config{
+		URI:                    connUri,
+		ServerSelectionTimeout: common.DefaultMongoDBServerSelectionTimeout,
+		ServerOpts:             serverOptions,
 	}, selector, nil
 }
 
@@ -154,16 +147,18 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 }
 
 // getConnectionString returns connection string for the server.
-func getConnectionString(sessionCtx *common.Session) (connstring.ConnString, error) {
-	uri, err := url.Parse(sessionCtx.Database.GetURI())
+func getConnectionString(sessionCtx *common.Session) (string, connstring.ConnString, error) {
+	uriStr := sessionCtx.Database.GetURI()
+	uri, err := url.Parse(uriStr)
 	if err != nil {
-		return connstring.ConnString{}, trace.Wrap(err)
+		return uriStr, connstring.ConnString{}, trace.Wrap(err)
 	}
 	switch uri.Scheme {
 	case connstring.SchemeMongoDB, connstring.SchemeMongoDBSRV:
-		return connstring.ParseAndValidate(sessionCtx.Database.GetURI())
+		connString, err := connstring.ParseAndValidate(uriStr)
+		return uriStr, connString, err
 	}
-	return connstring.ConnString{Hosts: []string{sessionCtx.Database.GetURI()}}, nil
+	return uriStr, connstring.ConnString{Hosts: []string{uriStr}}, nil
 }
 
 // getServerSelector returns selector for picking the server to connect to,
