@@ -16,9 +16,16 @@ limitations under the License.
 
 import Dialog from './Dialog';
 import DialogTitle from './DialogTitle';
+import { DialogTitleV2 } from './DialogTitleV2';
 import DialogHeader from './DialogHeader';
 import DialogContent from './DialogContent';
 import DialogFooter from './DialogFooter';
 
 export default Dialog;
-export { DialogTitle, DialogContent, DialogFooter, DialogHeader };
+export {
+  DialogTitle,
+  DialogTitleV2,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+};
