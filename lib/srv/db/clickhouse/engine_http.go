@@ -20,12 +20,14 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -50,12 +52,12 @@ func (e *Engine) handleHTTPConnection(ctx context.Context, sessionCtx *common.Se
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		payload, err := utils.GetAndReplaceRequestBody(req)
+		query, err := getQuery(req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		e.Audit.OnQuery(e.Context, sessionCtx, common.Query{Query: string(payload)})
+
+		e.Audit.OnQuery(e.Context, sessionCtx, common.Query{Query: query})
 
 		if err := e.handleRequest(req, sessionCtx); err != nil {
 			return trace.Wrap(err)
@@ -70,6 +72,22 @@ func (e *Engine) handleHTTPConnection(ctx context.Context, sessionCtx *common.Se
 			return trace.Wrap(err)
 		}
 	}
+}
+
+func getQuery(req *http.Request) (string, error) {
+	body, err := utils.GetAndReplaceRequestBody(req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	bodyQuery := string(body)
+	if urlQuery := req.URL.Query().Get("query"); urlQuery != "" {
+		if bodyQuery == "" {
+			return urlQuery, nil
+		}
+		return fmt.Sprintf("%s %s", urlQuery, bodyQuery), nil
+	}
+	return bodyQuery, nil
 }
 
 func (e *Engine) writeResp(resp *http.Response) error {
@@ -89,13 +107,9 @@ func (e *Engine) handleRequest(req *http.Request, sessionCtx *common.Session) er
 	req.URL.Scheme = "https"
 	req.URL.Host = uri.Host
 
-	// Delete Headers set by a ClickHouse client.
-	req.Header.Del(headerClickHouseUser)
-	req.Header.Del("Authorization")
-
 	// Set ClickHouse Headers to enforce x509 auth for HTTP protocol.
-	req.Header.Add(headerClickHouseSSLAuth, enableVal)
-	req.Header.Add(headerClickHouseUser, sessionCtx.DatabaseUser)
+	req.Header.Set(headerClickHouseSSLAuth, enableVal)
+	req.Header.Set(headerClickHouseUser, sessionCtx.DatabaseUser)
 	return nil
 
 }
@@ -115,4 +129,19 @@ func (e *Engine) sendErrorHTTP(err error) {
 	if err := response.Write(e.clientConn); err != nil {
 		return
 	}
+}
+
+func (e *Engine) getTransport(ctx context.Context) (*http.Transport, error) {
+	transport, err := defaults.Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	transport.TLSClientConfig = tlsConfig
+	return transport, nil
 }

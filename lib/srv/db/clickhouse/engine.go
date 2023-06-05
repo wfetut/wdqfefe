@@ -19,7 +19,6 @@ package clickhouse
 import (
 	"context"
 	"net"
-	"net/http"
 
 	"github.com/gravitational/trace"
 
@@ -65,21 +64,6 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	default:
 		return trace.BadParameter("protocol %s is not supported", protocol)
 	}
-}
-
-func (e *Engine) getTransport(ctx context.Context) (*http.Transport, error) {
-	transport, err := defaults.Transport()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	transport.TLSClientConfig = tlsConfig
-	return transport, nil
 }
 
 func (e *Engine) SendError(err error) {

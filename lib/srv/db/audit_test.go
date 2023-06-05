@@ -17,8 +17,11 @@ limitations under the License.
 package db
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -236,14 +239,50 @@ func TestAuditClickHouseHTTP(t *testing.T) {
 
 		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
 		// Select timezone.
-		requireEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
-		// Ping call.
-		requireEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+		event := waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+		assertDatabaseQueryFromAuditEvent(t, event, "SELECT timezone()")
+
+		event = waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+		assertDatabaseQueryFromAuditEvent(t, event, "SELECT 1")
 
 		require.NoError(t, conn.Close())
 		requireEvent(t, testCtx, libevents.DatabaseSessionEndCode)
 	})
 
+	t.Run("successful flow native http client", func(t *testing.T) {
+		proxy, _, err := testCtx.startLocalProxy(ctx, "admin", defaults.ProtocolClickHouseHTTP, "admin", "")
+		require.NoError(t, err)
+		defer proxy.Close()
+
+		r := bytes.NewBufferString("SELECT 1")
+		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s", proxy.GetAddr()), r)
+		require.NoError(t, err)
+
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+
+		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+		event := waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+		assertDatabaseQueryFromAuditEvent(t, event, "SELECT 1")
+		requireEvent(t, testCtx, libevents.DatabaseSessionEndCode)
+
+		req, err = http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s?query=SELECT", proxy.GetAddr()), bytes.NewBufferString("1"))
+		require.NoError(t, err)
+		resp, err = http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+
+		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+		event = waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
+		assertDatabaseQueryFromAuditEvent(t, event, "SELECT 1")
+	})
+}
+
+func assertDatabaseQueryFromAuditEvent(t *testing.T, event events.AuditEvent, wantQuery string) {
+	query, ok := event.(*events.DatabaseSessionQuery)
+	require.True(t, ok)
+	require.Equal(t, wantQuery, query.DatabaseQuery)
 }
 
 func requireEvent(t *testing.T, testCtx *testContext, code string) {

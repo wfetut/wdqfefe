@@ -1630,14 +1630,7 @@ func (c *testContext) sqlServerClient(ctx context.Context, teleportUser, dbServi
 
 // clickHouseNativeClient connects to the specified ClickHouse Server address.
 func (c *testContext) clickHouseNativeClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*ch.Client, *alpnproxy.LocalProxy, error) {
-	route := tlsca.RouteToDatabase{
-		ServiceName: dbService,
-		Protocol:    defaults.ProtocolClickHouse,
-		Username:    dbUser,
-		Database:    dbName,
-	}
-
-	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	proxy, route, err := c.startLocalProxy(ctx, teleportUser, dbService, dbUser, dbName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1651,6 +1644,7 @@ func (c *testContext) clickHouseNativeClient(ctx context.Context, teleportUser, 
 		RouteToDatabase: route,
 	})
 	if err != nil {
+		proxy.Close()
 		return nil, nil, trace.Wrap(err)
 	}
 	return client, proxy, nil
@@ -1658,14 +1652,7 @@ func (c *testContext) clickHouseNativeClient(ctx context.Context, teleportUser, 
 
 // clickHouseHTTPClient connects to the specified ClickHouse Server address.
 func (c *testContext) clickHouseHTTPClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*sql.DB, *alpnproxy.LocalProxy, error) {
-	route := tlsca.RouteToDatabase{
-		ServiceName: dbService,
-		Protocol:    defaults.ProtocolClickHouseHTTP,
-		Username:    dbUser,
-		Database:    dbName,
-	}
-
-	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	proxy, route, err := c.startLocalProxy(ctx, teleportUser, dbService, dbUser, dbName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1683,6 +1670,21 @@ func (c *testContext) clickHouseHTTPClient(ctx context.Context, teleportUser, db
 		return nil, nil, trace.Wrap(err)
 	}
 	return client, proxy, nil
+}
+
+func (c *testContext) startLocalProxy(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*alpnproxy.LocalProxy, tlsca.RouteToDatabase, error) {
+	route := tlsca.RouteToDatabase{
+		ServiceName: dbService,
+		Protocol:    defaults.ProtocolClickHouseHTTP,
+		Username:    dbUser,
+		Database:    dbName,
+	}
+
+	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	if err != nil {
+		return nil, tlsca.RouteToDatabase{}, trace.Wrap(err)
+	}
+	return proxy, route, nil
 }
 
 // cassandraClient connects to test Cassandra through database access as a specified Teleport user and database account.
@@ -2268,6 +2270,11 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 
 // TestAccessClickHouse verifies access scenarios to a ClickHouse database.
 func TestAccessClickHouse(t *testing.T) {
+	const (
+		aliceUser = "alice"
+		adminRole = "admin"
+	)
+
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t,
 		withClickhouseHTTP(defaults.ProtocolClickHouseHTTP),
@@ -2277,39 +2284,29 @@ func TestAccessClickHouse(t *testing.T) {
 
 	tests := []struct {
 		desc         string
-		teleportUser string
-		teleportRole string
 		allowDbUsers []string
 		dbUser       string
 		err          string
 	}{
 		{
 			desc:         "has access to all database users",
-			teleportUser: "alice",
-			teleportRole: "admin",
 			allowDbUsers: []string{types.Wildcard},
 			dbUser:       "root",
 		},
 		{
 			desc:         "has access to nothing",
-			teleportUser: "alice",
-			teleportRole: "admin",
 			allowDbUsers: []string{},
 			dbUser:       "root",
 			err:          "access to db denied",
 		},
 		{
 			desc:         "access allowed to specific user",
-			teleportUser: "alice",
-			teleportRole: "admin",
-			allowDbUsers: []string{"alice"},
-			dbUser:       "alice",
+			allowDbUsers: []string{aliceUser},
+			dbUser:       aliceUser,
 		},
 		{
 			desc:         "access denied to specific user",
-			teleportUser: "alice",
-			teleportRole: "admin",
-			allowDbUsers: []string{"alice"},
+			allowDbUsers: []string{aliceUser},
 			dbUser:       "root",
 			err:          "access to db denied",
 		},
@@ -2330,12 +2327,12 @@ func TestAccessClickHouse(t *testing.T) {
 			t.Run(protocol, func(t *testing.T) {
 				t.Run(fmt.Sprintf(test.desc), func(t *testing.T) {
 					// Create user/role with the requested permissions.
-					testCtx.createUserAndRole(ctx, t, test.teleportUser, test.teleportRole, test.allowDbUsers, []string{types.Wildcard})
+					testCtx.createUserAndRole(ctx, t, aliceUser, adminRole, test.allowDbUsers, []string{types.Wildcard})
 
 					connectCall, ok := connectMap[protocol]
 					require.True(t, ok)
 
-					conn, proxy, err := connectCall(ctx, test.teleportUser, protocol, test.dbUser, "master")
+					conn, proxy, err := connectCall(ctx, aliceUser, protocol, test.dbUser, "master")
 					if test.err != "" {
 						require.Error(t, err)
 						// Error message propagation is only implemented for HTTP Clickhouse protocol.

@@ -63,6 +63,7 @@ const (
 	// ProtocolDynamoDB is TLS ALPN protocol value used to indicate DynamoDB protocol.
 	ProtocolDynamoDB Protocol = "teleport-dynamodb"
 
+	// ProtocolClickhouse is TLS ALPN protocol value used to indicate Clickhouse Protocol.
 	ProtocolClickhouse Protocol = "teleport-clickhouse"
 
 	// ProtocolProxySSH is TLS ALPN protocol value used to indicate Proxy SSH protocol.

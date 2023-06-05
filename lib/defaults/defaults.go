@@ -452,7 +452,8 @@ const (
 	ProtocolOpenSearch = "opensearch"
 	// ProtocolDynamoDB is the DynamoDB database protocol.
 	ProtocolDynamoDB = "dynamodb"
-	// ProtocolClickHouse is the ClickHouse database native protocol.
+	// ProtocolClickHouse is the ClickHouse database native write protocol.
+	// (https://clickhouse.com/docs/en/interfaces/tcp)
 	ProtocolClickHouse = "clickhouse"
 	// ProtocolClickHouseHTTP is the ClickHouse database HTTP protocol.
 	ProtocolClickHouseHTTP = "clickhouse-http"
