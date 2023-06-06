@@ -95,7 +95,7 @@ func generateServerInfos(t *testing.T, n int) []types.ServerInfo {
 }
 
 func initLabelReconcilerForTests(t *testing.T, clock clockwork.Clock) (*labelReconciler, *fakeAccessPoint) {
-	ap := &fakeAccessPoint{}
+	ap := newFakeAccessPoint()
 	lr, err := newLabelReconciler(&labelReconcilerConfig{
 		clock:       clock,
 		accessPoint: ap,
@@ -118,17 +118,21 @@ func TestLabelReconciler(t *testing.T) {
 
 	for i := 0; i < 20; i++ {
 		clock.Advance(time.Second)
-		// TODO(atburke): figure out scope(?) issue that prevents using require.Eventually
-		for j := 0; j < 10; j++ {
-			if len(ap.upsertedServerInfos) == b {
-				break
+		var upsertedServerInfos []types.ServerInfo
+	outer:
+		for {
+			select {
+			case si := <-ap.upsertedServerInfos:
+				upsertedServerInfos = append(upsertedServerInfos, si)
+			case <-time.After(10 * time.Millisecond):
+				break outer
+			case <-ctx.Done():
+				require.Fail(t, "timed out waiting for server infos")
 			}
-			time.Sleep(10 * time.Millisecond)
 		}
-		require.Len(t, ap.upsertedServerInfos, b)
+		require.Len(t, upsertedServerInfos, b)
 
-		require.Equal(t, serverInfos[b*i:b*(i+1)], ap.upsertedServerInfos)
-		ap.upsertedServerInfos = []types.ServerInfo{}
+		require.Equal(t, serverInfos[b*i:b*(i+1)], upsertedServerInfos)
 	}
 }
 
