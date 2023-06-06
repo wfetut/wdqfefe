@@ -1581,7 +1581,13 @@ type fakeAccessPoint struct {
 	updateKube     bool
 	updateDatabase bool
 
-	upsertedServerInfos []types.ServerInfo
+	upsertedServerInfos chan types.ServerInfo
+}
+
+func newFakeAccessPoint() *fakeAccessPoint {
+	return &fakeAccessPoint{
+		upsertedServerInfos: make(chan types.ServerInfo),
+	}
 }
 
 func (f *fakeAccessPoint) CreateDatabase(ctx context.Context, database types.Database) error {
@@ -1604,6 +1610,6 @@ func (f *fakeAccessPoint) UpdateKubernetesCluster(ctx context.Context, cluster t
 }
 
 func (f *fakeAccessPoint) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
-	f.upsertedServerInfos = append(f.upsertedServerInfos, si)
+	f.upsertedServerInfos <- si
 	return nil
 }
