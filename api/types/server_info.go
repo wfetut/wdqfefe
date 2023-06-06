@@ -157,8 +157,8 @@ func (s *ServerInfoV1) CheckAndSetDefaults() error {
 
 // Matches checks if two ServerInfos refer to the same resource.
 func (s *ServerInfoV1) Matches(other ServerInfo) bool {
-	if s.GetName() != "" && other.GetName() != "" && s.GetName() == other.GetName() {
-		return true
+	if s.GetName() != "" && other.GetName() != "" && s.GetName() != other.GetName() {
+		return false
 	}
 	otherV1, ok := other.(*ServerInfoV1)
 	if !ok || otherV1 == nil {
