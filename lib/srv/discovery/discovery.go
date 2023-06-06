@@ -127,7 +127,8 @@ type Server struct {
 	databaseFetchers []common.Fetcher
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
-	// reconciler periodically reconciles the labels of discovered instances.
+	// reconciler periodically reconciles the labels of discovered instances
+	// with the auth server.
 	reconciler *labelReconciler
 }
 

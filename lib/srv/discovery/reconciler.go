@@ -53,6 +53,8 @@ func (c *labelReconcilerConfig) checkAndSetDefaults() error {
 	return nil
 }
 
+// labelReconciler periodically reconciles the labels of discovered instances
+// with the auth server.
 type labelReconciler struct {
 	cfg *labelReconcilerConfig
 
