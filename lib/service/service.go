@@ -1939,22 +1939,8 @@ func (process *TeleportProcess) initAuthService() error {
 				}
 
 				// Match ServerInfos with nodes.
-				for _, si := range items {
-					for _, node := range nodes {
-						if si.Matches(node.GetServerInfo()) {
-							err := process.localAuth.UpdateLabels(ctx, proto.InventoryUpdateLabelsRequest{
-								ServerID: node.GetName(),
-								Labels:   si.GetStaticLabels(),
-							})
-							if err != nil {
-								if trace.IsNotFound(err) {
-									process.log.WithError(err).Warnf("no control stream for server %v", node.GetName())
-									break
-								}
-								return trace.Wrap(err)
-							}
-						}
-					}
+				if err := process.processServerInfos(ctx, items, nodes); err != nil {
+					return trace.Wrap(err)
 				}
 			case <-ctx.Done():
 				return nil
@@ -5717,4 +5703,25 @@ func copyAndConfigureTLS(config *tls.Config, log logrus.FieldLogger, accessPoint
 	tlsConfig.GetConfigForClient = auth.WithClusterCAs(tlsConfig.Clone(), accessPoint, clusterName, log)
 
 	return tlsConfig
+}
+
+func (process *TeleportProcess) processServerInfos(ctx context.Context, serverInfos []types.ServerInfo, nodes []types.Server) error {
+	for _, si := range serverInfos {
+		for _, node := range nodes {
+			if si.Matches(node.GetServerInfo()) {
+				err := process.localAuth.UpdateLabels(ctx, proto.InventoryUpdateLabelsRequest{
+					ServerID: node.GetName(),
+					Labels:   si.GetStaticLabels(),
+				})
+				if err != nil {
+					if trace.IsNotFound(err) {
+						process.log.WithError(err).Warnf("no control stream for server %v", node.GetName())
+						break
+					}
+					return trace.Wrap(err)
+				}
+			}
+		}
+	}
+	return nil
 }
