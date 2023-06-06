@@ -5715,7 +5715,7 @@ func (process *TeleportProcess) processServerInfos(ctx context.Context, serverIn
 				})
 				if err != nil {
 					if trace.IsNotFound(err) {
-						process.log.WithError(err).Warnf("no control stream for server %v", node.GetName())
+						process.log.WithError(err).Debugf("no control stream for server %v", node.GetName())
 						break
 					}
 					return trace.Wrap(err)
