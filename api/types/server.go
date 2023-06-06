@@ -487,6 +487,7 @@ func (s *ServerV2) SetServerInfo(si ServerInfo) error {
 	if !ok {
 		return trace.BadParameter("expected *ServerInfoV1, got %T", si)
 	}
+	siV1.SetName(s.GetName())
 	s.Spec.ServerInfo = siV1
 	return nil
 }

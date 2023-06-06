@@ -26,9 +26,6 @@ import (
 // metadata is a cache of all instance metadata.
 var metadata *Metadata
 
-// metadataErr is the error returned when metadata was first fetched.
-var metadataErr error
-
 // metadataReady is a channel that is closed when the metadata has been fetched.
 var metadataReady = make(chan struct{})
 
@@ -47,7 +44,7 @@ func Get(ctx context.Context) (*Metadata, error) {
 		go func() {
 			defaultFetcher := &fetchConfig{}
 			defaultFetcher.setDefaults()
-			metadata, metadataErr = defaultFetcher.fetch(context.Background())
+			metadata = defaultFetcher.fetch(context.Background())
 
 			// Signal that the metadata is ready.
 			close(metadataReady)
@@ -56,7 +53,7 @@ func Get(ctx context.Context) (*Metadata, error) {
 
 	select {
 	case <-metadataReady:
-		return metadata, trace.Wrap(metadataErr)
+		return metadata, nil
 	case <-ctx.Done():
 		return nil, trace.Wrap(ctx.Err())
 	}

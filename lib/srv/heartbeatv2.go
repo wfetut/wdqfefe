@@ -77,10 +77,13 @@ func NewSSHServerHeartbeat(cfg SSHServerHeartbeatConfig) (*HeartbeatV2, error) {
 		getServer: func(ctx context.Context) *types.ServerV2 {
 			server := cfg.GetServer()
 			metadata, err := metadata.Get(ctx)
-			if err != nil {
+			if err == nil {
+				if metadata.ServerInfo != nil {
+					server.SetServerInfo(metadata.ServerInfo)
+				}
+			} else {
 				log.Warnf("Failed to get metadata: %v", err)
 			}
-			server.SetServerInfo(metadata.ServerInfo)
 			return server
 		},
 		announcer: cfg.Announcer,

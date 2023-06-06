@@ -185,6 +185,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("AuthLocalNodeControlStream", suite.bind(testAuthLocalNodeControlStream))
 	t.Run("AgentlessConnection", suite.bind(testAgentlessConnection))
 	t.Run("LeafAgentlessConnection", suite.bind(testTrustedClusterAgentless))
+	t.Run("ReconcileLabels", suite.bind(testReconcileLabels))
 }
 
 // testDifferentPinnedIP tests connection is rejected when source IP doesn't match the pinned one
@@ -7618,6 +7619,55 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	testAgentlessConn(t, tc, node)
+}
+
+// testReconcileLabels verifies that an SSH server's labels can be updated by
+// upserting a corresponding ServerInfo to the auth server.
+func testReconcileLabels(t *testing.T, suite *integrationTestSuite) {
+	// Create Teleport cluster.
+	cfg := suite.defaultServiceConfig()
+	cfg.CachePolicy.Enabled = false
+	cfg.Proxy.DisableWebService = true
+	cfg.Proxy.DisableWebInterface = true
+	teleInst := suite.NewTeleportWithConfig(t, nil, nil, cfg)
+
+	t.Cleanup(func() { require.NoError(t, teleInst.StopAll()) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	require.NoError(t, helpers.WaitForNodeCount(ctx, teleInst, helpers.Site, 1))
+
+	authServer := teleInst.Process.GetAuthServer()
+	servers, err := authServer.GetNodes(ctx, defaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+
+	server := servers[0]
+	serverName := server.GetName()
+	require.Empty(t, server.GetStaticLabels())
+
+	// Update the server's labels.
+	labels := map[string]string{"a": "1", "b": "2"}
+	serverInfo, err := types.NewServerInfo(types.Metadata{
+		Name:   serverName,
+		Labels: labels,
+	}, types.ServerInfoSpecV1{})
+	require.NoError(t, err)
+	require.NoError(t, authServer.UpsertServerInfo(ctx, serverInfo))
+
+	// Check that the labels were updated.
+	// TODO(atburke): Figure out why require.Eventually doesn't work here.
+	for i := 0; i < 10; i++ {
+		server, err = authServer.GetNode(ctx, defaults.Namespace, serverName)
+		require.NoError(t, err)
+		if server.GetStaticLabels() != nil {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+
+	require.Equal(t, labels, server.GetStaticLabels())
 }
 
 func createAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nodeHostname string) *types.ServerV2 {

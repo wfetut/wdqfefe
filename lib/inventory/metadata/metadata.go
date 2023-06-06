@@ -76,6 +76,10 @@ type fetchConfig struct {
 	// httpDo is the method called to perform an http request.
 	// It is configurable so that it can be mocked in tests.
 	httpDo func(req *http.Request, insecureSkipVerify bool) (*http.Response, error)
+	// getServerInfo is the method called to get additional info about an
+	// instance running in a cloud environment.
+	// It is configurable so that it can be mocked in tests.
+	getServerInfo func(ctx context.Context, cloudEnvironment string) types.ServerInfo
 }
 
 // setDefaults sets the values of several methods used to read files, execute
@@ -113,10 +117,31 @@ func (c *fetchConfig) setDefaults() {
 			return client.Do(req)
 		}
 	}
+	if c.getServerInfo == nil {
+		c.getServerInfo = func(ctx context.Context, cloudEnvironment string) types.ServerInfo {
+			switch cloudEnvironment {
+			case "aws":
+				iid, err := utils.GetEC2InstanceIdentityDocument(ctx)
+				if err != nil {
+					return &types.ServerInfoV1{}
+				}
+				return &types.ServerInfoV1{
+					Spec: types.ServerInfoSpecV1{
+						AWS: &types.ServerInfoSpecV1_AWSInfo{
+							AccountID:  iid.AccountID,
+							InstanceID: iid.InstanceID,
+						},
+					},
+				}
+			default:
+				return &types.ServerInfoV1{}
+			}
+		}
+	}
 }
 
 // fetch fetches all metadata.
-func (c *fetchConfig) fetch(ctx context.Context) (*Metadata, error) {
+func (c *fetchConfig) fetch(ctx context.Context) *Metadata {
 	metadata := &Metadata{
 		OS:                    c.fetchOS(),
 		OSVersion:             c.fetchOSVersion(),
@@ -127,24 +152,8 @@ func (c *fetchConfig) fetch(ctx context.Context) (*Metadata, error) {
 		ContainerOrchestrator: c.fetchContainerOrchestrator(ctx),
 		CloudEnvironment:      c.fetchCloudEnvironment(ctx),
 	}
-	if metadata.CloudEnvironment == "aws" {
-		iid, err := utils.GetEC2InstanceIdentityDocument(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		metadata.ServerInfo = &types.ServerInfoV1{
-			Spec: types.ServerInfoSpecV1{
-				AWS: &types.ServerInfoSpecV1_AWSInfo{
-					AccountID:  iid.AccountID,
-					InstanceID: iid.InstanceID,
-				},
-			},
-		}
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	return metadata, nil
+	metadata.ServerInfo = c.getServerInfo(ctx, metadata.CloudEnvironment)
+	return metadata
 }
 
 // fetchOS returns the value of GOOS.
