@@ -12,13 +12,13 @@ state: draft
 
 ## What
 
-As part of the increase of the reliability of Teleport, we want to add integration
+As part of the increase of the reliability of Teleport, we want to add end-to-end (E2E)
 tests for AWS. This will allow us to test the integration with AWS without having
 to rely on manual testing.
 
 ## Why
 
-We want to increase the reliability of Teleport by adding integration tests for
+We want to increase the reliability of Teleport by adding E2E tests for
 AWS. This will allow us to test the integration with AWS without having to rely
 on manual testing. This will also allow us to test the integration with AWS in
 a more reliable process to ensure we don't introduce regressions in the future
@@ -29,19 +29,24 @@ when using auto-discovery of nodes, databases and Kubernetes clusters. This
 integration is critical for the success of Teleport and we want to ensure that
 we can test it reliably.
 
-Each integration test will use the minimum required
+Each  E2E tests test will use the minimum required
 AWS API permissions to test the integration. This will ensure that we don't
 introduce regressions by changing the permissions required by Teleport but those
 changes are not detected because another test requires the same permissions.
 
-The goal of this RFD is to define the scope of the integration tests for AWS
-and how we will run them.
+We are describing the E2E tests for AWS in this RFD but the same process will
+be used to add E2E tests for other cloud providers. With that in mind, we
+should ensure that the process is generic enough to be used for other cloud
+providers.
 
 ## When
 
-AWS integration tests will be added to the Teleport CI pipeline as part of the
-cronjob that triggers integrations each day. During the release process, the
-integration tests will be run automatically as part of the release process.
+AWS E2E tests will be added to the Teleport CI pipeline as part of the
+tests that run on each PR. This will ensure that we can catch regressions
+early and fix them before they are merged into the master branch.
+
+For Kubernetes access, tests are easily parallelizable since each test can run
+in isolation and does not interfere with the cluster state.
 
 ## How
 
@@ -66,24 +71,24 @@ Once the environment variables are set, the AWS SDK that Teleport uses will
 automatically use them to authenticate with the AWS API and does not require
 any additional configuration.
 
-One of the requirements for the integration tests is that they should use the
+One of the requirements for the E2E tests is that they should use the
 minimum required permissions to perform the required actions. This will ensure
 that we don't introduce regressions by changing the permissions required by
 Teleport. To achieve this, GitHub action will be allowed to assume a set of
 roles that will simulate the minimum required permissions that each Teleport
 service requires to perform the required actions. Teleport services will be
-configured to assume these roles when running the integration tests - requires
+configured to assume these roles when running the E2E tests - requires
 changes to the Teleport configuration - so we can test them in isolation.
 
 The AWS account will be configured with a set of roles that will be assumed by
 the GitHub actions pipeline. These roles will be configured with the minimum
-required permissions to run the integration tests. This will ensure that we
+required permissions to run the E2E tests. This will ensure that we
 don't introduce regressions by changing the permissions required by Teleport
 but those changes are not detected because another test requires the same
 permissions.
 
 AWS account configuration will be handled by IAC and will be stored in the
-Teleport Terraform repository. This will allow us to track changes to the configuration
+cloud-terraform repository. This will allow us to track changes to the configuration
 and ensure that we can revert them if needed while also allowing us to review
 the changes before they are applied. Each End-to-End test will run in a separate
 Job so we can configure the assumed role for each test. End-to-End action
@@ -92,7 +97,7 @@ the OIDC token that will be used to authenticate with AWS API.
 
 ## Tests
 
-This section describes the integration tests that will be added to the Teleport
+This section describes the E2E tests that will be added to the Teleport
 and what they will test.
 
 ### Kubernetes Access
@@ -102,30 +107,71 @@ This is done by using the AWS API to discover the Kubernetes clusters running on
 the account that matches the configured labels and then using the Kubernetes API
 to forward the requests to the cluster.
 
-The first step of this process happens on the Teleport Discovery service and
-uses the AWS API credentials to poll the available clusters.
-If the discovery service finds a cluster that matches the configured labels, it
-will create a Kubernetes cluster - `kube_cluster` - object in the Teleport database.
-This object contains the information required to
-connect to the Kubernetes cluster. The second step of this process happens on
-the Kubernetes Service and uses the information from the `kube_cluster` object
-to generate a short-lived token that is used to authenticate with the Kubernetes
-API.
+The E2E tests for Kubernetes access will spin up the following Teleport
+services:
 
-The integration tests for Kubernetes access will test the following:
+1. Auth Server
+2. Proxy
+3. Discovery service
+4. Kubernetes Service
 
-- The discovery service can discover Kubernetes clusters running on AWS and
-  create the `kube_cluster` object in the Teleport database. If the object
-  already exists, it will be updated with the new labels.
-- The Kubernetes service receives the `kube_cluster` object and can generate
-  a short-lived token to authenticate with the Kubernetes API.
-- The Kubernetes service can forward the requests to the Kubernetes API.
-- The Kubernetes service automatically refreshes the token when it's about to
-  expire.
+Teleport Auth and Proxy configurations are similar to the configurations we
+use for other tests. The discovery service will be configured to discover the healthy EKS
+clusters with `env: ci` tag. The Kubernetes service will be configured to
+watch clusters discovered by the discovery service with `env: ci` label.
+
+#### Discovery service config
+
+E2E tests will configure the Discovery service to discover EKS clusters with
+`env: ci` tag. The snippet below shows the configuration that will be used
+by the E2E tests.
+
+```yaml
+
+discovery_service:
+    enabled: "yes"
+    # discovery_group is used to group discovered resources into different
+    # sets. This is useful when you have multiple Teleport Discovery services
+    # running in the same cluster but polling different cloud providers or cloud
+    # accounts. It prevents discovered services from colliding in Teleport when
+    # managing discovered resources.
+    discovery_group: "ci"
+    aws:
+     - types: ["eks"]
+       # AWS regions to search for resources from
+       regions: ["us-east-1", "us-west-1"]
+       tags:
+         "env": "ci"
+
+```
+
+#### Kubernetes service config
+
+E2E tests will configure the Kubernetes service to watch `kube_cluster` objects
+with label `env:ci` and serve them. The snippet bellow shows the configuration that
+will be used.
+
+```yaml
+kubernetes_service:
+  enabled: "yes"
+  resources:
+  - tags:
+      "env": "ci"
+```
+
+Once the Teleport components are running, the test expects that the Kubernetes
+service starts heartbeat the clusters discovered by the discovery service.
+`tsh kube ls` will be used to monitor the clusters being served by the Kubernetes
+service. Once the cluster shows up in the list, we consider it ready.
+
+After the initial discovery phase, E2E tests will use `tsh` to simulate client connections
+to the cluster and run a simple command to ensure that the connection works and is forwarded as expected.
+`tsh kube login <kube_cluster>` will be used to generate the kubeconfig, and
+`tsh kubectl get service` will be used to test the connection to the cluster.
 
 #### Requirements
 
-This section describes the requirements for the integration tests for Kubernetes
+This section describes the requirements for the E2E tests for Kubernetes
 access.
 
 - One or more EKS control plane clusters running on AWS. We don't need that the
@@ -149,12 +195,12 @@ deployed on a single availability zone is enough.
 ## Security
 
 Several security considerations must be to be taken into account
-when implementing the integration tests for AWS.
+when implementing the E2E tests for AWS.
 
 ### GitHub OIDC Provider
 
 GitHub OIDC provider will be used to authenticate with AWS API. This will allow
-us to use GitHub actions to run the integration tests without having to manage
+us to use GitHub actions to run the E2E tests without having to manage
 AWS credentials. GitHub actions will be allowed to assume a set of roles that
 will simulate the minimum required permissions that each Teleport service
 requires to perform the required actions. An important consideration is that
@@ -189,3 +235,18 @@ simulate the minimum required permissions that each Teleport service requires
 to perform the required actions. We need to protect these roles from being
 too permissive or being used to escalate privileges to other resources in the
 AWS account.
+
+### AWS Account
+
+The AWS account used to run the E2E tests must be isolated from the other AWS
+accounts used by Teleport. This will prevent the E2E tests from affecting the
+other AWS accounts and will allow us to easily clean up the resources created
+by the E2E tests. It will also prevent devs from mistakenly deleting resources used
+by E2E tests because they won't have admin privileges into `ci` account as
+opposed to `dev` accounts. The AWS account reserved for CI is `teleport-ci-cd-prod`.
+
+## Future Work
+
+This RFD focuses on the E2E tests for AWS but the same approach will be
+pursued for other cloud providers. The next step will be to implement the same
+E2E tests for GCP and Azure.
