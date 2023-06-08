@@ -990,8 +990,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	kube := newKubeCommand(app)
 	// MFA subcommands.
 	mfa := newMFACommand(app)
-	// FIDO2, TouchID and WebAuthnWin commands.
-	f2 := newFIDO2Command(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
 
@@ -1004,6 +1002,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		puttyConfig.Hidden()
 	}
 
+	// FIDO2, TouchID and WebAuthnWin commands.
+	f2 := newFIDO2Command(app)
 	// touchid subcommands.
 	tid := newTouchIDCommand(app)
 	webauthnwin := newWebauthnwinCommand(app)
