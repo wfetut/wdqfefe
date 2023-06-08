@@ -28,8 +28,10 @@ import (
 type ServerInfo interface {
 	// ResourceWithLabels provides common resource headers
 	ResourceWithLabels
-	// Matches checks if two ServerInfos refer to the same resource.
-	Matches(other ServerInfo) bool
+	// GetMatchers gets the server matchers for this ServerInfo.
+	GetMatchers() []*ServerResourceMatcher
+	// SetMatchers sets the ServerInfo's server matchers.
+	SetMatchers(matchers []*ServerResourceMatcher)
 }
 
 // NewServerInfo creates an instance of ServerInfo.
@@ -137,9 +139,6 @@ func (s *ServerInfoV1) MatchSearch(searchValues []string) bool {
 		utils.MapToStrings(s.GetAllLabels()),
 		s.GetName(),
 	)
-	if s.Spec.AWS != nil {
-		fieldVals = append(fieldVals, s.Spec.AWS.AccountID, s.Spec.AWS.InstanceID)
-	}
 	return MatchSearch(fieldVals, searchValues, nil)
 }
 
@@ -155,21 +154,12 @@ func (s *ServerInfoV1) CheckAndSetDefaults() error {
 	return trace.Wrap(s.Metadata.CheckAndSetDefaults())
 }
 
-// Matches checks if two ServerInfos refer to the same resource.
-func (s *ServerInfoV1) Matches(other ServerInfo) bool {
-	if s.GetName() != "" && other.GetName() != "" && s.GetName() != other.GetName() {
-		return false
-	}
-	otherV1, ok := other.(*ServerInfoV1)
-	if !ok || otherV1 == nil {
-		return false
-	}
-	if s.Spec.AWS != nil && !s.Spec.AWS.equals(otherV1.Spec.AWS) {
-		return false
-	}
-	return true
+// GetMatchers gets the server matchers for this ServerInfo.
+func (s *ServerInfoV1) GetMatchers() []*ServerResourceMatcher {
+	return s.Spec.ResourceMatchers
 }
 
-func (aws *ServerInfoSpecV1_AWSInfo) equals(other *ServerInfoSpecV1_AWSInfo) bool {
-	return other != nil && other.AccountID == aws.AccountID && other.InstanceID == aws.InstanceID
+// SetMatchers sets the ServerInfo's server matchers.
+func (s *ServerInfoV1) SetMatchers(matchers []*ServerResourceMatcher) {
+	s.Spec.ResourceMatchers = matchers
 }

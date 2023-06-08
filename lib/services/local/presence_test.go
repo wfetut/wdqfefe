@@ -1329,9 +1329,10 @@ func TestServerInfoCRUD(t *testing.T) {
 			"c": "d",
 		},
 	}, types.ServerInfoSpecV1{
-		AWS: &types.ServerInfoSpecV1_AWSInfo{
-			AccountID:  "abcd",
-			InstanceID: "1234",
+		ResourceMatchers: []*types.ServerResourceMatcher{
+			{
+				Labels: &types.Labels{"a": []string{"b"}, "c": []string{"d"}},
+			},
 		},
 	})
 	require.NoError(t, err)
@@ -1339,9 +1340,13 @@ func TestServerInfoCRUD(t *testing.T) {
 	serverInfoB, err := types.NewServerInfo(types.Metadata{
 		Name: "server2",
 	}, types.ServerInfoSpecV1{
-		AWS: &types.ServerInfoSpecV1_AWSInfo{
-			AccountID:  "efgh",
-			InstanceID: "5678",
+		ResourceMatchers: []*types.ServerResourceMatcher{
+			{
+				AWS: &types.ServerResourceMatcher_AWSInfo{
+					AccountID:  "abcd",
+					InstanceID: "1234",
+				},
+			},
 		},
 	})
 	require.NoError(t, err)

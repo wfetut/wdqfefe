@@ -762,8 +762,23 @@ message ServerSpecV2 {
   reserved 8;
   reserved 10;
   reserved "KubernetesClusters";
-  // ServerInfo contains info about where the server was discovered.
-  ServerInfoV1 ServerInfo = 14 [(gogoproto.jsontag) = "server_info,omitempty"];
+  // CloudMetadata contains info about the cloud instance the server is running
+  // on, if any.
+  CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
+}
+
+// CloudMetadata contains info about the cloud instance a server is running
+// on, if any.
+message CloudMetadata {
+  // AWSInfo contains attributes to match to an EC2 instance.
+  message AWSInfo {
+    // AccountID is an AWS account ID.
+    string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
+    // InstanceID is an EC2 instance ID.
+    string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
+  }
+  // AWSInfo contains attributes to match to an EC2 instance.
+  AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -5739,8 +5754,8 @@ message ServerInfoV1 {
   ];
 }
 
-// ServerInfoSpecV1 contains fields used to match Nodes to this ServerInfo.
-message ServerInfoSpecV1 {
+// ServerResourceMatcher is a set of properties that is used to match on resources.
+message ServerResourceMatcher {
   // AWSInfo contains attributes to match to an EC2 instance.
   message AWSInfo {
     // AccountID is an AWS account ID.
@@ -5748,8 +5763,21 @@ message ServerInfoSpecV1 {
     // InstanceID is an EC2 instance ID.
     string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
   }
+
+  // Labels is the set of labels to match to a Server.
+  wrappers.LabelValues Labels = 1 [
+    (gogoproto.jsontag) = "labels",
+    (gogoproto.customtype) = "Labels"
+  ];
+
   // AWS matches an EC2 instance.
-  AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
+  AWSInfo AWS = 2 [(gogoproto.jsontag) = "aws,omitempty"];
+}
+
+// ServerInfoSpecV1 contains fields used to match Nodes to this ServerInfo.
+message ServerInfoSpecV1 {
+  // ResourceMatchers is a list of resource matchers.
+  repeated ServerResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
 }
 
 // JamfSpecV1 is the base configuration for the Jamf MDM service.

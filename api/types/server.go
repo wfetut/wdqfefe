@@ -91,10 +91,10 @@ type Server interface {
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
 
-	// GetServerInfo gets the ServerInfo for the server.
-	GetServerInfo() ServerInfo
-	// SetServerInfo sets the server's ServerInfo.
-	SetServerInfo(si ServerInfo) error
+	// GetCloudMetadata gets the cloud metadata for the server.
+	GetCloudMetadata() *CloudMetadata
+	// SetCloudMetadata sets the server's cloud metadata.
+	SetCloudMetadata(meta *CloudMetadata)
 }
 
 // NewServer creates an instance of Server.
@@ -476,20 +476,14 @@ func (s *ServerV2) DeepCopy() Server {
 	return utils.CloneProtoMsg(s)
 }
 
-// GetServerInfo gets the ServerInfo for the server.
-func (s *ServerV2) GetServerInfo() ServerInfo {
-	return s.Spec.ServerInfo
+// GetCloudMetadata gets the cloud metadata for the server.
+func (s *ServerV2) GetCloudMetadata() *CloudMetadata {
+	return s.Spec.CloudMetadata
 }
 
-// SetServerInfo sets the server's ServerInfo.
-func (s *ServerV2) SetServerInfo(si ServerInfo) error {
-	siV1, ok := si.(*ServerInfoV1)
-	if !ok {
-		return trace.BadParameter("expected *ServerInfoV1, got %T", si)
-	}
-	siV1.SetName(s.GetName())
-	s.Spec.ServerInfo = siV1
-	return nil
+// SetCloudMetadata sets the server's cloud metadata.
+func (s *ServerV2) SetCloudMetadata(meta *CloudMetadata) {
+	s.Spec.CloudMetadata = meta
 }
 
 // IsAWSConsole returns true if this app is AWS management console.

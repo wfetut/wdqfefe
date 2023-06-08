@@ -107,6 +107,76 @@ func MatchResourceLabels(matchers []ResourceMatcher, resource types.ResourceWith
 	return false
 }
 
+// AWSAttributeMatcher matches the attributes of the EC2 instance a server is
+// running on
+type AWSAttributeMatcher struct {
+	// AccountIDs matches an AWS account ID.
+	AccountIDs []string
+	// InstanceIDs matches and EC2 instance ID.
+	InstanceIDs []string
+}
+
+// ServerMatcher matches a Teleport SSH server.
+type ServerMatcher struct {
+	ResourceMatcher
+	// AWS matches the attributes of the EC2 instance a server is
+	// running on
+	AWS *AWSAttributeMatcher
+}
+
+// ServerMatchersFromServerInfo creates a set of matchers from a given
+// ServerInfo resource.
+func ServerMatchersFromServerInfo(si types.ServerInfo) []ServerMatcher {
+	serverInfoMatchers := si.GetMatchers()
+	matchers := make([]ServerMatcher, 0, len(serverInfoMatchers))
+	for _, matcher := range serverInfoMatchers {
+		m := ServerMatcher{}
+		if matcher.Labels == nil {
+			m.Labels = types.Labels{types.Wildcard: []string{types.Wildcard}}
+		} else {
+			m.Labels = *matcher.Labels
+		}
+		if matcher.AWS != nil {
+			aws := &AWSAttributeMatcher{}
+			if accountID := matcher.AWS.AccountID; accountID != "" {
+				aws.AccountIDs = []string{accountID}
+			}
+			if instanceID := matcher.AWS.InstanceID; instanceID != "" {
+				aws.InstanceIDs = []string{instanceID}
+			}
+			if len(aws.AccountIDs) > 0 || len(aws.InstanceIDs) > 0 {
+				m.AWS = aws
+			}
+		}
+		matchers = append(matchers, m)
+	}
+	return matchers
+}
+
+// MatchServer returns true if any of the provided selectors matches the
+// provided server.
+func MatchServer(matchers []ServerMatcher, server types.Server) bool {
+	for _, matcher := range matchers {
+		if match, _, _ := MatchLabels(matcher.Labels, server.GetAllLabels()); !match {
+			continue
+		}
+		meta := server.GetCloudMetadata()
+		if matcher.AWS != nil {
+			if meta == nil || meta.AWS == nil {
+				continue
+			}
+			if len(matcher.AWS.AccountIDs) > 0 && !slices.Contains(matcher.AWS.AccountIDs, meta.AWS.AccountID) {
+				continue
+			}
+			if len(matcher.AWS.InstanceIDs) > 0 && !slices.Contains(matcher.AWS.InstanceIDs, meta.AWS.InstanceID) {
+				continue
+			}
+		}
+		return true
+	}
+	return false
+}
+
 // ResourceSeenKey is used as a key for a map that keeps track
 // of unique resource names and address. Currently "addr"
 // only applies to resource Application.

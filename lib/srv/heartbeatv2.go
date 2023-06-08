@@ -78,8 +78,8 @@ func NewSSHServerHeartbeat(cfg SSHServerHeartbeatConfig) (*HeartbeatV2, error) {
 			server := cfg.GetServer()
 			metadata, err := metadata.Get(ctx)
 			if err == nil {
-				if metadata.ServerInfo != nil {
-					server.SetServerInfo(metadata.ServerInfo)
+				if metadata.CloudMetadata != nil {
+					server.SetCloudMetadata(metadata.CloudMetadata)
 				}
 			} else {
 				log.Warnf("Failed to get metadata: %v", err)

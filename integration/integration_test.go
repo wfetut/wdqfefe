@@ -7629,6 +7629,7 @@ func testReconcileLabels(t *testing.T, suite *integrationTestSuite) {
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebService = true
 	cfg.Proxy.DisableWebInterface = true
+	cfg.SSH.Labels = map[string]string{"foo": "bar"}
 	teleInst := suite.NewTeleportWithConfig(t, nil, nil, cfg)
 
 	t.Cleanup(func() { require.NoError(t, teleInst.StopAll()) })
@@ -7645,14 +7646,20 @@ func testReconcileLabels(t *testing.T, suite *integrationTestSuite) {
 
 	server := servers[0]
 	serverName := server.GetName()
-	require.Empty(t, server.GetStaticLabels())
+	require.Equal(t, map[string]string{"foo": "bar"}, server.GetStaticLabels())
 
 	// Update the server's labels.
 	labels := map[string]string{"a": "1", "b": "2"}
 	serverInfo, err := types.NewServerInfo(types.Metadata{
-		Name:   serverName,
+		Name:   "si",
 		Labels: labels,
-	}, types.ServerInfoSpecV1{})
+	}, types.ServerInfoSpecV1{
+		ResourceMatchers: []*types.ServerResourceMatcher{
+			{
+				Labels: &types.Labels{"foo": []string{"bar"}},
+			},
+		},
+	})
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertServerInfo(ctx, serverInfo))
 
@@ -7661,13 +7668,16 @@ func testReconcileLabels(t *testing.T, suite *integrationTestSuite) {
 	for i := 0; i < 10; i++ {
 		server, err = authServer.GetNode(ctx, defaults.Namespace, serverName)
 		require.NoError(t, err)
-		if server.GetStaticLabels() != nil {
+		if len(server.GetStaticLabels()) == 3 {
 			break
 		}
 		time.Sleep(time.Second)
 	}
 
-	require.Equal(t, labels, server.GetStaticLabels())
+	require.Equal(t,
+		map[string]string{"foo": "bar", "a": "1", "b": "2"},
+		server.GetStaticLabels(),
+	)
 }
 
 func createAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nodeHostname string) *types.ServerV2 {

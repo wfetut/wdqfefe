@@ -5708,7 +5708,8 @@ func copyAndConfigureTLS(config *tls.Config, log logrus.FieldLogger, accessPoint
 func (process *TeleportProcess) processServerInfos(ctx context.Context, serverInfos []types.ServerInfo, nodes []types.Server) error {
 	for _, si := range serverInfos {
 		for _, node := range nodes {
-			if si.Matches(node.GetServerInfo()) {
+			matchers := services.ServerMatchersFromServerInfo(si)
+			if services.MatchServer(matchers, node) {
 				err := process.localAuth.UpdateLabels(ctx, proto.InventoryUpdateLabelsRequest{
 					ServerID: node.GetName(),
 					Labels:   si.GetStaticLabels(),

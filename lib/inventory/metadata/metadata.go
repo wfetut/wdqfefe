@@ -57,8 +57,8 @@ type Metadata struct {
 	ContainerOrchestrator string
 	// CloudEnvironment advertises the cloud environment for the instance, if any (e.g. "aws").
 	CloudEnvironment string
-	// ServerInfo contains extra metadata about the instance's cloud environment, if any.
-	ServerInfo types.ServerInfo
+	// CloudMetadata contains extra metadata about the instance's cloud environment, if any.
+	CloudMetadata *types.CloudMetadata
 }
 
 // fetchConfig contains the configuration used by the FetchMetadata method.
@@ -76,10 +76,10 @@ type fetchConfig struct {
 	// httpDo is the method called to perform an http request.
 	// It is configurable so that it can be mocked in tests.
 	httpDo func(req *http.Request, insecureSkipVerify bool) (*http.Response, error)
-	// getServerInfo is the method called to get additional info about an
+	// getCloudMetadata is the method called to get additional info about an
 	// instance running in a cloud environment.
 	// It is configurable so that it can be mocked in tests.
-	getServerInfo func(ctx context.Context, cloudEnvironment string) types.ServerInfo
+	fetchCloudMetadata func(ctx context.Context, cloudEnvironment string) *types.CloudMetadata
 }
 
 // setDefaults sets the values of several methods used to read files, execute
@@ -117,24 +117,22 @@ func (c *fetchConfig) setDefaults() {
 			return client.Do(req)
 		}
 	}
-	if c.getServerInfo == nil {
-		c.getServerInfo = func(ctx context.Context, cloudEnvironment string) types.ServerInfo {
+	if c.fetchCloudMetadata == nil {
+		c.fetchCloudMetadata = func(ctx context.Context, cloudEnvironment string) *types.CloudMetadata {
 			switch cloudEnvironment {
 			case "aws":
 				iid, err := utils.GetEC2InstanceIdentityDocument(ctx)
 				if err != nil {
-					return &types.ServerInfoV1{}
+					return nil
 				}
-				return &types.ServerInfoV1{
-					Spec: types.ServerInfoSpecV1{
-						AWS: &types.ServerInfoSpecV1_AWSInfo{
-							AccountID:  iid.AccountID,
-							InstanceID: iid.InstanceID,
-						},
+				return &types.CloudMetadata{
+					AWS: &types.CloudMetadata_AWSInfo{
+						AccountID:  iid.AccountID,
+						InstanceID: iid.InstanceID,
 					},
 				}
 			default:
-				return &types.ServerInfoV1{}
+				return nil
 			}
 		}
 	}
@@ -152,7 +150,7 @@ func (c *fetchConfig) fetch(ctx context.Context) *Metadata {
 		ContainerOrchestrator: c.fetchContainerOrchestrator(ctx),
 		CloudEnvironment:      c.fetchCloudEnvironment(ctx),
 	}
-	metadata.ServerInfo = c.getServerInfo(ctx, metadata.CloudEnvironment)
+	metadata.CloudMetadata = c.fetchCloudMetadata(ctx, metadata.CloudEnvironment)
 	return metadata
 }
 

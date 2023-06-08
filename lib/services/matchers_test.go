@@ -593,3 +593,96 @@ func TestResourceMatchersToTypes(t *testing.T) {
 		})
 	}
 }
+
+func TestServerMatcher(t *testing.T) {
+	t.Parallel()
+	newServer := func(meta *types.CloudMetadata, labels map[string]string) types.Server {
+		s, err := types.NewServer("test-server", types.KindNode, types.ServerSpecV2{
+			CloudMetadata: meta,
+		})
+		require.NoError(t, err)
+		if labels != nil {
+			s.SetStaticLabels(labels)
+		}
+		return s
+	}
+	wildcardLabels := types.Labels{types.Wildcard: []string{types.Wildcard}}
+
+	passingCases := []struct {
+		name    string
+		matcher ServerMatcher
+		server  types.Server
+	}{
+		{
+			name: "labels match",
+			matcher: ServerMatcher{
+				ResourceMatcher: ResourceMatcher{
+					Labels: types.Labels{"foo": []string{"bar"}},
+				},
+			},
+			server: newServer(nil, map[string]string{"foo": "bar"}),
+		},
+		{
+			name: "aws matches",
+			matcher: ServerMatcher{
+				ResourceMatcher: ResourceMatcher{
+					Labels: wildcardLabels,
+				},
+				AWS: &AWSAttributeMatcher{
+					AccountIDs:  []string{"abcd"},
+					InstanceIDs: []string{"1234"},
+				},
+			},
+			server: newServer(&types.CloudMetadata{
+				AWS: &types.CloudMetadata_AWSInfo{
+					AccountID:  "abcd",
+					InstanceID: "1234",
+				},
+			}, nil),
+		},
+	}
+	for _, tc := range passingCases {
+		t.Run("accept "+tc.name, func(t *testing.T) {
+			require.True(t, MatchServer([]ServerMatcher{tc.matcher}, tc.server))
+		})
+	}
+
+	failingCases := []struct {
+		name    string
+		matcher ServerMatcher
+		server  types.Server
+	}{
+		{
+			name: "labels don't match",
+			matcher: ServerMatcher{
+				ResourceMatcher: ResourceMatcher{
+					Labels: types.Labels{"foo": []string{"bar"}},
+				},
+			},
+			server: newServer(nil, map[string]string{"foo": "baz"}),
+		},
+		{
+			name: "aws doesn't match",
+			matcher: ServerMatcher{
+				ResourceMatcher: ResourceMatcher{
+					Labels: wildcardLabels,
+				},
+				AWS: &AWSAttributeMatcher{
+					AccountIDs:  []string{"abcd"},
+					InstanceIDs: []string{"1234"},
+				},
+			},
+			server: newServer(&types.CloudMetadata{
+				AWS: &types.CloudMetadata_AWSInfo{
+					AccountID:  "abcd",
+					InstanceID: "5678",
+				},
+			}, nil),
+		},
+	}
+	for _, tc := range failingCases {
+		t.Run("reject "+tc.name, func(t *testing.T) {
+			require.False(t, MatchServer([]ServerMatcher{tc.matcher}, tc.server))
+		})
+	}
+}
