@@ -114,7 +114,7 @@ follow this flow:
 
 1. Create an Auth API client using the user's existing valid certificates.
 1. Use the client to retrieve an MFA challenge for the user with
-   `rpc CreateAuthenticateChallenge`.
+   the existing `rpc CreateAuthenticateChallenge`.
 1. Prompt the user to solve the MFA challenge with their MFA device.
 1. Send the resulting `MFAChallengeResponse` to the Auth Server as part of an
    administrative API request.
