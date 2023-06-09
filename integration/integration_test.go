@@ -7663,21 +7663,34 @@ func testReconcileLabels(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertServerInfo(ctx, serverInfo))
 
-	// Check that the labels were updated.
-	// TODO(atburke): Figure out why require.Eventually doesn't work here.
-	for i := 0; i < 10; i++ {
-		server, err = authServer.GetNode(ctx, defaults.Namespace, serverName)
-		require.NoError(t, err)
-		if len(server.GetStaticLabels()) == 3 {
-			break
-		}
-		time.Sleep(time.Second)
-	}
+	watcher, err := authServer.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{
+			{
+				Kind: types.KindNode,
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, watcher.Close()) })
 
-	require.Equal(t,
-		map[string]string{"foo": "bar", "a": "1", "b": "2"},
-		server.GetStaticLabels(),
-	)
+	timeout := time.After(5 * time.Second)
+	// Wait for server to receive updated labels.
+	for {
+		select {
+		case <-timeout:
+			require.Fail(t, "Timed out waiting for server update")
+		case event := <-watcher.Events():
+			if event.Type != types.OpPut || event.Resource.GetName() != serverName {
+				continue
+			}
+			if utils.StringMapsEqual(
+				map[string]string{"foo": "bar", "a": "1", "b": "2"},
+				event.Resource.GetMetadata().Labels,
+			) {
+				return
+			}
+		}
+	}
 }
 
 func createAgentlessNode(t *testing.T, authServer *auth.Server, clusterName, nodeHostname string) *types.ServerV2 {

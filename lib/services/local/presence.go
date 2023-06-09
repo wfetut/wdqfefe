@@ -350,6 +350,25 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	}, nil
 }
 
+func (s *PresenceService) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	startKey := backend.Key(nodesPrefix, namespace)
+	endKey := backend.RangeEnd(startKey)
+	items := backend.StreamRange(ctx, s, startKey, endKey, apidefaults.DefaultChunkSize)
+	return stream.FilterMap(items, func(item backend.Item) (types.Server, bool) {
+		server, err := services.UnmarshalServer(
+			item.Value,
+			types.KindNode,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires),
+		)
+		if err != nil {
+			s.log.Warnf("Skipping server at %s, failed to unmarshal: %v", item.Key, err)
+			return nil, false
+		}
+		return server, true
+	})
+}
+
 // GetAuthServers returns a list of registered servers
 func (s *PresenceService) GetAuthServers() ([]types.Server, error) {
 	return s.getServers(context.TODO(), types.KindAuthServer, authServersPrefix)
