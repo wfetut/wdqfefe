@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -35,10 +34,14 @@ import (
 // instances.
 const minBatchSize = 5
 
+type serverInfoUpserter interface {
+	UpsertServerInfo(ctx context.Context, si types.ServerInfo) error
+}
+
 type labelReconcilerConfig struct {
 	clock       clockwork.Clock
 	log         logrus.FieldLogger
-	accessPoint auth.DiscoveryAccessPoint
+	accessPoint serverInfoUpserter
 }
 
 func (c *labelReconcilerConfig) checkAndSetDefaults() error {
@@ -63,6 +66,7 @@ type labelReconciler struct {
 	discoveredServers map[string]types.ServerInfo
 	serverInfoQueue   []types.ServerInfo
 	lastBatchSize     int
+	jitter            retryutils.Jitter
 }
 
 func newLabelReconciler(cfg *labelReconcilerConfig) (*labelReconciler, error) {
@@ -74,6 +78,7 @@ func newLabelReconciler(cfg *labelReconcilerConfig) (*labelReconciler, error) {
 		discoveredServers: make(map[string]types.ServerInfo),
 		serverInfoQueue:   make([]types.ServerInfo, 0, minBatchSize),
 		lastBatchSize:     minBatchSize,
+		jitter:            retryutils.NewSeventhJitter(),
 	}, nil
 }
 
@@ -128,13 +133,11 @@ func (r *labelReconciler) run(ctx context.Context) {
 
 // queueServerInfos queues a list of ServerInfos to be upserted.
 func (r *labelReconciler) queueServerInfos(serverInfos []types.ServerInfo) {
-	jitter := retryutils.NewSeventhJitter()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	now := r.cfg.clock.Now()
 	for _, si := range serverInfos {
-		si.SetExpiry(now.Add(jitter(90 * time.Minute)))
 		existingInfo, ok := r.discoveredServers[si.GetName()]
 		// ServerInfos should be upserted if
 		//   - the instance is new
@@ -143,6 +146,8 @@ func (r *labelReconciler) queueServerInfos(serverInfos []types.ServerInfo) {
 		if !ok ||
 			!utils.StringMapsEqual(si.GetStaticLabels(), existingInfo.GetStaticLabels()) ||
 			existingInfo.Expiry().Before(now.Add(30*time.Minute)) {
+
+			si.SetExpiry(now.Add(r.jitter(90 * time.Minute)))
 			r.discoveredServers[si.GetName()] = si
 			r.serverInfoQueue = append(r.serverInfoQueue, si)
 		}
