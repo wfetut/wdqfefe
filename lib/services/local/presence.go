@@ -350,6 +350,7 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	}, nil
 }
 
+// StreamNodes streams a list of registered servers.
 func (s *PresenceService) StreamNodes(ctx context.Context, namespace string) stream.Stream[types.Server] {
 	startKey := backend.Key(nodesPrefix, namespace)
 	endKey := backend.RangeEnd(startKey)
