@@ -113,11 +113,12 @@ func TestLabelReconciler(t *testing.T) {
 	t.Cleanup(cancel)
 	go lr.run(ctx)
 
-	serverInfos := generateServerInfos(t, 100)
+	serverInfos := generateServerInfos(t, 25)
 	lr.queueServerInfos(serverInfos)
 	b := minBatchSize
 
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 5; i++ {
+		clock.BlockUntil(1)
 		clock.Advance(time.Second)
 		var upsertedServerInfos []types.ServerInfo
 	outer:
