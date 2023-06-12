@@ -133,7 +133,6 @@ func TestLabelReconciler(t *testing.T) {
 			}
 		}
 		require.Len(t, upsertedServerInfos, b)
-
 		require.Equal(t, serverInfos[b*i:b*(i+1)], upsertedServerInfos)
 	}
 }

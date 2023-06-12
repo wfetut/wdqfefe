@@ -102,12 +102,9 @@ func getUpsertBatchSize(queueLen, lastBatchSize int) int {
 }
 
 func (r *labelReconciler) run(ctx context.Context) {
-	ticker := r.cfg.clock.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	for {
+	for ctx.Err() == nil {
 		select {
-		case <-ticker.Chan():
+		case <-r.cfg.clock.After(time.Second):
 			r.mu.Lock()
 			if len(r.serverInfoQueue) == 0 {
 				r.mu.Unlock()

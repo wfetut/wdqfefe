@@ -71,8 +71,7 @@ func toEC2Instance(originalInst *ec2.Instance) EC2Instance {
 		Tags:       make(map[string]string, len(originalInst.Tags)),
 	}
 	for _, tag := range originalInst.Tags {
-		key := aws.StringValue(tag.Key)
-		if key != "" {
+		if key := aws.StringValue(tag.Key); key != "" {
 			inst.Tags[key] = aws.StringValue(tag.Value)
 		}
 	}
