@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -30,6 +31,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -1612,6 +1614,10 @@ type NodeWatcherConfig struct {
 	NodesGetter
 }
 
+type UnifiedResourceWatcherConfig struct {
+	ResourceWatcherConfig
+}
+
 // CheckAndSetDefaults checks parameters and sets default values.
 func (cfg *NodeWatcherConfig) CheckAndSetDefaults() error {
 	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
@@ -1625,6 +1631,57 @@ func (cfg *NodeWatcherConfig) CheckAndSetDefaults() error {
 		cfg.NodesGetter = getter
 	}
 	return nil
+}
+
+func NewUnifiedResourceWatcher(ctx context.Context, cfg UnifiedResourceWatcherConfig) (*UnifiedResourceWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	mem, err := memory.New(memory.Config{
+		Mirror: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	collector := &unifiedResourceCollector{
+		current:         mem,
+		initializationC: make(chan struct{}),
+	}
+
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &UnifiedResourceWatcher{
+		resourceWatcher:          watcher,
+		unifiedResourceCollector: collector,
+	}, nil
+}
+
+func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	fmt.Println("-----")
+	fmt.Printf("%+v\n", "urc getResourcesAndUpdateCurrent")
+	fmt.Println("-----")
+	return nil
+}
+
+func (u *unifiedResourceCollector) notifyStale() {}
+
+func (u *unifiedResourceCollector) initializationChan() <-chan struct{} {
+	return u.initializationC
+}
+
+func (u *unifiedResourceCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	fmt.Println("---------")
+	fmt.Printf("%+v\n", "urc processEvent")
+	fmt.Println("---------")
+}
+
+func (u *unifiedResourceCollector) resourceKind() string {
+	return types.KindNode
 }
 
 // NewNodeWatcher returns a new instance of NodeWatcher.
@@ -1663,6 +1720,11 @@ func NewNodeWatcher(ctx context.Context, cfg NodeWatcherConfig) (*NodeWatcher, e
 type NodeWatcher struct {
 	*resourceWatcher
 	*nodeCollector
+}
+
+type UnifiedResourceWatcher struct {
+	*resourceWatcher
+	*unifiedResourceCollector
 }
 
 // nodeCollector accompanies resourceWatcher when monitoring nodes.
@@ -1915,6 +1977,13 @@ type accessRequestCollector struct {
 	// lock protects the "current" map.
 	lock sync.RWMutex
 	// initializationC is used to check that the watcher has been initialized properly.
+	initializationC chan struct{}
+	once            sync.Once
+}
+
+type unifiedResourceCollector struct {
+	current         *memory.Memory
+	lock            sync.RWMutex
 	initializationC chan struct{}
 	once            sync.Once
 }
