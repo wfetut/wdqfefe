@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/url"
@@ -28,12 +29,14 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -165,6 +168,13 @@ type CLIConf struct {
 	// DiagAddr is the address the diagnostics http service should listen on.
 	// If not set, no diagnostics listener is created.
 	DiagAddr string
+
+	// SampleTraces indicates whether traces should be sampled.
+	SampleTraces bool
+
+	// TraceExporter is a manually provided URI to send traces to instead of
+	// forwarding them to the Auth service.
+	TraceExporter string
 }
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.
@@ -261,6 +271,9 @@ type BotConfig struct {
 	// ReloadCh allows a channel to be injected into the bot to trigger a
 	// renewal.
 	ReloadCh <-chan struct{} `yaml:"-"`
+
+	// TraceProvider is used to create tracers, from which spans can be created.
+	TraceProvider oteltrace.TracerProvider `yaml:"-"`
 }
 
 func (conf *BotConfig) CipherSuites() []uint16 {
@@ -300,6 +313,10 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		if !slices.Contains(SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
 			return trace.BadParameter("unrecognized join method: %q", conf.Onboarding.JoinMethod)
 		}
+	}
+
+	if conf.TraceProvider == nil {
+		conf.TraceProvider = tracing.NoopProvider()
 	}
 
 	return nil
@@ -492,6 +509,23 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 			log.Warnf("CLI parameters are overriding diagnostics address configured in %s", cf.ConfigPath)
 		}
 		config.DiagAddr = cf.DiagAddr
+	}
+
+	// an explicit exporter url was provided no need to forward to auth
+	if cf.TraceExporter != "" {
+		provider, err := tracing.NewTraceProvider(context.Background(), tracing.Config{
+			Service:     teleport.ComponentTBot,
+			ExporterURL: cf.TraceExporter,
+			// We are using 1 here to record all spans as a result of this tbot command. Teleport
+			// will respect the recording flag of remote spans even if the spans it generates
+			// wouldn't otherwise be recorded due to its configured sampling rate.
+			SamplingRate: 1.0,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		config.TraceProvider = provider
 	}
 
 	if err := config.CheckAndSetDefaults(); err != nil {

@@ -67,6 +67,8 @@ func Run(args []string, stdout io.Writer) error {
 	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&cf.Debug)
 	app.Flag("config", "Path to a configuration file.").Short('c').StringVar(&cf.ConfigPath)
 	app.Flag("fips", "Runs tbot in FIPS compliance mode. This requires the FIPS binary is in use.").BoolVar(&cf.FIPS)
+	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
+	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to. Note - only tsh spans will be included.").Hidden().StringVar(&cf.TraceExporter)
 	app.HelpFlag.Short('h')
 
 	joinMethodList := fmt.Sprintf(
@@ -233,6 +235,9 @@ func onConfigure(
 func onStart(botConfig *config.BotConfig) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	ctx, span := botConfig.TraceProvider.Tracer(teleport.ComponentTBot).Start(ctx, "tbot/start")
+	defer span.End()
 
 	reloadCh := make(chan struct{})
 	botConfig.ReloadCh = reloadCh

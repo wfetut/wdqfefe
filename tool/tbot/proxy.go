@@ -17,15 +17,23 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"path/filepath"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/tshwrap"
 )
 
 func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ctx, span := botConfig.TraceProvider.Tracer(teleport.ComponentTBot).Start(ctx, "tbot/proxy")
+	defer span.End()
+
 	wrapper, err := tshwrap.New()
 	if err != nil {
 		return trace.Wrap(err)
@@ -69,6 +77,10 @@ func onProxyCommand(botConfig *config.BotConfig, cf *config.CLIConf) error {
 	// needs (`-d` must precede `proxy`).
 	if botConfig.Debug {
 		args = append([]string{"-d"}, args...)
+	}
+
+	if cf.SampleTraces {
+		args = append([]string{"--trace", "--trace-exporter=" + cf.TraceExporter})
 	}
 
 	return trace.Wrap(wrapper.Exec(env, args...), "executing `tsh proxy`")
