@@ -27,7 +27,6 @@ import (
 	"net/url"
 	"strconv"
 
-	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
@@ -38,6 +37,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -295,7 +295,7 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 	// if it is not an agent connection problem, return without creating a new
 	// session.
 	if !trace.IsConnectionProblem(err) {
-		oxyutils.DefaultHandler.ServeHTTP(w, req, err)
+		reverseproxy.DefaultHandler.ServeHTTP(w, req, err)
 		return
 	}
 
