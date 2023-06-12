@@ -5776,8 +5776,10 @@ message ServerResourceMatcher {
 
 // ServerInfoSpecV1 contains fields used to match Nodes to this ServerInfo.
 message ServerInfoSpecV1 {
+  reserved 1;
+  reserved "AWS";
   // ResourceMatchers is a list of resource matchers.
-  repeated ServerResourceMatcher ResourceMatchers = 1 [(gogoproto.jsontag) = "resources"];
+  repeated ServerResourceMatcher ResourceMatchers = 2 [(gogoproto.jsontag) = "resources"];
 }
 
 // JamfSpecV1 is the base configuration for the Jamf MDM service.
