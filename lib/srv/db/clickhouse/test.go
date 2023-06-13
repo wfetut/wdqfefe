@@ -117,6 +117,9 @@ func encodeVersion() ([]byte, error) {
 	if err := block.AddColumn("versions()", "String"); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// x509 HTTP auth is support from ClickHouse 22.4.x.x
+	// Report random version to a ClickHouse HTTP client.
 	if err := block.Append("23.4.2.11"); err != nil {
 		return nil, trace.Wrap(err)
 	}
