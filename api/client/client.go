@@ -3083,6 +3083,40 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 	NextKey string
 }
 
+func getTypeFromUnifiedResource(resource *proto.PaginatedResource) (types.ResourceWithLabels, error) {
+	var out types.ResourceWithLabels
+	if r := resource.GetNode(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetDatabaseServer(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetDatabaseService(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetAppServer(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetWindowsDesktop(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetWindowsDesktopService(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetKubeCluster(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetKubernetesServer(); r != nil {
+		out = r
+		return out, nil
+	} else if r := resource.GetUserGroup(); r != nil {
+		out = r
+		return out, nil
+	} else {
+		return nil, trace.BadParameter("received unsupported resource %T", resource)
+	}
+}
+
 // GetResourcePage is a helper for getting a single page of resources that match the provide request.
 func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) (ResourcePage[T], error) {
 	var out ResourcePage[T]
@@ -3110,9 +3144,15 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 			return out, trail.FromGRPC(err)
 		}
 
+		req.ResourceType = types.KindUnifiedResouce
 		for _, respResource := range resp.Resources {
 			var resource types.ResourceWithLabels
 			switch req.ResourceType {
+			case types.KindUnifiedResouce:
+				resource, err = getTypeFromUnifiedResource(respResource)
+				if err != nil {
+					return out, trace.Wrap(err)
+				}
 			case types.KindDatabaseServer:
 				resource = respResource.GetDatabaseServer()
 			case types.KindDatabaseService:

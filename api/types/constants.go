@@ -128,6 +128,8 @@ const (
 	// a registered OpenSSH (agentless) node.
 	KindNode = "node"
 
+	KindUnifiedResouce = "unified"
+
 	// SubKindTeleportNode is a Teleport node.
 	SubKindTeleportNode = "teleport"
 

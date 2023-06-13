@@ -1768,8 +1768,17 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		return nil, trace.Wrap(err)
 	}
 
+	req.ResourceType = types.KindUnifiedResouce
+
 	var resources []types.ResourceWithLabels
 	switch req.ResourceType {
+	case types.KindUnifiedResouce:
+		unifiedResources, err := a.authServer.unifiedResourceWatcher.GetUnifiedResources(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = unifiedResources
 	case types.KindNode:
 		nodes, err := a.GetNodes(ctx, req.Namespace)
 		if err != nil {

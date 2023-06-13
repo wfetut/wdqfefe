@@ -4423,7 +4423,7 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 
 	for i, resource := range resp.Resources {
 		var protoResource *proto.PaginatedResource
-		switch req.ResourceType {
+		switch resource.GetKind() {
 		case types.KindDatabaseServer:
 			database, ok := resource.(*types.DatabaseServerV3)
 			if !ok {

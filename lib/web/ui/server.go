@@ -96,6 +96,27 @@ func MakeServers(clusterName string, servers []types.Server, accessChecker servi
 	return uiServers, nil
 }
 
+func MakeServer(clusterName string, server types.Server, accessChecker services.AccessChecker) (Server, error) {
+	serverLabels := server.GetStaticLabels()
+	serverCmdLabels := server.GetCmdLabels()
+	uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
+
+	serverLogins, err := accessChecker.GetAllowedLoginsForResource(server)
+	if err != nil {
+		return Server{}, trace.Wrap(err)
+	}
+
+	return Server{
+		ClusterName: clusterName,
+		Labels:      uiLabels,
+		Name:        server.GetName(),
+		Hostname:    server.GetHostname(),
+		Addr:        server.GetAddr(),
+		Tunnel:      server.GetUseTunnel(),
+		SSHLogins:   serverLogins,
+	}, nil
+}
+
 // KubeCluster describes a kube cluster.
 type KubeCluster struct {
 	// Name is the name of the kube cluster.

@@ -129,6 +129,9 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	resourceKey := ResourceSeenKey{}
+	if filter.ResourceKind == types.KindUnifiedResouce {
+		filter.ResourceKind = resource.GetKind()
+	}
 	switch filter.ResourceKind {
 	case types.KindNode,
 		types.KindDatabaseService,
