@@ -34,16 +34,6 @@ import (
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 )
 
-// we use dedicated global jitters for all the intervals/retires in this
-// package. we do this because our jitter usage in this package can scale by
-// the number of concurrent connections to auth, making dedicated jitters a
-// poor choice (high memory usage for all the rngs).
-var (
-	seventhJitter = retryutils.NewShardedSeventhJitter()
-	halfJitter    = retryutils.NewShardedHalfJitter()
-	fullJitter    = retryutils.NewShardedFullJitter()
-)
-
 // DownstreamCreateFunc is a function that creates a downstream inventory control stream.
 type DownstreamCreateFunc func(ctx context.Context) (client.DownstreamInventoryControlStream, error)
 
@@ -479,11 +469,12 @@ func (i *instanceStateTracker) WithLock(fn func()) {
 // nextHeartbeat calculates the next heartbeat value. *Must* be called only while lock is held.
 func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.UpstreamInventoryHello, authID string) (types.Instance, error) {
 	instance, err := types.NewInstance(hello.ServerID, types.InstanceSpecV1{
-		Version:  vc.Normalize(hello.Version),
-		Services: hello.Services,
-		Hostname: hello.Hostname,
-		AuthID:   authID,
-		LastSeen: now.UTC(),
+		Version:          vc.Normalize(hello.Version),
+		Services:         hello.Services,
+		Hostname:         hello.Hostname,
+		AuthID:           authID,
+		LastSeen:         now.UTC(),
+		ExternalUpgrader: hello.ExternalUpgrader,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

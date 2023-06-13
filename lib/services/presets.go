@@ -196,6 +196,7 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindEvent, RO()),
 					types.NewRule(types.KindSessionTracker, RO()),
 					types.NewRule(types.KindClusterAlert, RO()),
+					types.NewRule(types.KindInstance, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},

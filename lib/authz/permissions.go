@@ -593,6 +593,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindSAMLIdPServiceProvider, services.RO()),
 				types.NewRule(types.KindUserGroup, services.RO()),
 				types.NewRule(types.KindIntegration, services.RO()),
+				types.NewRule(types.KindInstance, services.RO()),
 				// this rule allows cloud proxies to read
 				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
 				{

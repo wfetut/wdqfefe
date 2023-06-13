@@ -23,6 +23,142 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestInstanceFilter(t *testing.T) {
+	iis := []struct {
+		id       string
+		version  string
+		services []SystemRole
+		upgrader string
+	}{
+		{
+			id:       "a1",
+			version:  "v1.2.3",
+			services: []SystemRole{RoleAuth},
+		},
+		{
+			id:       "a2",
+			version:  "v2.3.4",
+			services: []SystemRole{RoleAuth, RoleNode},
+			upgrader: "kube",
+		},
+		{
+			id:       "p1",
+			version:  "v1.2.1",
+			services: []SystemRole{RoleProxy},
+		},
+		{
+			id:       "p2",
+			version:  "v2.3.1",
+			services: []SystemRole{RoleProxy, RoleNode},
+			upgrader: "unit",
+		},
+	}
+
+	// set up group of test instances
+	var instances []Instance
+	for _, ii := range iis {
+		ins, err := NewInstance(ii.id, InstanceSpecV1{
+			Version:          ii.version,
+			Services:         ii.services,
+			ExternalUpgrader: ii.upgrader,
+		})
+
+		require.NoError(t, err)
+		instances = append(instances, ins)
+	}
+
+	// set up test scenarios
+	tts := []struct {
+		desc    string
+		filter  InstanceFilter
+		matches []string
+	}{
+		{
+			desc:   "match-all",
+			filter: InstanceFilter{},
+			matches: []string{
+				"a1",
+				"a2",
+				"p1",
+				"p2",
+			},
+		},
+		{
+			desc: "match-proxies",
+			filter: InstanceFilter{
+				Services: []SystemRole{
+					RoleProxy,
+				},
+			},
+			matches: []string{
+				"p1",
+				"p2",
+			},
+		},
+		{
+			desc: "match-old",
+			filter: InstanceFilter{
+				OlderThanVersion: "v2",
+			},
+			matches: []string{
+				"a1",
+				"p1",
+			},
+		},
+		{
+			desc: "match-new",
+			filter: InstanceFilter{
+				NewerThanVersion: "v2",
+			},
+			matches: []string{
+				"a2",
+				"p2",
+			},
+		},
+		{
+			desc: "match-version-range",
+			filter: InstanceFilter{
+				NewerThanVersion: "v1.2.2",
+				OlderThanVersion: "v2.3.3",
+			},
+			matches: []string{
+				"a1",
+				"p2",
+			},
+		},
+		{
+			desc: "match-kube-upgrader",
+			filter: InstanceFilter{
+				ExternalUpgrader: "kube",
+			},
+			matches: []string{
+				"a2",
+			},
+		},
+		{
+			desc: "match-no-upgrader",
+			filter: InstanceFilter{
+				NoExtUpgrader: true,
+			},
+			matches: []string{
+				"a1",
+				"p1",
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		var matches []string
+		for _, ins := range instances {
+			if tt.filter.Match(ins) {
+				matches = append(matches, ins.GetName())
+			}
+		}
+
+		require.Equal(t, tt.matches, matches)
+	}
+}
+
 func TestInstanceControlLogExpiry(t *testing.T) {
 	const ttl = time.Minute
 	now := time.Now()

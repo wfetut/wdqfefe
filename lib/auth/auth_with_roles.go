@@ -1101,8 +1101,9 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 }
 
 func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
-	// only support builtin roles for now, but we'll eventually want to develop an RBAC syntax for
-	// the inventory APIs once they are more developed.
+	// TODO(fspmarshall): switch this to being scoped to instance:read once we have a sane remote version of
+	// this method. for now we're leaving it as requiring local admin because the returned value is basically
+	// nonsense if you aren't connected locally.
 	if !a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy) {
 		return proto.InventoryStatusSummary{}, trace.AccessDenied("requires builtin admin role")
 	}
@@ -1111,8 +1112,9 @@ func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.Inve
 
 // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
 func (a *ServerWithRoles) GetInventoryConnectedServiceCounts() (proto.InventoryConnectedServiceCounts, error) {
-	// only support builtin roles for now, but we'll eventually want to develop an RBAC syntax for
-	// the inventory APIs once they are more developed.
+	// TODO(fspmarshall): switch this to being scoped to instance:read once we have a sane remote version of
+	// this method. for now we're leaving it as requiring local admin because the returned value is basically
+	// nonsense if you aren't connected locally.
 	if !a.hasBuiltinRole(types.RoleAdmin) {
 		return proto.InventoryConnectedServiceCounts{}, trace.AccessDenied("requires builtin admin role")
 	}
@@ -1120,8 +1122,8 @@ func (a *ServerWithRoles) GetInventoryConnectedServiceCounts() (proto.InventoryC
 }
 
 func (a *ServerWithRoles) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
-	// admin-only for now, but we'll eventually want to develop an RBAC syntax for
-	// the inventory APIs once they are more developed.
+	// this is scoped to admin only not because we don't have appropriate rbac, but because this method doesn't function
+	// as expected if you aren't connected locally.
 	if !a.hasBuiltinRole(types.RoleAdmin) {
 		return proto.InventoryPingResponse{}, trace.AccessDenied("requires builtin admin role")
 	}

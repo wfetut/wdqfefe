@@ -21,14 +21,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -51,7 +49,12 @@ type InventoryCommand struct {
 
 	version string
 
+	olderThan string
+	newerThan string
+
 	services string
+
+	upgrader string
 
 	inventoryStatus *kingpin.CmdClause
 	inventoryList   *kingpin.CmdClause
@@ -67,9 +70,15 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, config *servicec
 	c.inventoryStatus.Flag("connected", "Show locally connected instances summary").BoolVar(&c.getConnected)
 
 	c.inventoryList = inventory.Command("list", "List Teleport instance inventory.").Alias("ls")
-	c.inventoryList.Flag("version", "Filter output by version").StringVar(&c.version)
+	c.inventoryList.Flag("older-than", "Filter for older teleport versions").StringVar(&c.olderThan)
+	c.inventoryList.Flag("newer-than", "Filter for newer teleport versions").StringVar(&c.newerThan)
 	c.inventoryList.Flag("services", "Filter output by service (node,kube,proxy,etc)").StringVar(&c.services)
 	c.inventoryList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).StringVar(&c.format)
+	c.inventoryList.Flag("upgrader", "Filter output by upgrader (kube,unit,none)").StringVar(&c.upgrader)
+	//c.inventoryList.Flag("version", "Filter output by version").StringVar(&c.version)
+	// TODO(fspmarshall): decide what to do about '--version' (currently bugged due to updated kingpin
+	// dep now treating --version as a special case). Do we even need exact-version search if we have
+	// older-than/newer-than?
 
 	c.inventoryPing = inventory.Command("ping", "Ping locally connected instance.")
 	c.inventoryPing.Arg("server-id", "ID of target server").Required().StringVar(&c.serverID)
@@ -135,28 +144,44 @@ func (c *InventoryCommand) List(ctx context.Context, client auth.ClientI) error 
 			return trace.Wrap(err)
 		}
 	}
+	upgrader := c.upgrader
+	var noUpgrader bool
+	if upgrader == "none" {
+		// explicitly match instances with no upgrader defined
+		upgrader = ""
+		noUpgrader = true
+	}
 
 	instances := client.GetInstances(ctx, types.InstanceFilter{
-		Services: services,
-		Version:  vc.Normalize(c.version),
+		Services:         services,
+		Version:          vc.Normalize(c.version),
+		OlderThanVersion: vc.Normalize(c.olderThan),
+		NewerThanVersion: vc.Normalize(c.newerThan),
+		ExternalUpgrader: upgrader,
+		NoExtUpgrader:    noUpgrader,
 	})
 
 	switch c.format {
 	case teleport.Text:
-		table := asciitable.MakeTable([]string{"ServerID", "Hostname", "Services", "Version", "Status"})
-		now := time.Now().UTC()
+		table := asciitable.MakeTable([]string{"ServerID", "Hostname", "Services", "Version", "Upgrader"})
 		for instances.Next() {
 			instance := instances.Item()
 			services := make([]string, 0, len(instance.GetServices()))
 			for _, s := range instance.GetServices() {
 				services = append(services, string(s))
 			}
+
+			upgrader := instance.GetExternalUpgrader()
+			if upgrader == "" {
+				upgrader = "none"
+			}
+
 			table.AddRow([]string{
 				instance.GetName(),
 				instance.GetHostname(),
 				strings.Join(services, ","),
 				instance.GetTeleportVersion(),
-				makeInstanceStatus(now, instance),
+				upgrader,
 			})
 		}
 
@@ -175,26 +200,6 @@ func (c *InventoryCommand) List(ctx context.Context, client auth.ClientI) error 
 	default:
 		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", c.format, teleport.Text, teleport.JSON)
 	}
-}
-
-// makeInstanceStatus builds the instance status string. This currently distinguishes online/offline, but the
-// plan is to eventually use the status field to give users insight at a glance into the current status of
-// ongoing upgrades as well.  Ex:
-//
-// Status
-// -----------------------------------------------
-// online (1m7s ago)
-// installing -> v1.2.3 (17s ago)
-// online, upgrade recommended -> v1.2.3 (20s ago)
-// churned during install -> v1.2.3 (6m ago)
-// online, install soon -> v1.2.3 (46s ago)
-func makeInstanceStatus(now time.Time, instance types.Instance) string {
-	status := "offline"
-	if instance.GetLastSeen().Add(apidefaults.ServerAnnounceTTL).After(now) {
-		status = "online"
-	}
-
-	return fmt.Sprintf("%s (%s ago)", status, now.Sub(instance.GetLastSeen()).Round(time.Second))
 }
 
 func (c *InventoryCommand) Ping(ctx context.Context, client auth.ClientI) error {
