@@ -1616,6 +1616,8 @@ type NodeWatcherConfig struct {
 
 type UnifiedResourceWatcherConfig struct {
 	ResourceWatcherConfig
+	NodesGetter
+	DatabaseGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
@@ -1646,8 +1648,9 @@ func NewUnifiedResourceWatcher(ctx context.Context, cfg UnifiedResourceWatcherCo
 	}
 
 	collector := &unifiedResourceCollector{
-		current:         mem,
-		initializationC: make(chan struct{}),
+		UnifiedResourceWatcherConfig: cfg,
+		current:                      mem,
+		initializationC:              make(chan struct{}),
 	}
 
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
@@ -1662,8 +1665,16 @@ func NewUnifiedResourceWatcher(ctx context.Context, cfg UnifiedResourceWatcherCo
 }
 
 func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	fmt.Println("----")
+	fmt.Printf("%+v\n", u.NodesGetter)
+	fmt.Println("----")
+	newNodes, err := u.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	fmt.Println("-----")
 	fmt.Printf("%+v\n", "urc getResourcesAndUpdateCurrent")
+	fmt.Printf("%+v\n", newNodes)
 	fmt.Println("-----")
 	return nil
 }
@@ -1982,6 +1993,7 @@ type accessRequestCollector struct {
 }
 
 type unifiedResourceCollector struct {
+	UnifiedResourceWatcherConfig
 	current         *memory.Memory
 	lock            sync.RWMutex
 	initializationC chan struct{}
