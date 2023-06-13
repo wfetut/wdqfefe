@@ -3,7 +3,6 @@ package services
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 
@@ -118,7 +117,7 @@ type Item struct {
 	// Key is a key of the key value item
 	Key []byte
 	// Value is a value of the key value item
-	Value string
+	Value types.ResourceWithLabels
 	// ID is a record ID, newer records have newer ids
 	ID int64
 }
@@ -449,8 +448,8 @@ func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Cont
 	nodes := make([]Item, 0)
 	for _, node := range newNodes {
 		nodes = append(nodes, Item{
-			Key:   []byte(node.GetName() + "/" + node.GetKind()),
-			Value: node.GetName(),
+			Key:   key(node),
+			Value: node,
 			ID:    u.current.generateID(),
 		})
 	}
@@ -468,16 +467,31 @@ func (u *unifiedResourceCollector) initializationChan() <-chan struct{} {
 }
 
 func (u *unifiedResourceCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
-	// TESTING VALUE DOESN'T
-	fmt.Println("---------")
-	item, err := u.current.Get(ctx, []byte("zidane/"+types.KindNode))
-	if err != nil {
-		fmt.Printf("err: %+v\n", err)
+	if event.Resource == nil {
+		u.Log.Warnf("Unexpected event: %v.", event)
+		return
 	}
-	fmt.Printf("%+v\n", item)
-	fmt.Println("---------")
+	u.lock.Lock()
+	defer u.lock.Unlock()
+	switch event.Type {
+	case types.OpDelete:
+		u.current.Delete(ctx, key(event.Resource))
+	case types.OpPut:
+		u.current.Put(ctx, Item{
+			Key:   key(event.Resource),
+			Value: event.Resource.(types.ResourceWithLabels),
+			ID:    u.current.generateID(),
+		})
+	default:
+		u.Log.Warnf("unsupported event type %s.", event.Type)
+		return
+	}
 }
 
 func (u *unifiedResourceCollector) resourceKind() string {
 	return types.KindNode
+}
+
+func key(resource types.Resource) []byte {
+	return []byte(resource.GetName() + "/" + resource.GetKind())
 }
