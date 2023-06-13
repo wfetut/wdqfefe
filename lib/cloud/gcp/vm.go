@@ -34,6 +34,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 )
 
@@ -43,12 +44,22 @@ const (
 	computeEngineScope = "ttps://www.googleapis.com/auth/compute"
 )
 
+func convertGoogleError(err error) error {
+	var googleError googleapi.Error
+	if errors.As(err, &googleError) {
+		return trace.ReadError(googleError.Code, []byte(googleError.Message))
+	}
+	return err
+}
+
 type InstancesClient interface {
-	ListInstances(ctx context.Context, projectID, location string) ([]Instance, error)
+	ListInstances(ctx context.Context, projectID, location string) ([]*Instance, error)
 
-	GetInstance(ctx context.Context, projectID, location, name string) (Instance, error)
+	GetInstance(ctx context.Context, req *InstanceRequest) (*Instance, error)
 
-	Run(ctx context.Context, req RunCommandRequest) error
+	AddSSHKey(ctx context.Context, req *SSHKeyRequest) error
+
+	RemoveSSHKey(ctx context.Context, req *SSHKeyRequest) error
 }
 
 type InstancesClientConfig struct {
@@ -81,10 +92,12 @@ var _ gcpInstanceClient = &compute.InstancesClient{}
 
 type Instance struct {
 	Name           string
-	Location       string
+	Zone           string
+	ProjectID      string
 	ServiceAccount string
 	Labels         map[string]string
 	hostname       string
+	hostKeys       []ssh.PublicKey
 	metadata       *computepb.Metadata
 }
 
@@ -105,10 +118,10 @@ type instancesClient struct {
 	InstancesClientConfig
 }
 
-func toInstance(origInstance *computepb.Instance) Instance {
-	inst := Instance{
+func toInstance(origInstance *computepb.Instance) *Instance {
+	inst := &Instance{
 		Name:     origInstance.GetName(),
-		Location: origInstance.GetZone(),
+		Zone:     origInstance.GetZone(),
 		Labels:   origInstance.GetLabels(),
 		hostname: origInstance.GetHostname(),
 		metadata: origInstance.GetMetadata(),
@@ -120,7 +133,7 @@ func toInstance(origInstance *computepb.Instance) Instance {
 	return inst
 }
 
-func (clt *instancesClient) ListInstances(ctx context.Context, projectID, location string) ([]Instance, error) {
+func (clt *instancesClient) ListInstances(ctx context.Context, projectID, location string) ([]*Instance, error) {
 	if len(projectID) == 0 {
 		return nil, trace.BadParameter("projectID must be set")
 	}
@@ -135,7 +148,7 @@ func (clt *instancesClient) ListInstances(ctx context.Context, projectID, locati
 			Zone:    convertLocationToGCP(location),
 		},
 	)
-	var instances []Instance
+	var instances []*Instance
 	for {
 		resp, err := it.Next()
 		if errors.Is(err, iterator.Done) {
@@ -144,36 +157,84 @@ func (clt *instancesClient) ListInstances(ctx context.Context, projectID, locati
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		instances = append(instances, toInstance(resp))
+		inst := toInstance(resp)
+		inst.ProjectID = projectID
+		instances = append(instances, inst)
 	}
 }
 
-func (clt *instancesClient) GetInstance(ctx context.Context, projectID, zone, name string) (Instance, error) {
-	if len(projectID) == 0 {
-		return Instance{}, trace.BadParameter("projectID must be set")
-	}
-	if len(zone) == 0 {
-		return Instance{}, trace.BadParameter("zone must be set")
-	}
-	if len(name) == 0 {
-		return Instance{}, trace.BadParameter("name must be set")
-	}
+type InstanceRequest struct {
+	ProjectID string
+	Zone      string
+	Name      string
+}
 
-	resp, err := clt.InstanceClient.Get(ctx, &computepb.GetInstanceRequest{
-		Instance: name,
-		Project:  projectID,
-		Zone:     zone,
+func (req *InstanceRequest) CheckAndSetDefaults() error {
+	if len(req.ProjectID) == 0 {
+		trace.BadParameter("projectID must be set")
+	}
+	if len(req.Zone) == 0 {
+		trace.BadParameter("zone must be set")
+	}
+	if len(req.Name) == 0 {
+		trace.BadParameter("name must be set")
+	}
+	return nil
+}
+
+func (clt *instancesClient) getHostKeys(ctx context.Context, req *InstanceRequest) ([]ssh.PublicKey, error) {
+	queryPath := "hostkeys/"
+	guestAttributes, err := clt.InstanceClient.GetGuestAttributes(ctx, &computepb.GetGuestAttributesInstanceRequest{
+		Instance:  req.Name,
+		Project:   req.ProjectID,
+		Zone:      req.Zone,
+		QueryPath: &queryPath,
 	})
 	if err != nil {
-		return Instance{}, trace.Wrap(err)
+		return nil, trace.Wrap(convertGoogleError(err))
 	}
-	return toInstance(resp), nil
+	items := guestAttributes.GetQueryValue().GetItems()
+	keys := make([]ssh.PublicKey, 0, len(items))
+	var errors []error
+	for _, item := range items {
+		key, err := ssh.ParsePublicKey([]byte(fmt.Sprintf("%v %v", item.GetKey(), item.GetValue())))
+		if err == nil {
+			keys = append(keys, key)
+		} else {
+			errors = append(errors, err)
+		}
+	}
+	return keys, trace.NewAggregate(errors...)
+}
+
+func (clt *instancesClient) GetInstance(ctx context.Context, req *InstanceRequest) (*Instance, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := clt.InstanceClient.Get(ctx, &computepb.GetInstanceRequest{
+		Instance: req.Name,
+		Project:  req.ProjectID,
+		Zone:     req.Zone,
+	})
+	if err != nil {
+		return nil, trace.Wrap(convertGoogleError(err))
+	}
+	inst := toInstance(resp)
+	inst.ProjectID = req.ProjectID
+
+	hostKeys, err := clt.getHostKeys(ctx, req)
+	if err == nil {
+		inst.hostKeys = hostKeys
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	return inst, nil
 }
 
 func formatSSHKey(user string, pubKey []byte, expires time.Time) string {
 	const iso8601Format = "2006-01-02T15:04:05-0700"
 	return fmt.Sprintf(`%s:%s google-ssh {"userName":%q,"expireOn":%q}`,
-		user, bytes.TrimSpace(pubKey), user, expires.Format(time.RFC3339),
+		user, bytes.TrimSpace(pubKey), user, expires.Format(iso8601Format),
 	)
 }
 
@@ -197,6 +258,53 @@ func addSSHKey(meta *computepb.Metadata, user string, pubKey []byte, expires tim
 	sshKeyItem.Value = &newKeys
 }
 
+type SSHKeyRequest struct {
+	ProjectID string
+	Instance  *Instance
+	User      string
+	PublicKey ssh.PublicKey
+	Expires   time.Time
+}
+
+func (req *SSHKeyRequest) CheckAndSetDefaults() error {
+	if req.ProjectID == "" {
+		return trace.BadParameter("project ID not set")
+	}
+	if req.Instance == nil {
+		return trace.BadParameter("instance not set")
+	}
+	if req.User == "" {
+		req.User = "teleport"
+	}
+	if req.Expires.IsZero() {
+		req.Expires = time.Now().Add(10 * time.Minute)
+	}
+	return nil
+}
+
+func (clt *instancesClient) AddSSHKey(ctx context.Context, req *SSHKeyRequest) error {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if req.PublicKey == nil {
+		return trace.BadParameter("public key not set")
+	}
+	addSSHKey(req.Instance.metadata, req.User, req.PublicKey.Marshal(), req.Expires)
+	op, err := clt.InstanceClient.SetMetadata(ctx, &computepb.SetMetadataInstanceRequest{
+		Instance:         req.Instance.Name,
+		MetadataResource: req.Instance.metadata,
+		Project:          req.ProjectID,
+		Zone:             req.Instance.Zone,
+	})
+	if err == nil {
+		return trace.Wrap(err)
+	}
+	if err := op.Wait(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 func removeSSHKey(meta *computepb.Metadata, user string) {
 	for _, item := range meta.GetItems() {
 		if item.GetKey() == "ssh-keys" {
@@ -214,89 +322,95 @@ func removeSSHKey(meta *computepb.Metadata, user string) {
 	}
 }
 
-func (clt *instancesClient) getHostKeys(ctx context.Context, projectID, zone, name string) ([]ssh.PublicKey, error) {
-	queryPath := "hostkeys/"
-	guestAttributes, err := clt.InstanceClient.GetGuestAttributes(ctx, &computepb.GetGuestAttributesInstanceRequest{
-		Instance:  name,
-		Project:   projectID,
-		Zone:      zone,
-		QueryPath: &queryPath,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	items := guestAttributes.GetQueryValue().GetItems()
-	keys := make([]ssh.PublicKey, 0, len(items))
-	var errors []error
-	for _, item := range items {
-		key, err := ssh.ParsePublicKey([]byte(fmt.Sprintf("%v %v", item.GetKey(), item.GetValue())))
-		if err == nil {
-			keys = append(keys, key)
-		} else {
-			errors = append(errors, err)
-		}
-	}
-	return keys, trace.NewAggregate(errors...)
-}
-
-type RunCommandRequest struct {
-	ProjectID string
-	Zone      string
-	Name      string
-	Script    string
-}
-
-func (clt *instancesClient) Run(ctx context.Context, req RunCommandRequest) error {
-	// TODO: verify params
-	instance, err := clt.GetInstance(ctx, req.ProjectID, req.Zone, req.Name)
-	if err != nil {
+func (clt *instancesClient) RemoveSSHKey(ctx context.Context, req *SSHKeyRequest) error {
+	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	priv, pub, err := native.GenerateKeyPair()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	user := "teleport" // TODO: make sure this is unique
-	expires := time.Now().Add(10 * time.Minute)
-	addSSHKey(instance.metadata, user, pub, expires)
+	removeSSHKey(req.Instance.metadata, req.User)
 	op, err := clt.InstanceClient.SetMetadata(ctx, &computepb.SetMetadataInstanceRequest{
-		Instance:         req.Name,
-		MetadataResource: instance.metadata,
+		Instance:         req.Instance.Name,
+		MetadataResource: req.Instance.metadata,
 		Project:          req.ProjectID,
-		Zone:             req.Zone,
+		Zone:             req.Instance.Zone,
 	})
-	if err == nil {
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	if err := op.Wait(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+type RunCommandRequest struct {
+	Client InstancesClient
+	InstanceRequest
+	Script string
+	dialer func(ctx context.Context, network, addr string) (net.Conn, error)
+}
+
+func (req *RunCommandRequest) CheckAndSetDefaults() error {
+	if err := req.InstanceRequest.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if len(req.Script) == 0 {
+		return trace.BadParameter("script must be set")
+	}
+	if req.dialer == nil {
+		dialer := net.Dialer{}
+		req.dialer = dialer.DialContext
+	}
+	return nil
+}
+
+func generateKeyPair() (ssh.Signer, ssh.PublicKey, error) {
+	rawPriv, rawPub, err := native.GenerateKeyPair()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	signer, err := ssh.ParsePrivateKey(rawPriv)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	publicKey, err := ssh.ParsePublicKey(rawPub)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return signer, publicKey, nil
+}
+
+func RunCommand(ctx context.Context, req *RunCommandRequest) error {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	signer, publicKey, err := generateKeyPair()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	instance, err := req.Client.GetInstance(ctx, &req.InstanceRequest)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	user := "teleport"
+	keyReq := &SSHKeyRequest{
+		ProjectID: req.ProjectID,
+		Instance:  instance,
+		PublicKey: publicKey,
+		User:      user,
+	}
+	if err := req.Client.AddSSHKey(ctx, keyReq); err != nil {
+		return trace.Wrap(err)
+	}
 
 	defer func() {
-		removeSSHKey(instance.metadata, user)
-		op, err := clt.InstanceClient.SetMetadata(ctx, &computepb.SetMetadataInstanceRequest{
-			Instance:         req.Name,
-			MetadataResource: instance.metadata,
-			Project:          req.ProjectID,
-			Zone:             req.Zone,
-		})
-		if err == nil {
-			logrus.WithError(err).Warnf("Error removing SSH key from instance.")
-		}
-		if err := op.Wait(ctx); err != nil {
-			logrus.WithError(err).Warnf("Error removing SSH key from instance.")
+		if err := req.Client.RemoveSSHKey(ctx, keyReq); err != nil {
+			logrus.WithError(err).Warn("Error deleting SSH Key")
 		}
 	}()
 
-	signer, err := ssh.ParsePrivateKey(priv)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	hostKeys, err := clt.getHostKeys(ctx, req.ProjectID, req.Zone, req.Name)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	callback, err := sshutils.HostKeyCallback(hostKeys, true)
+	callback, err := sshutils.HostKeyCallback(instance.hostKeys, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -307,11 +421,17 @@ func (clt *instancesClient) Run(ctx context.Context, req RunCommandRequest) erro
 		},
 		HostKeyCallback: callback,
 	}
-
-	sshClient, err := ssh.Dial("tcp", net.JoinHostPort(instance.hostname, "22"), config)
+	addr := net.JoinHostPort(instance.hostname, "22")
+	conn, err := req.dialer(ctx, "tcp", addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	clientConn, newCh, requestsCh, err := ssh.NewClientConn(conn, addr, config)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sshClient := ssh.NewClient(clientConn, newCh, requestsCh)
 	defer sshClient.Close()
 	session, err := sshClient.NewSession()
 	if err != nil {
