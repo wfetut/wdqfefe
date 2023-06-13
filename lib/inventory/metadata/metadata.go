@@ -126,7 +126,7 @@ func (c *fetchConfig) setDefaults() {
 					return nil
 				}
 				return &types.CloudMetadata{
-					AWS: &types.CloudMetadata_AWSInfo{
+					AWS: &types.AWSInfo{
 						AccountID:  iid.AccountID,
 						InstanceID: iid.InstanceID,
 					},

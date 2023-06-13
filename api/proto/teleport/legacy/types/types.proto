@@ -758,25 +758,26 @@ message ServerSpecV2 {
   repeated string ProxyIDs = 12 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
   // PublicAddrs is a list of public addresses where this server can be reached.
   repeated string public_addrs = 13;
+  // CloudMetadata contains info about the cloud instance the server is running
+  // on, if any.
+  CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
 
   reserved 8;
   reserved 10;
   reserved "KubernetesClusters";
-  // CloudMetadata contains info about the cloud instance the server is running
-  // on, if any.
-  CloudMetadata CloudMetadata = 14 [(gogoproto.jsontag) = "cloud_metadata,omitempty"];
+}
+
+// AWSInfo contains attributes to match to an EC2 instance.
+message AWSInfo {
+  // AccountID is an AWS account ID.
+  string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
+  // InstanceID is an EC2 instance ID.
+  string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
 }
 
 // CloudMetadata contains info about the cloud instance a server is running
 // on, if any.
 message CloudMetadata {
-  // AWSInfo contains attributes to match to an EC2 instance.
-  message AWSInfo {
-    // AccountID is an AWS account ID.
-    string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
-    // InstanceID is an EC2 instance ID.
-    string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
-  }
   // AWSInfo contains attributes to match to an EC2 instance.
   AWSInfo AWS = 1 [(gogoproto.jsontag) = "aws,omitempty"];
 }
@@ -5756,14 +5757,6 @@ message ServerInfoV1 {
 
 // ServerResourceMatcher is a set of properties that is used to match on resources.
 message ServerResourceMatcher {
-  // AWSInfo contains attributes to match to an EC2 instance.
-  message AWSInfo {
-    // AccountID is an AWS account ID.
-    string AccountID = 1 [(gogoproto.jsontag) = "account_id"];
-    // InstanceID is an EC2 instance ID.
-    string InstanceID = 2 [(gogoproto.jsontag) = "instance_id"];
-  }
-
   // Labels is the set of labels to match to a Server.
   wrappers.LabelValues Labels = 1 [
     (gogoproto.jsontag) = "labels",
