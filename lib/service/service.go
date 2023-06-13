@@ -1716,11 +1716,11 @@ func (process *TeleportProcess) initAuthService() error {
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component:    teleport.ComponentUnifiedResource,
 			Log:          process.log.WithField(trace.Component, teleport.ComponentUnifiedResource),
-			Client:       authServer.Services,
+			Client:       authServer,
 			MaxStaleness: time.Minute,
 		},
-		NodesGetter:    authServer.Services,
-		DatabaseGetter: authServer.Services,
+		NodesGetter:    authServer,
+		DatabaseGetter: authServer,
 	})
 	if err != nil {
 		return trace.Wrap(err)
