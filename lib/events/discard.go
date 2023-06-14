@@ -94,8 +94,12 @@ func (*DiscardStream) Complete(ctx context.Context) error {
 	return nil
 }
 
-// EmitAuditEvent discards audit event
-func (*DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (d *DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return d.RecordEvent(ctx, event)
+}
+
+// RecordEvent discards audit event
+func (*DiscardStream) RecordEvent(ctx context.Context, event apievents.AuditEvent) error {
 	log.WithFields(log.Fields{
 		"event_id":    event.GetID(),
 		"event_type":  event.GetType(),

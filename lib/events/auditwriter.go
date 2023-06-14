@@ -62,6 +62,7 @@ func NewAuditWriter(cfg AuditWriterConfig) (*AuditWriter, error) {
 		writer.processEvents()
 		close(writer.doneCh)
 	}()
+
 	return writer, nil
 }
 
@@ -75,9 +76,6 @@ type AuditWriterConfig struct {
 
 	// Namespace is the session namespace.
 	Namespace string
-
-	// RecordOutput stores info on whether to record session output
-	RecordOutput bool
 
 	// Component is a component used for logging
 	Component string
@@ -222,10 +220,6 @@ func (a *AuditWriter) Done() <-chan struct{} {
 
 // Write takes a chunk and writes it into the audit log
 func (a *AuditWriter) Write(data []byte) (int, error) {
-	if !a.cfg.RecordOutput {
-		return len(data), nil
-	}
-
 	// buffer is copied here to prevent data corruption:
 	// io.Copy allocates single buffer and calls multiple writes in a loop
 	// Write is async, this can lead to cases when the buffer is re-used
@@ -235,7 +229,7 @@ func (a *AuditWriter) Write(data []byte) (int, error) {
 
 	events := a.cfg.MakeEvents(dataCopy)
 	for _, event := range events {
-		if err := a.EmitAuditEvent(a.cfg.Context, event); err != nil {
+		if err := a.RecordEvent(a.cfg.Context, event); err != nil {
 			a.log.WithError(err).Errorf("failed to emit %T event", event)
 			return 0, trace.Wrap(err)
 		}
@@ -282,7 +276,7 @@ func (a *AuditWriter) maybeSetBackoff(backoffUntil time.Time) bool {
 }
 
 // EmitAuditEvent emits audit event
-func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (a *AuditWriter) RecordEvent(ctx context.Context, event apievents.AuditEvent) error {
 	// Event modification is done under lock and in the same goroutine
 	// as the caller to avoid data races and event copying
 	if err := a.setupEvent(event); err != nil {
@@ -439,7 +433,7 @@ func (a *AuditWriter) processEvents() {
 			a.updateStatus(status)
 		case event := <-a.eventsCh:
 			a.buffer = append(a.buffer, event)
-			err := a.stream.EmitAuditEvent(a.cfg.Context, event)
+			err := a.stream.RecordEvent(a.cfg.Context, event)
 			if err != nil {
 				if IsPermanentEmitError(err) {
 					a.log.WithError(err).WithField("event", event).Warning("Failed to emit audit event due to permanent emit audit event error. Event will be omitted.")
@@ -516,7 +510,7 @@ func (a *AuditWriter) recoverStream() error {
 	// replay all non-confirmed audit events to the resumed stream
 	start := time.Now()
 	for i := range a.buffer {
-		err := a.stream.EmitAuditEvent(a.cfg.Context, a.buffer[i])
+		err := a.stream.RecordEvent(a.cfg.Context, a.buffer[i])
 		if err != nil {
 			a.closeStream(a.stream)
 			return trace.Wrap(err)

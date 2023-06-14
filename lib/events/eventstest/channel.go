@@ -40,6 +40,10 @@ func NewChannelEmitter(capacity int) *ChannelEmitter {
 	}
 }
 
+func (e *ChannelEmitter) RecordEvent(ctx context.Context, event events.AuditEvent) error {
+	return e.EmitAuditEvent(ctx, event)
+}
+
 func (e *ChannelEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	e.log.Infof("EmitAuditEvent(%v)", event)
 	select {

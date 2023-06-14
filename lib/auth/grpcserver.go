@@ -321,7 +321,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 				return trace.Wrap(err)
 			}
 			start := time.Now()
-			err = eventStream.EmitAuditEvent(stream.Context(), event)
+			err = eventStream.RecordEvent(stream.Context(), event)
 			if err != nil {
 				switch {
 				case events.IsPermanentEmitError(err):

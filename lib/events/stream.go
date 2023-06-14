@@ -383,8 +383,8 @@ func (s *ProtoStream) Done() <-chan struct{} {
 	return s.cancelCtx.Done()
 }
 
-// EmitAuditEvent emits a single audit event to the stream
-func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+// RecordEvent emits a single audit event to the stream
+func (s *ProtoStream) RecordEvent(ctx context.Context, event apievents.AuditEvent) error {
 	messageSize := event.Size()
 	if messageSize > MaxProtoMessageSizeBytes {
 		switch v := event.(type) {
@@ -405,7 +405,7 @@ func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 	case s.eventsCh <- protoEvent{index: event.GetIndex(), oneof: oneof}:
 		diff := time.Since(start)
 		if diff > 100*time.Millisecond {
-			log.Debugf("[SLOW] EmitAuditEvent took %v.", diff)
+			log.Debugf("[SLOW] RecordEvent took %v.", diff)
 		}
 		return nil
 	case <-s.cancelCtx.Done():

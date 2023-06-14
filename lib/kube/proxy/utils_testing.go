@@ -554,12 +554,12 @@ func (c *TestContext) NewJoiningSession(cfg *rest.Config, sessionID string, mode
 // even when recording mode is *-sync.
 type authClientWithStreamer struct {
 	*auth.Client
-	streamer *events.TeeStreamer
+	streamer events.Streamer
 }
 
 // newAuthClientWithStreamer creates a new authClient wrapper.
 func newAuthClientWithStreamer(testCtx *TestContext) *authClientWithStreamer {
-	return &authClientWithStreamer{Client: testCtx.AuthClient, streamer: events.NewTeeStreamer(testCtx.AuthClient, testCtx.Emitter)}
+	return &authClientWithStreamer{Client: testCtx.AuthClient, streamer: testCtx.AuthClient}
 }
 
 func (a *authClientWithStreamer) CreateAuditStream(ctx context.Context, sID sessPkg.ID) (apievents.Stream, error) {

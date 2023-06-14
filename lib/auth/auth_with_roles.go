@@ -3527,7 +3527,7 @@ func (s *streamWithRoles) Close(ctx context.Context) error {
 	return s.stream.Close(ctx)
 }
 
-func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (s *streamWithRoles) RecordEvent(ctx context.Context, event apievents.AuditEvent) error {
 	err := events.ValidateServerMetadata(event, s.serverID, s.a.hasBuiltinRole(types.RoleProxy))
 	if err != nil {
 		// TODO: this should be a proper audit event
@@ -3538,7 +3538,7 @@ func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 		// this message is sparse on purpose to avoid conveying extra data to an attacker
 		return trace.AccessDenied("failed to validate event metadata")
 	}
-	return s.stream.EmitAuditEvent(ctx, event)
+	return s.stream.RecordEvent(ctx, event)
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {

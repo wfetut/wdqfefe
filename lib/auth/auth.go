@@ -4257,38 +4257,12 @@ func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRe
 
 // CreateAuditStream creates audit event stream
 func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
-	streamer, err := a.modeStreamer(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return streamer.CreateAuditStream(ctx, sid)
+	return a.streamer.CreateAuditStream(ctx, sid)
 }
 
 // ResumeAuditStream resumes the stream that has been created
 func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
-	streamer, err := a.modeStreamer(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return streamer.ResumeAuditStream(ctx, sid, uploadID)
-}
-
-// modeStreamer creates streamer based on the event mode
-func (a *Server) modeStreamer(ctx context.Context) (events.Streamer, error) {
-	recConfig, err := a.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// In sync mode, auth server forwards session control to the event log
-	// in addition to sending them and data events to the record storage.
-	if services.IsRecordSync(recConfig.GetMode()) {
-		return events.NewTeeStreamer(a.streamer, a.emitter), nil
-	}
-	// In async mode, clients submit session control events
-	// during the session in addition to writing a local
-	// session recording to be uploaded at the end of the session,
-	// so forwarding events here will result in duplicate events.
-	return a.streamer, nil
+	return a.streamer.ResumeAuditStream(ctx, sid, uploadID)
 }
 
 // CreateApp creates a new application resource.

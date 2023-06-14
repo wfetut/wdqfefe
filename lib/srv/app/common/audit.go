@@ -51,7 +51,8 @@ type Audit interface {
 // AuditConfig is the audit events emitter configuration.
 type AuditConfig struct {
 	// Emitter is used to emit audit events.
-	Emitter apievents.Emitter
+	Emitter  apievents.Emitter
+	Recorder apievents.Recorder
 }
 
 // Check validates the config.
@@ -215,7 +216,9 @@ func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 
 // EmitEvent emits the provided audit event.
 func (a *audit) EmitEvent(ctx context.Context, event apievents.AuditEvent) error {
-	return trace.Wrap(a.cfg.Emitter.EmitAuditEvent(ctx, event))
+	emitErr := a.cfg.Emitter.EmitAuditEvent(ctx, event)
+	recErr := a.cfg.Recorder.RecordEvent(ctx, event)
+	return trace.NewAggregate(emitErr, recErr)
 }
 
 // MakeAppMetadata returns common server metadata for database session.

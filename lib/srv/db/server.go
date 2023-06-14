@@ -956,7 +956,8 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 // dispatch creates and initializes an appropriate database engine for the session.
 func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter, clientConn net.Conn) (common.Engine, error) {
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
-		Emitter: streamWriter,
+		Emitter:  s.cfg.StreamEmitter,
+		Recorder: streamWriter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

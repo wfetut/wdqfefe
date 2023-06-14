@@ -38,6 +38,14 @@ func (e *MockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEven
 	return nil
 }
 
+// RecordEvent records a session event
+func (e *MockEmitter) RecordEvent(ctx context.Context, event events.AuditEvent) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.events = append(e.events, event)
+	return nil
+}
+
 // LastEvent returns the last emitted event.
 func (e *MockEmitter) LastEvent() events.AuditEvent {
 	e.mu.RLock()

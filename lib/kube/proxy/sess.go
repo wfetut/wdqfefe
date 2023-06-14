@@ -22,6 +22,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -35,10 +36,12 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	tsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -566,6 +569,9 @@ func (s *session) launch() error {
 	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
 		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
 	}
+	if err := s.recorder.RecordEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
+		s.forwarder.log.WithError(err).Warn("Failed to record event.")
+	}
 
 	s.eventsWaiter.Add(1)
 	go func() {
@@ -662,7 +668,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 
 			// Report the updated window size to the event log (this is so the sessions
 			// can be replayed correctly).
-			if err := s.recorder.EmitAuditEvent(s.forwarder.ctx, resizeEvent); err != nil {
+			if err := s.recorder.RecordEvent(s.forwarder.ctx, resizeEvent); err != nil {
 				s.forwarder.log.WithError(err).Warn("Failed to emit terminal resize event.")
 			}
 		}
@@ -670,30 +676,29 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {}
 	}
 
-	streamer, err := s.forwarder.newStreamer(&s.ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	recorder, err := events.NewAuditWriter(events.AuditWriterConfig{
+	cfg := events.AuditWriterConfig{
 		// Audit stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
-		Context:      s.forwarder.ctx,
-		Streamer:     streamer,
-		Clock:        s.forwarder.cfg.Clock,
-		SessionID:    tsession.ID(s.id.String()),
-		ServerID:     s.forwarder.cfg.HostID,
-		Namespace:    s.forwarder.cfg.Namespace,
-		RecordOutput: s.ctx.recordingConfig.GetMode() != types.RecordOff,
-		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
-		ClusterName:  s.forwarder.cfg.ClusterName,
-	})
+		Context:     s.forwarder.ctx,
+		Clock:       s.forwarder.cfg.Clock,
+		SessionID:   tsession.ID(s.id.String()),
+		ServerID:    s.forwarder.cfg.HostID,
+		Namespace:   s.forwarder.cfg.Namespace,
+		Component:   teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
+		ClusterName: s.forwarder.cfg.ClusterName,
+	}
+	uploadDir := filepath.Join(
+		s.forwarder.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
+		events.StreamingSessionsDir, apidefaults.Namespace,
+	)
+
+	recorder, err := recorder.NewRecorder(s.ctx.recordingConfig, cfg, uploadDir, s.forwarder.cfg.AuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	s.recorder = recorder
-	s.emitter = recorder
+	s.emitter = s.forwarder.cfg.StreamEmitter
 
 	s.io.AddWriter(sessionRecorderID, recorder)
 
@@ -826,6 +831,9 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 
 		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
 			s.forwarder.log.WithError(err).Warn("Failed to emit session end event.")
+		}
+		if err := s.recorder.RecordEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
+			s.forwarder.log.WithError(err).Warn("Failed to record session end event.")
 		}
 	}, nil
 }

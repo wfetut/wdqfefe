@@ -29,7 +29,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -76,7 +75,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -1134,30 +1132,6 @@ func matchKubernetesResource(resource types.KubernetesResource, allowed, denied 
 		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
 	}
 	return nil
-}
-
-// newStreamer returns sync or async streamer based on the configuration
-// of the server and the session, sync streamer sends the events
-// directly to the auth server and blocks if the events can not be received,
-// async streamer buffers the events to disk and uploads the events later
-func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
-	if services.IsRecordSync(ctx.recordingConfig.GetMode()) {
-		f.log.Debug("Using sync streamer for session.")
-		return f.cfg.AuthClient, nil
-	}
-	f.log.Debug("Using async streamer for session.")
-	dir := filepath.Join(
-		f.cfg.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingSessionsDir, apidefaults.Namespace,
-	)
-	fileStreamer, err := filesessions.NewStreamer(dir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// TeeStreamer sends non-print and non disk events
-	// to the audit log in async mode, while buffering all
-	// events on disk for further upload at the end of the session
-	return events.NewTeeStreamer(fileStreamer, f.cfg.StreamEmitter), nil
 }
 
 // join joins an existing session over a websocket connection

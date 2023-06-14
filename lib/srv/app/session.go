@@ -36,8 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/filesessions"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/events/recorder"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -113,14 +112,17 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 	}
 
 	// Create the stream writer that will write this chunk to the audit log.
-	streamWriter, err := s.newStreamWriter(sess.id)
+	// Audit stream is using server context, not session context,
+	// to make sure that session is uploaded even after it is closed.
+	streamWriter, err := s.newStreamWriter(s.closeContext, sess.id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess.streamCloser = streamWriter
 
 	audit, err := common.NewAudit(common.AuditConfig{
-		Emitter: streamWriter,
+		Emitter:  s.c.Emitter,
+		Recorder: streamWriter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -275,8 +277,8 @@ func (s *Server) closeSession(sess *sessionChunk) {
 // newStreamWriter creates a session stream that will be used to record
 // requests that occur within this session chunk and upload the recording
 // to the Auth server.
-func (s *Server) newStreamWriter(chunkID string) (events.StreamWriter, error) {
-	recConfig, err := s.c.AccessPoint.GetSessionRecordingConfig(s.closeContext)
+func (s *Server) newStreamWriter(ctx context.Context, chunkID string) (events.StreamWriter, error) {
+	recConfig, err := s.c.AccessPoint.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -286,51 +288,25 @@ func (s *Server) newStreamWriter(chunkID string) (events.StreamWriter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create a sync or async streamer depending on configuration of cluster.
-	streamer, err := s.newStreamer(chunkID, recConfig)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	cfg := events.AuditWriterConfig{
+		Context:     ctx,
+		Clock:       s.c.Clock,
+		SessionID:   rsession.ID(chunkID),
+		Namespace:   apidefaults.Namespace,
+		ServerID:    s.c.HostID,
+		Component:   teleport.ComponentApp,
+		ClusterName: clusterName.GetClusterName(),
 	}
-	streamWriter, err := events.NewAuditWriter(events.AuditWriterConfig{
-		// Audit stream is using server context, not session context,
-		// to make sure that session is uploaded even after it is closed
-		Context:      s.closeContext,
-		Streamer:     streamer,
-		Clock:        s.c.Clock,
-		SessionID:    rsession.ID(chunkID),
-		Namespace:    apidefaults.Namespace,
-		ServerID:     s.c.HostID,
-		RecordOutput: recConfig.GetMode() != types.RecordOff,
-		Component:    teleport.ComponentApp,
-		ClusterName:  clusterName.GetClusterName(),
-	})
+	uploadDir := filepath.Join(
+		s.c.DataDir, teleport.LogsDir, teleport.ComponentUpload,
+		events.StreamingSessionsDir, apidefaults.Namespace,
+	)
+	streamWriter, err := recorder.NewRecorder(recConfig, cfg, uploadDir, s.c.AuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return streamWriter, nil
-}
-
-// newStreamer returns sync or async streamer based on the configuration
-// of the server and the session, sync streamer sends the events
-// directly to the auth server and blocks if the events can not be received,
-// async streamer buffers the events to disk and uploads the events later
-func (s *Server) newStreamer(chunkID string, recConfig types.SessionRecordingConfig) (events.Streamer, error) {
-	if services.IsRecordSync(recConfig.GetMode()) {
-		s.log.Debugf("Using sync streamer for session chunk %v.", chunkID)
-		return s.c.AuthClient, nil
-	}
-
-	s.log.Debugf("Using async streamer for session chunk %v.", chunkID)
-	uploadDir := filepath.Join(
-		s.c.DataDir, teleport.LogsDir, teleport.ComponentUpload,
-		events.StreamingSessionsDir, apidefaults.Namespace,
-	)
-	fileStreamer, err := filesessions.NewStreamer(uploadDir)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return events.NewTeeStreamer(fileStreamer, s.c.Emitter), nil
 }
 
 // createTracker creates a new session tracker for the session chunk.
