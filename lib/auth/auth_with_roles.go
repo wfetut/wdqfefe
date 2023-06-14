@@ -1761,6 +1761,64 @@ func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAcc
 	}
 }
 
+func (a *ServerWithRoles) GetUnifiedResources(ctx context.Context, namespace string) ([]types.ResourceWithLabels, error) {
+	if err := a.action(namespace, types.KindNode, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fetch full list of nodes in the backend.
+	startFetch := time.Now()
+	unifiedResources, err := a.authServer.unifiedResourceWatcher.GetUnifiedResources(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	elapsedFetch := time.Since(startFetch)
+
+	// Filter nodes to return the ones for the connected identity.
+	filteredNodes := make([]types.ResourceWithLabels, 0)
+	startFilter := time.Now()
+	for _, resource := range unifiedResources {
+		switch r := resource.(type) {
+		case types.Server:
+			{
+				if err := a.checkAccessToNode(r); err != nil {
+					if trace.IsAccessDenied(err) {
+						continue
+					}
+
+					return nil, trace.Wrap(err)
+				}
+
+				filteredNodes = append(filteredNodes, resource)
+			}
+		case types.DatabaseServer:
+			{
+				if err := a.checkAccessToDatabase(r.GetDatabase()); err != nil {
+					if trace.IsAccessDenied(err) {
+						continue
+					}
+
+					return nil, trace.Wrap(err)
+				}
+
+				filteredNodes = append(filteredNodes, resource)
+			}
+
+		}
+	}
+	elapsedFilter := time.Since(startFilter)
+
+	log.WithFields(logrus.Fields{
+		"user":           a.context.User.GetName(),
+		"elapsed_fetch":  elapsedFetch,
+		"elapsed_filter": elapsedFilter,
+	}).Debugf(
+		"GetServers(%v->%v) in %v.",
+		len(unifiedResources), len(filteredNodes), elapsedFetch+elapsedFilter)
+
+	return filteredNodes, nil
+}
+
 // listResourcesWithSort retrieves all resources of a certain resource type with rbac applied
 // then afterwards applies request sorting and filtering.
 func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
@@ -1773,7 +1831,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 	var resources []types.ResourceWithLabels
 	switch req.ResourceType {
 	case types.KindUnifiedResouce:
-		unifiedResources, err := a.authServer.unifiedResourceWatcher.GetUnifiedResources(ctx, req.Namespace)
+		unifiedResources, err := a.GetUnifiedResources(ctx, req.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
