@@ -32,7 +32,6 @@ class NodeService {
       .then(json => {
         const items = json?.items || [];
 
-        console.log('items', items);
         return {
           agents: items.map(makeNode),
           startKey: json?.startKey,

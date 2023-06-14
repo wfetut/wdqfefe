@@ -20,9 +20,12 @@ import { Node } from 'teleport/services/nodes';
 import { Kube } from 'teleport/services/kube';
 import { Desktop, WindowsDesktopService } from 'teleport/services/desktops';
 
+import { UIResource } from '../resources';
+
 import type { MfaAuthnResponse } from '../mfa';
 
 export type AgentKind =
+  | UIResource
   | App
   | Database
   | Node

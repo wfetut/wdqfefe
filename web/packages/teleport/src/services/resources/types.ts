@@ -14,12 +14,20 @@
  * limitations under the License.
  */
 
+import { AgentLabel } from '../agents';
+
 export type Resource<T extends Kind> = {
   id: string;
   kind: T;
   name: string;
   // content is config in yaml format.
   content: string;
+};
+
+export type UIResource = {
+  kind: string;
+  name: string;
+  labels: AgentLabel[];
 };
 
 export type KindRole = 'role';

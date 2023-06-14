@@ -1,0 +1,1 @@
+export { UIResourceList } from './UIResourcesList';

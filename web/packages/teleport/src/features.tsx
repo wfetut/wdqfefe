@@ -49,6 +49,7 @@ import type { TeleportFeature, FeatureFlags } from './types';
 const Audit = lazy(() => import('./Audit'));
 const Nodes = lazy(() => import('./Nodes'));
 const Sessions = lazy(() => import('./Sessions'));
+const Resources = lazy(() => import('./Resources'));
 const Account = lazy(() => import('./Account'));
 const Applications = lazy(() => import('./Apps'));
 const Kubes = lazy(() => import('./Kubes'));
@@ -94,6 +95,30 @@ export class FeatureNodes implements TeleportFeature {
 
   hasAccess(flags: FeatureFlags) {
     return flags.nodes;
+  }
+}
+
+export class FeatureUIResources implements TeleportFeature {
+  route = {
+    title: 'Resources',
+    path: cfg.routes.resources,
+    exact: true,
+    component: Resources,
+  };
+
+  navigationItem = {
+    title: 'Resources',
+    icon: <ServersIcon />,
+    exact: true,
+    getLink(clusterId: string) {
+      return cfg.getUIResourcesRoute(clusterId);
+    },
+  };
+
+  category = NavigationCategory.Resources;
+
+  hasAccess() {
+    return true;
   }
 }
 
@@ -579,6 +604,7 @@ export class FeatureHelpAndSupport implements TeleportFeature {
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
+    new FeatureUIResources(),
     new FeatureNodes(),
     new FeatureApps(),
     new FeatureKubes(),

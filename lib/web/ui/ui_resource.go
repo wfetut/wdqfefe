@@ -19,38 +19,69 @@ package ui
 import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/trace"
 )
 
 // Unified Resource describes a unified resource for webapp
 type UIResource struct {
-	// Name is this server name
-	Name string `json:"id"`
 	// Kind is the resource kind
 	Kind string `json:"kind"`
-	// ClusterName is this server cluster name
-	ClusterName string `json:"siteId"`
+	// Name is this server name
+	Name string `json:"name"`
 	// Labels is this server list of labels
 	Labels []Label `json:"tags"`
 }
+
+// i need to make this an actual interface
 
 // MakeUIResource creates server objects for webapp
 func MakeUIResource(clusterName string, resources []types.ResourceWithLabels, accessChecker services.AccessChecker) ([]UIResource, error) {
 	uiResources := []UIResource{}
 	for _, resource := range resources {
-		labels := resource.GetAllLabels()
-		uiLabels := makeLabels(labels)
-
-		// serverLogins, err := accessChecker.GetAllowedLoginsForResource(resource)
-		// if err != nil {
-		// 	return nil, trace.Wrap(err)
-		// }
-
-		uiResources = append(uiResources, UIResource{
-			ClusterName: clusterName,
-			Labels:      uiLabels,
-			Name:        resource.GetName(),
-		})
+		switch r := resource.(type) {
+		case types.Server:
+			serverLabels := r.GetStaticLabels()
+			serverCmdLabels := r.GetCmdLabels()
+			uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
+			uiResources = append(uiResources, UIResource{
+				Kind:   r.GetKind(),
+				Name:   r.GetHostname(),
+				Labels: uiLabels,
+			})
+		case types.DatabaseServer:
+			// dbNames, dbUsers, err := getDatabaseUsersAndNames(accessChecker)
+			// if err != nil {
+			// 	return nil, trace.Wrap(err)
+			// }
+			uiLabels := makeLabels(r.GetAllLabels())
+			uiResources = append(uiResources, UIResource{
+				Kind:   r.GetKind(),
+				Name:   r.GetName(),
+				Labels: uiLabels,
+			})
+		default:
+			return nil, trace.Errorf("UI Resource has unknown type: %T", resource)
+		}
 	}
 
 	return uiResources, nil
 }
+
+// func getDatabaseUsersAndNames(accessChecker services.AccessChecker) (dbNames []string, dbUsers []string, err error) {
+// 	dbNames, dbUsers, err = accessChecker.CheckDatabaseNamesAndUsers(0, true /* force ttl override*/)
+// 	if err != nil {
+// 		// if NotFound error:
+// 		// This user cannot request database access, has no assigned database names or users
+// 		//
+// 		// Every other error should be reported upstream.
+// 		if !trace.IsNotFound(err) {
+// 			return nil, nil, trace.Wrap(err)
+// 		}
+
+// 		// We proceed with an empty list of DBUsers and DBNames
+// 		dbUsers = []string{}
+// 		dbNames = []string{}
+// 	}
+
+// 	return dbNames, dbUsers, nil
+// }

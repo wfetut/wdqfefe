@@ -628,6 +628,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// get namespaces
 	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
 
+	h.GET("/webapi/sites/:site/resources", h.WithClusterAuth(h.clusterUIResourcesGet))
 	// get nodes
 	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
 
@@ -2427,16 +2428,17 @@ func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 	}, nil
 }
 
-// clusterNodesGet returns a list of nodes for a given cluster site.
-func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+// clusterUIResourcesGet returns a list of resources for a given cluster site. This includes all resources available to be displayed in the web ui
+// such as Nodes, Apps, Desktops, etc etc
+func (h *Handler) clusterUIResourcesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
-	// identity of the logged in user is used to fetch the list of nodes.
+	// identity of the logged in user is used to fetch the list of resources.
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := convertListResourcesRequest(r, types.KindNode)
+	req, err := convertListResourcesRequest(r, types.KindUIResource)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2451,7 +2453,43 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	uiServers, err := ui.MakeUnifiedResource(site.GetName(), page.Resources, accessChecker)
+	uiResources, err := ui.MakeUIResource(site.GetName(), page.Resources, accessChecker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return listResourcesGetResponse{
+		Items:      uiResources,
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
+	}, nil
+}
+
+// clusterNodesGet returns a list of nodes for a given cluster site.
+func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	// Get a client to the Auth Server with the logged in user's identity. The
+	// identity of the logged in user is used to fetch the list of nodes.
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req, err := convertListResourcesRequest(r, types.KindNode)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	page, err := apiclient.GetResourcePage[types.Server](r.Context(), clt, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiServers, err := ui.MakeServers(site.GetName(), page.Resources, accessChecker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
