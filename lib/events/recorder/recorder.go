@@ -25,17 +25,17 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func NewRecorder(recConfig types.SessionRecordingConfig, cfg events.AuditWriterConfig, uploadDir string, syncStream events.Streamer) (events.StreamWriter, error) {
+func NewRecorder(recCfg types.SessionRecordingConfig, cfg events.AuditWriterConfig, uploadDir string, syncStream events.Streamer) (events.StreamWriter, error) {
 	if cfg.Streamer != nil {
 		return nil, trace.BadParameter("Streamer must be unset")
 	}
 
-	if recConfig.GetMode() == types.RecordOff {
-		return &events.DiscardStream{}, nil
+	if recCfg.GetMode() == types.RecordOff {
+		return events.NewDiscardStream(), nil
 	}
 
 	var streamer events.Streamer = syncStream
-	if !services.IsRecordSync(recConfig.GetMode()) {
+	if !services.IsRecordSync(recCfg.GetMode()) {
 		fileStreamer, err := filesessions.NewStreamer(uploadDir)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -44,6 +44,10 @@ func NewRecorder(recConfig types.SessionRecordingConfig, cfg events.AuditWriterC
 	}
 
 	cfg.Streamer = streamer
+	rec, err := events.NewAuditWriter(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return events.NewAuditWriter(cfg)
+	return rec, nil
 }

@@ -138,7 +138,7 @@ func TestSessionStartEvent(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			s.onSessionStart(
 				context.Background(),
-				s.cfg.Emitter,
+				emitter,
 				id,
 				s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 				"Administrator",
@@ -181,7 +181,7 @@ func TestSessionEndEvent(t *testing.T) {
 
 	s.onSessionEnd(
 		context.Background(),
-		s.cfg.Emitter,
+		emitter,
 		id,
 		startTime,
 		true,

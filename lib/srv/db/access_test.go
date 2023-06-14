@@ -56,6 +56,7 @@ import (
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -2176,7 +2177,8 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 			// Use the same audit logger implementation but substitute the
 			// underlying emitter so events can be tracked in tests.
 			return common.NewAudit(common.AuditConfig{
-				Emitter: c.emitter,
+				Emitter:  c.emitter,
+				Recorder: libevents.NewDiscardStream(),
 			})
 		},
 		CADownloader:             p.CADownloader,
@@ -2713,8 +2715,7 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 	}
 }
 
-type fakeDiscoveryResourceChecker struct {
-}
+type fakeDiscoveryResourceChecker struct{}
 
 func (f fakeDiscoveryResourceChecker) check(_ context.Context, _ types.Database) {
 }

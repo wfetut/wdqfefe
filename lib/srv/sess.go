@@ -895,11 +895,11 @@ func (s *session) emitSessionStartEvent(ctx *ServerContext) {
 		sessionStartEvent.ConnectionMetadata.LocalAddr = ctx.ServerConn.LocalAddr().String()
 	}
 
-	if err := s.emitAuditEvent(ctx.srv.Context(), sessionStartEvent); err != nil {
-		s.log.WithError(err).Warn("Failed to emit session start event.")
-	}
 	if err := s.recordEvent(ctx.srv.Context(), sessionStartEvent); err != nil {
 		s.log.WithError(err).Warn("Failed to record session start event.")
+	}
+	if err := s.emitAuditEvent(ctx.srv.Context(), sessionStartEvent); err != nil {
+		s.log.WithError(err).Warn("Failed to emit session start event.")
 	}
 }
 
@@ -1034,11 +1034,11 @@ func (s *session) emitSessionEndEvent() {
 		sessionEndEvent.Participants = []string{s.scx.Identity.TeleportUser}
 	}
 
-	if err := s.emitAuditEvent(ctx.srv.Context(), sessionEndEvent); err != nil {
-		s.log.WithError(err).Warn("Failed to emit session end event.")
-	}
 	if err := s.recordEvent(ctx.srv.Context(), sessionEndEvent); err != nil {
 		s.log.WithError(err).Warn("Failed to record session end event.")
+	}
+	if err := s.emitAuditEvent(ctx.srv.Context(), sessionEndEvent); err != nil {
+		s.log.WithError(err).Warn("Failed to emit session end event.")
 	}
 }
 
@@ -1255,10 +1255,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.StreamWriter, error) {
 	// Nodes discard events in cases when proxies are already recording them.
 	if s.registry.Srv.Component() == teleport.ComponentNode &&
 		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
-		return &events.DiscardStream{}, nil
-	}
-	if ctx.IsTestStub {
-		return &events.DiscardStream{}, nil
+		return events.NewDiscardStream(), nil
 	}
 
 	cfg := events.AuditWriterConfig{
@@ -1272,6 +1269,13 @@ func newRecorder(s *session, ctx *ServerContext) (events.StreamWriter, error) {
 		Component:   teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 		ClusterName: ctx.ClusterName,
 	}
+	// Return an AuditWriter with a discarding stream so closing it will
+	// work correctly for tests
+	if ctx.IsTestStub {
+		cfg.Streamer = events.NewDiscardEmitter()
+		return events.NewAuditWriter(cfg)
+	}
+
 	uploadDir := sessionsStreamingUploadDir(ctx)
 	rec, err := recorder.NewRecorder(ctx.SessionRecordingConfig, cfg, uploadDir, ctx.srv)
 	if err != nil {
@@ -1280,7 +1284,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.StreamWriter, error) {
 			s.log.WithError(err).Warning("Failed to initialize session recording, disabling it for this session.")
 
 			s.BroadcastSystemMessage(sessionRecordingWarningMessage)
-			return &events.DiscardStream{}, nil
+			return events.NewDiscardStream(), nil
 		}
 
 		return nil, trace.ConnectionProblem(err, sessionRecordingErrorMessage)
@@ -2009,7 +2013,7 @@ func (s *session) recordEvent(ctx context.Context, event apievents.AuditEvent) e
 	select {
 	case <-rec.Done():
 
-		s.setRecorder(&events.DiscardStream{})
+		s.setRecorder(events.NewDiscardStream())
 
 		return nil
 	default:

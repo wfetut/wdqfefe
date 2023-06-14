@@ -7034,7 +7034,7 @@ func testSessionStreaming(t *testing.T, suite *integrationTestSuite) {
 	})
 
 	for _, event := range generatedSession {
-		err := uploadStream.EmitAuditEvent(ctx, event)
+		err := uploadStream.RecordEvent(ctx, event)
 		require.NoError(t, err)
 	}
 

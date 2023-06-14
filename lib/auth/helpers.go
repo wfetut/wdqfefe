@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -68,8 +69,10 @@ type TestAuthServerConfig struct {
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
-	// Streamer allows a test to set its own audit events streamer.
+	// Streamer allows a test to set its own session events streamer.
 	Streamer events.Streamer
+	// Emitter allows a test to set its own audit events emitter.
+	Emitter apievents.Emitter
 	// AuditLog allows a test to configure its own audit log.
 	AuditLog events.AuditLogSessionStreamer
 	// TraceClient allows a test to configure the trace client
@@ -245,12 +248,16 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	access := local.NewAccessService(srv.Backend)
 	identity := local.NewIdentityService(srv.Backend)
 
-	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
+	var emitter apievents.Emitter
+	emitter, err = events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner: srv.AuditLog,
 		Clock: cfg.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if cfg.Emitter != nil {
+		emitter = events.NewMultiEmitter(emitter, cfg.Emitter)
 	}
 
 	srv.AuthServer, err = NewServer(&InitConfig{

@@ -566,11 +566,11 @@ func (s *session) launch() error {
 		SessionRecording:          s.ctx.recordingConfig.GetMode(),
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
-		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
-	}
 	if err := s.recorder.RecordEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
 		s.forwarder.log.WithError(err).Warn("Failed to record event.")
+	}
+	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
+		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
 	}
 
 	s.eventsWaiter.Add(1)
@@ -829,11 +829,11 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			SessionRecording:          s.ctx.recordingConfig.GetMode(),
 		}
 
-		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
-			s.forwarder.log.WithError(err).Warn("Failed to emit session end event.")
-		}
 		if err := s.recorder.RecordEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
 			s.forwarder.log.WithError(err).Warn("Failed to record session end event.")
+		}
+		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
+			s.forwarder.log.WithError(err).Warn("Failed to emit session end event.")
 		}
 	}, nil
 }

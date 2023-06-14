@@ -92,7 +92,7 @@ func TestProtoStreamer(t *testing.T) {
 
 			evts := tc.events
 			for _, event := range evts {
-				err := stream.EmitAuditEvent(ctx, event)
+				err := stream.RecordEvent(ctx, event)
 				if tc.err != nil {
 					require.IsType(t, tc.err, err)
 					return
@@ -236,7 +236,7 @@ func TestExport(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, event := range evts {
-		err := stream.EmitAuditEvent(ctx, event)
+		err := stream.RecordEvent(ctx, event)
 		require.NoError(t, err)
 	}
 	err = stream.Complete(ctx)
@@ -284,7 +284,7 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	t.Run("CheckingStream", func(t *testing.T) {
-		emitter := events.NewCheckingStream(&events.DiscardStream{}, clock, "cluster")
+		stream := events.NewCheckingStream(events.NewDiscardStream(), clock, "cluster")
 		event := &apievents.SessionStart{
 			Metadata: apievents.Metadata{
 				ID:   "event.id",
@@ -292,7 +292,7 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 				Type: "event.type",
 			},
 		}
-		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
+		require.NoError(t, stream.RecordEvent(context.Background(), event))
 		require.Empty(t, cmp.Diff(event, &apievents.SessionStart{
 			Metadata: apievents.Metadata{
 				ID:          "event.id",
@@ -312,7 +312,7 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 				UIDGenerator: utils.NewFakeUID(),
 			},
 		}
-		emitter, err := streamer.CreateAuditStream(context.Background(), "session.id")
+		stream, err := streamer.CreateAuditStream(context.Background(), "session.id")
 		require.NoError(t, err)
 		event := &apievents.SessionStart{
 			Metadata: apievents.Metadata{
@@ -321,7 +321,7 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 				Type: "event.type",
 			},
 		}
-		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
+		require.NoError(t, stream.RecordEvent(context.Background(), event))
 		require.Empty(t, cmp.Diff(event, &apievents.SessionStart{
 			Metadata: apievents.Metadata{
 				ID:          "event.id",
@@ -341,7 +341,7 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 				UIDGenerator: utils.NewFakeUID(),
 			},
 		}
-		emitter, err := streamer.ResumeAuditStream(context.Background(), "session.id", "upload.id")
+		stream, err := streamer.ResumeAuditStream(context.Background(), "session.id", "upload.id")
 		require.NoError(t, err)
 		event := &apievents.SessionStart{
 			Metadata: apievents.Metadata{
@@ -350,7 +350,7 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 				Type: "event.type",
 			},
 		}
-		require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
+		require.NoError(t, stream.RecordEvent(context.Background(), event))
 		require.Empty(t, cmp.Diff(event, &apievents.SessionStart{
 			Metadata: apievents.Metadata{
 				ID:          "event.id",

@@ -97,7 +97,7 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 	}
 
 	for _, event := range inEvents {
-		err := stream.EmitAuditEvent(ctx, event)
+		err := stream.RecordEvent(ctx, event)
 		require.Nil(t, err)
 	}
 
@@ -149,7 +149,7 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 	require.Nil(t, err)
 
 	for _, event := range inEvents {
-		err := stream.EmitAuditEvent(ctx, event)
+		err := stream.RecordEvent(ctx, event)
 		require.Nil(t, err)
 	}
 

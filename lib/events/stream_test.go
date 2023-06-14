@@ -188,7 +188,7 @@ func TestProtoStreamLargeEvent(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			test.errAssertion(t, stream.EmitAuditEvent(ctx, test.event))
+			test.errAssertion(t, stream.RecordEvent(ctx, test.event))
 		})
 	}
 	require.NoError(t, stream.Complete(ctx))
@@ -233,6 +233,7 @@ func makeQueryEvent(id string, query string) *apievents.DatabaseSessionQuery {
 		DatabaseQuery: query,
 	}
 }
+
 func makeAccessRequestEvent(id string, in string) *apievents.AccessRequestDelete {
 	return &apievents.AccessRequestDelete{
 		Metadata: apievents.Metadata{

@@ -51,7 +51,8 @@ type Audit interface {
 // AuditConfig is the audit events emitter configuration.
 type AuditConfig struct {
 	// Emitter is used to emit audit events.
-	Emitter  apievents.Emitter
+	Emitter apievents.Emitter
+	// Recorder is used to record session events.
 	Recorder apievents.Recorder
 }
 
@@ -59,6 +60,9 @@ type AuditConfig struct {
 func (c *AuditConfig) Check() error {
 	if c.Emitter == nil {
 		return trace.BadParameter("missing Emitter")
+	}
+	if c.Recorder == nil {
+		return trace.BadParameter("missing Recorder")
 	}
 	return nil
 }
@@ -216,8 +220,8 @@ func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 
 // EmitEvent emits the provided audit event.
 func (a *audit) EmitEvent(ctx context.Context, event apievents.AuditEvent) error {
-	emitErr := a.cfg.Emitter.EmitAuditEvent(ctx, event)
 	recErr := a.cfg.Recorder.RecordEvent(ctx, event)
+	emitErr := a.cfg.Emitter.EmitAuditEvent(ctx, event)
 	return trace.NewAggregate(emitErr, recErr)
 }
 

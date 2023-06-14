@@ -143,7 +143,6 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		reqID          string
 		location       string
 	}{
-
 		{
 			name:           "no file request found with supplied ID",
 			expectedResult: false,
@@ -435,6 +434,7 @@ func TestSession_emitAuditEvent(t *testing.T) {
 			id:       "test",
 			log:      logger,
 			recorder: &mockRecorder{done: true},
+			emitter:  srv,
 			registry: reg,
 			scx:      newTestServerContext(t, srv, nil),
 		}

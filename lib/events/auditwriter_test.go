@@ -50,7 +50,7 @@ func TestAuditWriter(t *testing.T) {
 		})
 
 		for _, event := range inEvents {
-			err := test.writer.EmitAuditEvent(test.ctx, event)
+			err := test.writer.RecordEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
 		err := test.writer.Complete(test.ctx)
@@ -88,7 +88,7 @@ func TestAuditWriter(t *testing.T) {
 		test := newAuditWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
 			return events.NewCallbackStreamer(events.CallbackStreamerConfig{
 				Inner: streamer,
-				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
+				OnRecordEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 					if event.GetIndex() > 1 && terminateConnection.CompareAndSwap(1, 0) == true {
 						log.Debugf("Terminating connection at event %v", event.GetIndex())
 						return trace.ConnectionProblem(nil, "connection terminated")
@@ -127,7 +127,7 @@ func TestAuditWriter(t *testing.T) {
 
 		start := time.Now()
 		for _, event := range inEvents {
-			err := test.writer.EmitAuditEvent(test.ctx, event)
+			err := test.writer.RecordEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
 		log.Debugf("Emitted %v events in %v.", len(inEvents), time.Since(start))
@@ -150,7 +150,7 @@ func TestAuditWriter(t *testing.T) {
 		test := newAuditWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
 			return events.NewCallbackStreamer(events.CallbackStreamerConfig{
 				Inner: streamer,
-				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
+				OnRecordEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 					if event.GetIndex() > 600 && terminateConnection.CompareAndSwap(1, 0) == true {
 						log.Debugf("Terminating connection at event %v", event.GetIndex())
 						return trace.ConnectionProblem(nil, "connection terminated")
@@ -181,7 +181,7 @@ func TestAuditWriter(t *testing.T) {
 
 		start := time.Now()
 		for _, event := range inEvents {
-			err := test.writer.EmitAuditEvent(test.ctx, event)
+			err := test.writer.RecordEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
 		log.Debugf("Emitted all events in %v.", time.Since(start))
@@ -208,7 +208,7 @@ func TestAuditWriter(t *testing.T) {
 		test := newAuditWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
 			return events.NewCallbackStreamer(events.CallbackStreamerConfig{
 				Inner: streamer,
-				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
+				OnRecordEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 					if event.GetIndex() >= int64(submitEvents-1) && terminateConnection.CompareAndSwap(1, 0) == true {
 						log.Debugf("Locking connection at event %v", event.GetIndex())
 						<-hangCtx.Done()
@@ -240,7 +240,7 @@ func TestAuditWriter(t *testing.T) {
 
 		start := time.Now()
 		for _, event := range inEvents {
-			err := test.writer.EmitAuditEvent(test.ctx, event)
+			err := test.writer.RecordEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
 		elapsedTime := time.Since(start)
@@ -261,7 +261,7 @@ func TestAuditWriter(t *testing.T) {
 		test := newAuditWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
 			return events.NewCallbackStreamer(events.CallbackStreamerConfig{
 				Inner: streamer,
-				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
+				OnRecordEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 					emittedEvents = append(emittedEvents, event)
 					return nil
 				},
@@ -274,7 +274,7 @@ func TestAuditWriter(t *testing.T) {
 		})
 		for _, event := range inEvents {
 			require.Empty(t, event.GetClusterName())
-			require.NoError(t, test.writer.EmitAuditEvent(test.ctx, event))
+			require.NoError(t, test.writer.RecordEvent(test.ctx, event))
 		}
 		test.Close(context.Background())
 		require.Equal(t, len(inEvents), len(emittedEvents))
@@ -287,7 +287,7 @@ func TestAuditWriter(t *testing.T) {
 		test := newAuditWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
 			return events.NewCallbackStreamer(events.CallbackStreamerConfig{
 				Inner: streamer,
-				OnEmitAuditEvent: func(_ context.Context, _ session.ID, _ apievents.AuditEvent) error {
+				OnRecordEvent: func(_ context.Context, _ session.ID, _ apievents.AuditEvent) error {
 					// Returns an unrecoverable error.
 					return errors.New("uploader failed to reserve upload part")
 				},
@@ -296,10 +296,10 @@ func TestAuditWriter(t *testing.T) {
 
 		// First event will not fail since it is processed in the goroutine.
 		events := events.GenerateTestSession(events.SessionParams{SessionID: string(test.sid)})
-		require.NoError(t, test.writer.EmitAuditEvent(test.ctx, events[1]))
+		require.NoError(t, test.writer.RecordEvent(test.ctx, events[1]))
 
 		// Subsequent events will fail.
-		err := test.writer.EmitAuditEvent(test.ctx, events[1])
+		err := test.writer.RecordEvent(test.ctx, events[1])
 		require.Error(t, err)
 
 		require.Eventually(t, func() bool {
@@ -354,12 +354,11 @@ func newAuditWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...auditWr
 
 	sid := session.NewID()
 	cfg := events.AuditWriterConfig{
-		SessionID:    sid,
-		Namespace:    apidefaults.Namespace,
-		RecordOutput: true,
-		Streamer:     streamer,
-		Context:      ctx,
-		ClusterName:  "cluster",
+		SessionID:   sid,
+		Namespace:   apidefaults.Namespace,
+		Streamer:    streamer,
+		Context:     ctx,
+		ClusterName: "cluster",
 	}
 	for _, opt := range opts {
 		opt(&cfg)

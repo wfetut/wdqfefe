@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
-	libsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -116,8 +115,8 @@ type suiteConfig struct {
 	OnReconcile func(types.Apps)
 	// Apps are the apps to configure.
 	Apps types.Apps
-	// ServerStreamer is the auth server audit events streamer.
-	ServerStreamer events.Streamer
+	// ServerStreamer is the auth server audit events emitter.
+	ServerEmitter apievents.Emitter
 	// ValidateRequest is a function that will validate the request received by the application.
 	ValidateRequest func(*Suite, *http.Request)
 	// EnableHTTP2 defines if the test server will support HTTP2.
@@ -153,17 +152,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		ClusterName: "root.example.com",
 		Dir:         s.dataDir,
 		Clock:       s.clock,
-		Streamer:    config.ServerStreamer,
+		Emitter:     config.ServerEmitter,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { s.authServer.Close() })
-
-	if config.ServerStreamer != nil {
-		err = s.authServer.AuthServer.SetSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
-			Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
-		})
-		require.NoError(t, err)
-	}
 
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
 	require.NoError(t, err)
@@ -316,7 +308,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		apps = config.Apps
 	}
 
-	discard := events.NewDiscardEmitter()
+	var emitter apievents.Emitter = events.NewDiscardEmitter()
+	if config.ServerEmitter != nil {
+		emitter = events.NewMultiEmitter(config.ServerEmitter, s.authClient)
+	}
 
 	s.appServer, err = New(s.closeContext, &Config{
 		Clock:             s.clock,
@@ -334,7 +329,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Cloud:             &testCloud{},
 		ResourceMatchers:  config.ResourceMatchers,
 		OnReconcile:       config.OnReconcile,
-		Emitter:           discard,
+		Emitter:           emitter,
 		CloudLabels:       config.CloudImporter,
 		ConnectionMonitor: fakeConnMonitor{},
 	})
@@ -862,9 +857,8 @@ func TestRequestAuditEvents(t *testing.T) {
 
 	var requestEventsReceived atomic.Uint64
 	var chunkEventsReceived atomic.Uint64
-	serverStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
-		Inner: events.NewDiscardEmitter(),
-		OnEmitAuditEvent: func(_ context.Context, _ libsession.ID, event apievents.AuditEvent) error {
+	serverEmitter, err := events.NewCallbackEmitter(events.CallbackEmitterConfig{
+		OnEmitAuditEvent: func(_ context.Context, event apievents.AuditEvent) error {
 			switch event.GetType() {
 			case events.AppSessionChunkEvent:
 				chunkEventsReceived.Add(1)
@@ -921,19 +915,19 @@ func TestRequestAuditEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	s := SetUpSuiteWithConfig(t, suiteConfig{
-		ServerStreamer: serverStreamer,
-		Apps:           types.Apps{app},
+		ServerEmitter: serverEmitter,
+		Apps:          types.Apps{app},
 	})
 
 	// make a request to generate events.
 	s.checkHTTPResponse(t, s.clientCertificate, func(_ *http.Response) {
 		// wait until chunk events are generated before closing the server.
 		require.Eventually(t, func() bool {
-			return chunkEventsReceived.Load() == 1
+			return chunkEventsReceived.Load() > 0
 		}, 500*time.Millisecond, 50*time.Millisecond, "app.session.chunk event not generated")
 		// wait until request events are generated before closing the server.
 		require.Eventually(t, func() bool {
-			return requestEventsReceived.Load() == 1
+			return requestEventsReceived.Load() > 0
 		}, 500*time.Millisecond, 50*time.Millisecond, "app.session.request event not generated")
 	})
 

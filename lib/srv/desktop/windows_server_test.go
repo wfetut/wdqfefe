@@ -425,7 +425,7 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	// Simulate a session end event, which should clean up the cache for sessionID(sid) entirely.
 	s.onSessionEnd(
 		context.Background(),
-		s.cfg.Emitter,
+		emitter,
 		id,
 		s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		true,

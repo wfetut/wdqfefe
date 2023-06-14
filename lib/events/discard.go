@@ -64,6 +64,11 @@ func (d *DiscardAuditLog) StreamSessionEvents(ctx context.Context, sessionID ses
 	return c, e
 }
 
+// NewDiscardStream returns a no-op discard stream
+func NewDiscardStream() *DiscardStream {
+	return &DiscardStream{}
+}
+
 // DiscardStream returns a stream that discards all events
 type DiscardStream struct{}
 

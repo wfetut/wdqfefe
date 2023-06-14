@@ -70,7 +70,7 @@ func TestChaosUpload(t *testing.T) {
 
 	faultyStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 		Inner: streamer,
-		OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
+		OnRecordEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
 			if event.GetIndex() > 700 && terminateConnection.Add(1) < 5 {
 				log.Debugf("Terminating connection at event %v", event.GetIndex())
 				return trace.ConnectionProblem(nil, "connection terminated")
@@ -152,7 +152,7 @@ func TestChaosUpload(t *testing.T) {
 				return
 			}
 			for _, event := range inEvents {
-				err := stream.EmitAuditEvent(ctx, event)
+				err := stream.RecordEvent(ctx, event)
 				if err != nil {
 					s.err = err
 					streamsCh <- s

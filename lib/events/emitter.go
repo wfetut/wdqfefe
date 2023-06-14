@@ -426,6 +426,40 @@ func (s *CheckingStream) RecordEvent(ctx context.Context, event apievents.AuditE
 	return nil
 }
 
+// NewCallbackEmitter returns an emitter that invokes a callback on every
+// action, is used in tests to inject failures
+func NewCallbackEmitter(cfg CallbackEmitterConfig) (*CallbackEmitter, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &CallbackEmitter{
+		CallbackEmitterConfig: cfg,
+	}, nil
+}
+
+// CallbackEmitterConfig provides parameters for emitter
+type CallbackEmitterConfig struct {
+	// OnEmitAuditEvent is called on emit audit event on a stream
+	OnEmitAuditEvent func(ctx context.Context, event apievents.AuditEvent) error
+}
+
+// CheckAndSetDefaults checks and sets default values
+func (c *CallbackEmitterConfig) CheckAndSetDefaults() error {
+	if c.OnEmitAuditEvent == nil {
+		return trace.BadParameter("missing parameter OnEmitAuditEvent")
+	}
+	return nil
+}
+
+// CallbackEmitter invokes a callback on every action, is used in tests to inject failures
+type CallbackEmitter struct {
+	CallbackEmitterConfig
+}
+
+func (c *CallbackEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return c.OnEmitAuditEvent(ctx, event)
+}
+
 // NewCallbackStreamer returns streamer that invokes callback on every
 // action, is used in tests to inject failures
 func NewCallbackStreamer(cfg CallbackStreamerConfig) (*CallbackStreamer, error) {
