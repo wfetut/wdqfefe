@@ -20,7 +20,7 @@ administrative resources.
 - Approving access requests.
 
 This will apply to administrative actions performed via the WebUI, `tctl`,
-and `tsh`.
+and `tsh`, or Teleport Connect.
 
 ## Why
 
@@ -86,20 +86,32 @@ allow rules. For example:
 - Changing the user's password.
 
 These actions will continue to be non-administrative actions and will not require
-MFA to complete.
+MFA to complete (if they don't already).
 
 ### UX
 
 The UX of this feature will be very similar to Per-session MFA for `tsh`, `tctl`,
-the WebUI, and Teleport Connect.
+and the WebUI, and Teleport Connect.
 
 When a user performs an admin action, they will be prompted to tap their MFA key.
-Each admin action should require a single tap.
+Each admin action will require a single unique tap.
+
+```console
+$ tctl rm roles/access
+Tap any security key
+# success
+```
+
+#### Editing resources
+
+With `tctl edit` or the WebUI, it is possible to edit existing resources in a
+text editor. In this case, MFA will be prompted before proceeding to the text
+editor to prevent data loss from a failed MFA challenge.
 
 ```console
 $ tctl edit roles/access
-# edit role in vim
 Tap any security key
+# edit role in Vim
 # success
 ```
 
@@ -118,31 +130,14 @@ follow this flow:
 1. Prompt the user to solve the MFA challenge with their MFA device.
 1. Send the resulting `MFAChallengeResponse` to the Auth Server as part of an
    administrative API request.
-1. Validate and consume the `MFAChallengeResponse` from the Auth Server to
-   authorize the request (in additional to normal identity-based authorization).
+1. Validate and consume the `MFAChallengeResponse` in the Auth Server to
+   authorize the request (in addition to normal identity-based authorization).
 
 Steps 1-3 are already possible with Teleport currently and used for various MFA
 features. Steps 4 and 5 will require some changes to the Auth API client and
 server respectively.
 
-#### Server changes
-
-For admin actions, the Auth server will validate MFA for the request, either
-from an `MFAChallengeResponse` passed by the client or an MFA-verified certificate
-used for the request. If the request fails MFA verification, an access denied
-error will be returned to the client.
-
-```go
-// ErrAPIMFARequired is returned by AccessChecker when an API request
-// requires an MFA check.
-var ErrAPIMFARequired = trace.AccessDenied("API request requires MFA")
-```
-
 #### Client changes
-
-If the client makes an API request that is considered an admin action, it will
-received the access denied error above. At this point, the client should check
-the error and retry the request with MFA verification.
 
 There are a few different ways that the Auth client can pass MFA verification with
 the Auth server, each with their own pros and cons:
@@ -235,6 +230,24 @@ enforcing MFA based on the user's certificate alone (option 3).
 
 @Reviewers please offer your opinions and I will update this section once we
 decide on an option.
+
+#### Server changes
+
+For admin actions, the Auth server will validate MFA for each request, either
+from an `MFAChallengeResponse` passed by the client or an MFA-verified certificate
+used for the request.
+
+If the request fails MFA verification, an access denied
+error will be returned to the client.
+
+```go
+// ErrAPIMFARequired is returned by AccessChecker when an API request
+// requires an MFA check.
+var ErrAPIMFARequired = trace.AccessDenied("API request requires MFA")
+```
+
+The client will check for this error to determine whether it should retry a
+request with MFA verification.
 
 ### Other considerations
 
