@@ -3083,7 +3083,7 @@ type ResourcePage[T types.ResourceWithLabels] struct {
 	NextKey string
 }
 
-func getTypeFromUnifiedResource(resource *proto.PaginatedResource) (types.ResourceWithLabels, error) {
+func getTypeFromUIResource(resource *proto.PaginatedResource) (types.ResourceWithLabels, error) {
 	var out types.ResourceWithLabels
 	if r := resource.GetNode(); r != nil {
 		out = r
@@ -3144,12 +3144,11 @@ func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetRes
 			return out, trail.FromGRPC(err)
 		}
 
-		req.ResourceType = types.KindUnifiedResouce
 		for _, respResource := range resp.Resources {
 			var resource types.ResourceWithLabels
 			switch req.ResourceType {
-			case types.KindUnifiedResouce:
-				resource, err = getTypeFromUnifiedResource(respResource)
+			case types.KindUIResource:
+				resource, err = getTypeFromUIResource(respResource)
 				if err != nil {
 					return out, trace.Wrap(err)
 				}

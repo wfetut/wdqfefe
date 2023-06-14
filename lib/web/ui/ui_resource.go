@@ -22,18 +22,20 @@ import (
 )
 
 // Unified Resource describes a unified resource for webapp
-type UnifiedResouce struct {
+type UIResource struct {
 	// Name is this server name
 	Name string `json:"id"`
+	// Kind is the resource kind
+	Kind string `json:"kind"`
 	// ClusterName is this server cluster name
 	ClusterName string `json:"siteId"`
 	// Labels is this server list of labels
 	Labels []Label `json:"tags"`
 }
 
-// MakeUnifiedResource creates server objects for webapp
-func MakeUnifiedResource(clusterName string, resources []types.ResourceWithLabels, accessChecker services.AccessChecker) ([]UnifiedResouce, error) {
-	unifiedResources := []UnifiedResouce{}
+// MakeUIResource creates server objects for webapp
+func MakeUIResource(clusterName string, resources []types.ResourceWithLabels, accessChecker services.AccessChecker) ([]UIResource, error) {
+	uiResources := []UIResource{}
 	for _, resource := range resources {
 		labels := resource.GetAllLabels()
 		uiLabels := makeLabels(labels)
@@ -43,12 +45,12 @@ func MakeUnifiedResource(clusterName string, resources []types.ResourceWithLabel
 		// 	return nil, trace.Wrap(err)
 		// }
 
-		unifiedResources = append(unifiedResources, UnifiedResouce{
+		uiResources = append(uiResources, UIResource{
 			ClusterName: clusterName,
 			Labels:      uiLabels,
 			Name:        resource.GetName(),
 		})
 	}
 
-	return unifiedResources, nil
+	return uiResources, nil
 }

@@ -128,7 +128,9 @@ const (
 	// a registered OpenSSH (agentless) node.
 	KindNode = "node"
 
-	KindUnifiedResouce = "unified"
+	// KindUIResource is a meta Kind that is used for the unified resource search present on
+	// the webUI and Connect. It allows us to query and return multiple kinds at the same time
+	KindUIResource = "ui_resource"
 
 	// SubKindTeleportNode is a Teleport node.
 	SubKindTeleportNode = "teleport"

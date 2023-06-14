@@ -119,7 +119,7 @@ const (
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
-	ComponentUnifiedResource = "unified_resource"
+	ComponentUIResource = "ui_resource"
 
 	// ComponentProxyPeer is the proxy peering component of the proxy service
 	ComponentProxyPeer = "proxy:peer"
