@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"context"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -34,6 +35,7 @@ type mockInstance struct {
 	hostKeys       []ssh.PublicKey
 	authorizedKeys map[string]ssh.PublicKey
 	sshServer      *sshutils.Server
+	execCount      int
 
 	instance *Instance
 }
@@ -51,8 +53,10 @@ func newMockInstance(t *testing.T, hostSigner ssh.Signer, listener net.Listener)
 		sshutils.AuthMethods{
 			PublicKey: mock.userKeyAuth,
 		},
+		sshutils.SetInsecureSkipHostValidation(),
 	)
 	require.NoError(t, err)
+	require.NoError(t, sshServer.SetListener(listener))
 	mock.sshServer = sshServer
 	return mock
 }
@@ -81,6 +85,7 @@ func (m *mockInstance) handleChannel(channel ssh.Channel, reqs <-chan *ssh.Reque
 
 	for req := range reqs {
 		if req.Type == "exec" {
+			m.execCount++
 			successPayload := ssh.Marshal(struct{ C uint32 }{C: uint32(0)})
 			channel.SendRequest("exit-status", false, successPayload)
 			if req.WantReply {
@@ -127,25 +132,41 @@ func (m *mockInstance) setInstance(inst *Instance) {
 }
 
 type mockListener struct {
+	ctx context.Context
 	net.Conn
+	accepted atomic.Bool
 }
 
 func (m *mockListener) Accept() (net.Conn, error) {
-	return m, nil
+	// Return the stored conn once.
+	if m.accepted.CompareAndSwap(false, true) {
+		return m, nil
+	}
+	// Block until the test is done.
+	<-m.ctx.Done()
+	return nil, m.ctx.Err()
 }
 
 func (m *mockListener) Addr() net.Addr {
 	return &utils.NetAddr{
-		Addr:        "teleport.cluster.local",
+		Addr:        "teleport.cluster.local:22",
 		AddrNetwork: "tcp",
 	}
 }
 
 func TestRunCommand(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+
 	signer, publicKey, err := generateKeyPair()
 	require.NoError(t, err)
-	clientConn, serverConn := net.Pipe()
-	mock := newMockInstance(t, signer, &mockListener{Conn: serverConn})
+	clientConn, serverConn, err := utils.DualPipeNetConn(
+		&utils.NetAddr{Addr: "server", AddrNetwork: "tcp"},
+		&utils.NetAddr{Addr: "client", AddrNetwork: "tcp"},
+	)
+	require.NoError(t, err)
+	mock := newMockInstance(t, signer, &mockListener{Conn: serverConn, ctx: ctx})
 	require.NoError(t, mock.Start())
 	t.Cleanup(mock.Stop)
 	mock.hostKeys = []ssh.PublicKey{publicKey}
@@ -159,8 +180,6 @@ func TestRunCommand(t *testing.T) {
 	}
 	mock.setInstance(inst)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	t.Cleanup(cancel)
 	require.NoError(t, RunCommand(ctx, &RunCommandRequest{
 		Client: mock,
 		InstanceRequest: InstanceRequest{
@@ -174,4 +193,5 @@ func TestRunCommand(t *testing.T) {
 			return clientConn, nil
 		},
 	}))
+	require.Equal(t, 1, mock.execCount)
 }

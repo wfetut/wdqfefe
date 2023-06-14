@@ -45,7 +45,7 @@ const (
 )
 
 func convertGoogleError(err error) error {
-	var googleError googleapi.Error
+	var googleError *googleapi.Error
 	if errors.As(err, &googleError) {
 		return trace.ReadError(googleError.Code, []byte(googleError.Message))
 	}
@@ -197,7 +197,7 @@ func (clt *instancesClient) getHostKeys(ctx context.Context, req *InstanceReques
 	keys := make([]ssh.PublicKey, 0, len(items))
 	var errors []error
 	for _, item := range items {
-		key, err := ssh.ParsePublicKey([]byte(fmt.Sprintf("%v %v", item.GetKey(), item.GetValue())))
+		key, _, _, _, err := ssh.ParseAuthorizedKey([]byte(fmt.Sprintf("%v %v", item.GetKey(), item.GetValue())))
 		if err == nil {
 			keys = append(keys, key)
 		} else {
@@ -372,7 +372,7 @@ func generateKeyPair() (ssh.Signer, ssh.PublicKey, error) {
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	publicKey, err := ssh.ParsePublicKey(rawPub)
+	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(rawPub)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
