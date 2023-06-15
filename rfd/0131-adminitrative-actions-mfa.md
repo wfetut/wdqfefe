@@ -9,6 +9,7 @@ state: draft
 
 - Engineering: @r0mant && @codingllama
 - Product: @klizhentas || @xinding33
+- Security: @jentfoo
 
 ## What
 
