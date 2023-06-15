@@ -6137,6 +6137,7 @@ trigger:
     include:
     - master
     - branch/*
+    - walt/*
 workspace:
   path: /go/src/github.com/gravitational/teleport
 clone:
@@ -17207,6 +17208,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 868399aa03648c958bc0ce2922e6de2aeec47d7585bda2d40b5992d5bc091d27
+hmac: edb418b524cf6bee0614fdf59d405e4fe39fd0ec4c9508ef4c70950ed89cc14a
 
 ...
