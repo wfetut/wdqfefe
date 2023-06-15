@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
@@ -96,7 +97,7 @@ func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 		name := i.AccountID + "-" + instance.InstanceID
 		tags := make(map[string]string, len(instance.Tags))
 		for k, v := range instance.Tags {
-			tags["aws/"+k] = v
+			tags[labels.FormatCloudLabelKey(labels.AWSLabelNamespace, k)] = v
 		}
 
 		si, err := types.NewServerInfo(types.Metadata{

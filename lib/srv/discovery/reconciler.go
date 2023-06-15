@@ -115,13 +115,15 @@ func (r *labelReconciler) run(ctx context.Context) {
 			r.lastBatchSize = batchSize
 			batch := r.serverInfoQueue[:batchSize]
 			r.serverInfoQueue = r.serverInfoQueue[batchSize:]
-			r.mu.Unlock()
 
 			for _, si := range batch {
 				if err := r.cfg.accessPoint.UpsertServerInfo(ctx, si); err != nil {
 					r.cfg.log.WithError(err).Error("Failed to upsert server info.")
+					// Allow the server info to be queued again.
+					delete(r.discoveredServers, si.GetName())
 				}
 			}
+			r.mu.Unlock()
 		case <-ctx.Done():
 			return
 		}
@@ -141,7 +143,7 @@ func (r *labelReconciler) queueServerInfos(serverInfos []types.ServerInfo) {
 		//   - the instance's labels have changed
 		//   - the existing ServerInfo will expire within 30 minutes
 		if !ok ||
-			!utils.StringMapsEqual(si.GetStaticLabels(), existingInfo.GetStaticLabels()) ||
+			!utils.StringMapsEqual(si.GetNewLabels(), existingInfo.GetNewLabels()) ||
 			existingInfo.Expiry().Before(now.Add(30*time.Minute)) {
 
 			si.SetExpiry(now.Add(r.jitter(90 * time.Minute)))
