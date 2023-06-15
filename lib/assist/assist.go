@@ -57,6 +57,12 @@ const (
 	MessageKindSystemMessage MessageType = "CHAT_MESSAGE_SYSTEM"
 	// MessageKindError is the type of Assist message that is presented to user as information, but not stored persistently in the conversation. This can include backend error messages and the like.
 	MessageKindError MessageType = "CHAT_MESSAGE_ERROR"
+	// MessageKindProgressUpdate is the type of Assist message that contains a progress update.
+	// A progress update starts a new "stage" and ends a previous stage if there was one.
+	MessageKindProgressUpdate MessageType = "CHAT_MESSAGE_PROGRESS_UPDATE"
+	// MessageKindProgressUpdateFinalize is the type of Assist message that signals
+	// the agent has taken its final action.
+	MessageKindProgressUpdateFinalize MessageType = "CHAT_MESSAGE_PROGRESS_UPDATE_FINALIZE"
 )
 
 // Assist is the Teleport Assist client.
@@ -186,9 +192,30 @@ func (c *Chat) ProcessComplete(ctx context.Context,
 	onMessage func(kind MessageType, payload []byte, createdTime time.Time) error, userInput string,
 ) (*model.TokensUsed, error) {
 	var tokensUsed *model.TokensUsed
+	progressUpdates := make(chan model.AgentAction)
+	defer close(progressUpdates)
+
+	go func() {
+		defer onMessage(MessageKindProgressUpdateFinalize, nil, c.assist.clock.Now().UTC())
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case update := <-progressUpdates:
+				payload, err := json.Marshal(update)
+				if err != nil {
+					log.WithError(err).Error("Failed to marshal progress update: %v", update)
+					continue
+				}
+
+				onMessage(MessageKindProgressUpdate, payload, c.assist.clock.Now().UTC())
+			}
+		}
+	}()
 
 	// query the assistant and fetch an answer
-	message, err := c.chat.Complete(ctx, userInput)
+	message, err := c.chat.Complete(ctx, userInput, progressUpdates)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

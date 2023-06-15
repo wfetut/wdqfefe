@@ -56,7 +56,7 @@ func (chat *Chat) GetMessages() []openai.ChatCompletionMessage {
 // Message types:
 // - CompletionCommand: a command from the assistant
 // - Message: a text message from the assistant
-func (chat *Chat) Complete(ctx context.Context, userInput string) (any, error) {
+func (chat *Chat) Complete(ctx context.Context, userInput string, progressUpdates chan<- model.AgentAction) (any, error) {
 	// if the chat is empty, return the initial response we predefine instead of querying GPT-4
 	if len(chat.messages) == 1 {
 		return &model.Message{
@@ -69,7 +69,7 @@ func (chat *Chat) Complete(ctx context.Context, userInput string) (any, error) {
 		Content: userInput,
 	}
 
-	response, err := model.AssistAgent.PlanAndExecute(ctx, chat.client.svc, chat.messages, userMessage)
+	response, err := model.AssistAgent.PlanAndExecute(ctx, chat.client.svc, chat.messages, userMessage, progressUpdates)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
