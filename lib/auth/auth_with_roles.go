@@ -1101,13 +1101,16 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 }
 
 func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
-	// TODO(fspmarshall): switch this to being scoped to instance:read once we have a sane remote version of
-	// this method. for now we're leaving it as requiring local admin because the returned value is basically
-	// nonsense if you aren't connected locally.
-	if !a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy) {
-		return proto.InventoryStatusSummary{}, trace.AccessDenied("requires builtin admin role")
+	if err := a.action(apidefaults.Namespace, types.KindInstance, types.VerbList, types.VerbRead); err != nil {
+		return proto.InventoryStatusSummary{}, trace.Wrap(err)
 	}
-	return a.authServer.GetInventoryStatus(ctx, req), nil
+
+	if req.Connected {
+		if !a.hasBuiltinRole(types.RoleAdmin) {
+			return proto.InventoryStatusSummary{}, trace.AccessDenied("requires lcoal tctl, try using 'tctl inventory ls' instead")
+		}
+	}
+	return a.authServer.GetInventoryStatus(ctx, req)
 }
 
 // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
@@ -3708,7 +3711,7 @@ func checkRoleFeatureSupport(role types.Role) error {
 	}
 }
 
-type inventoryGetter func(context.Context, proto.InventoryStatusRequest) proto.InventoryStatusSummary
+type inventoryGetter func(context.Context, proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error)
 
 // checkInventorySupportsRole returns an error if any connected servers found in
 // the inventory do not support some features enabled in [role]. This is only a
@@ -3724,7 +3727,10 @@ func checkInventorySupportsRole(ctx context.Context, role types.Role, authVersio
 		return nil
 	}
 
-	inventoryStatus := getInventory(ctx, proto.InventoryStatusRequest{Connected: true})
+	inventoryStatus, err := getInventory(ctx, proto.InventoryStatusRequest{Connected: true})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	for _, hello := range inventoryStatus.Connected {
 		version, err := semver.NewVersion(hello.Version)
 		if err != nil {

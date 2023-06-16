@@ -101,20 +101,13 @@ func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, client auth.C
 }
 
 func (c *InventoryCommand) Status(ctx context.Context, client auth.ClientI) error {
-	if !c.getConnected {
-		// intention is for the status command to eventually display cluster-wide inventory
-		// info by default, but we only have access to info specific to this auth right now,
-		// so we can only display the locally connected instances. in order to avoid confusion
-		// we simply don't support any default output right now.
-		fmt.Println("Nothing to display.\n\nhint: try using the --connected flag to see a summary of locally connected instances.")
-		return nil
-	}
 	rsp, err := client.GetInventoryStatus(ctx, proto.InventoryStatusRequest{
 		Connected: c.getConnected,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	if c.getConnected {
 		table := asciitable.MakeTable([]string{"ServerID", "Services", "Version", "Upgrader"})
 		for _, h := range rsp.Connected {
@@ -132,7 +125,54 @@ func (c *InventoryCommand) Status(ctx context.Context, client auth.ClientI) erro
 		_, err := table.AsBuffer().WriteTo(os.Stdout)
 		return trace.Wrap(err)
 	}
+
+	printHeirarchicalData(map[string]any{
+		"Versions":        toAnyMap(rsp.VersionCounts),
+		"Upgraders":       toAnyMap(rsp.UpgraderCounts),
+		"Services":        toAnyMap(rsp.ServiceCounts),
+		"Total Instances": rsp.InstanceCount,
+	}, "  ", 0)
+
 	return nil
+}
+
+// toAnyMap converts a mapping with a concrete value type to an 'any' value type.
+func toAnyMap[T any](m map[string]T) map[string]any {
+	n := make(map[string]any, len(m))
+	for key, val := range m {
+		n[key] = val
+	}
+
+	return n
+}
+
+// printHeirarchicalData is a helper for displaying nested mappings of data.
+func printHeirarchicalData(data map[string]any, indent string, depth int) {
+	var longestKey int
+	for key := range data {
+		if longestKey == 0 || len(key) > longestKey {
+			longestKey = len(key)
+		}
+	}
+
+	for key, val := range data {
+		if m, ok := val.(map[string]any); ok {
+			if len(m) != 0 {
+				fmt.Printf("%s%s:\n", strings.Repeat(indent, depth), key)
+				printHeirarchicalData(m, indent, depth+1)
+				continue
+			} else {
+				val = "none"
+			}
+		}
+
+		fmt.Printf("%s%s: %s%v\n",
+			strings.Repeat(indent, depth),
+			key,
+			strings.Repeat(" ", longestKey-len(key)),
+			val,
+		)
+	}
 }
 
 func (c *InventoryCommand) List(ctx context.Context, client auth.ClientI) error {
