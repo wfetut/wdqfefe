@@ -928,6 +928,9 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 	}
 
 	// Emit session join event to Audit Log.
+	if err := s.recordEvent(ctx.srv.Context(), sessionJoinEvent); err != nil {
+		s.log.WithError(err).Warn("Failed to record session join event.")
+	}
 	if err := s.emitAuditEvent(ctx.srv.Context(), sessionJoinEvent); err != nil {
 		s.log.WithError(err).Warn("Failed to emit session join event.")
 	}
@@ -967,6 +970,9 @@ func (s *session) emitSessionLeaveEvent(ctx *ServerContext) {
 	}
 
 	// Emit session leave event to Audit Log.
+	if err := s.recordEvent(ctx.srv.Context(), sessionLeaveEvent); err != nil {
+		s.log.WithError(err).Warn("Failed to record session leave event.")
+	}
 	if err := s.emitAuditEvent(ctx.srv.Context(), sessionLeaveEvent); err != nil {
 		s.log.WithError(err).Warn("Failed to emit session leave event.")
 	}
@@ -2012,7 +2018,6 @@ func (s *session) recordEvent(ctx context.Context, event apievents.AuditEvent) e
 	rec := s.Recorder()
 	select {
 	case <-rec.Done():
-
 		s.setRecorder(events.NewDiscardStream())
 
 		return nil
