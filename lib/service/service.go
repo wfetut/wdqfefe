@@ -1719,8 +1719,11 @@ func (process *TeleportProcess) initAuthService() error {
 			Client:       authServer,
 			MaxStaleness: time.Minute,
 		},
-		NodesGetter:           authServer,
-		DatabaseServersGetter: authServer,
+		NodesGetter:             authServer,
+		DatabaseServersGetter:   authServer,
+		AppServersGetter:        authServer,
+		WindowsDesktopGetter:    authServer,
+		KubernetesClusterGetter: authServer,
 	})
 	if err != nil {
 		return trace.Wrap(err)

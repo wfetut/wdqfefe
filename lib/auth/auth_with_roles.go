@@ -1774,8 +1774,8 @@ func (a *ServerWithRoles) GetUIResources(ctx context.Context, namespace string) 
 	}
 	elapsedFetch := time.Since(startFetch)
 
-	// Filter nodes to return the ones for the connected identity.
-	filteredNodes := make([]types.ResourceWithLabels, 0)
+	// Filter resources to return the ones for the connected identity.
+	filteredResources := make([]types.ResourceWithLabels, 0)
 	startFilter := time.Now()
 	for _, resource := range uiResources {
 		switch r := resource.(type) {
@@ -1789,7 +1789,7 @@ func (a *ServerWithRoles) GetUIResources(ctx context.Context, namespace string) 
 					return nil, trace.Wrap(err)
 				}
 
-				filteredNodes = append(filteredNodes, resource)
+				filteredResources = append(filteredResources, resource)
 			}
 		case types.DatabaseServer:
 			{
@@ -1801,9 +1801,33 @@ func (a *ServerWithRoles) GetUIResources(ctx context.Context, namespace string) 
 					return nil, trace.Wrap(err)
 				}
 
-				filteredNodes = append(filteredNodes, resource)
+				filteredResources = append(filteredResources, resource)
 			}
 
+		case types.AppServer:
+			{
+				if err := a.checkAccessToApp(r.GetApp()); err != nil {
+					if trace.IsAccessDenied(err) {
+						continue
+					}
+
+					return nil, trace.Wrap(err)
+				}
+
+				filteredResources = append(filteredResources, resource)
+			}
+		case types.WindowsDesktop:
+			{
+				if err := a.checkAccessToWindowsDesktop(r); err != nil {
+					if trace.IsAccessDenied(err) {
+						continue
+					}
+
+					return nil, trace.Wrap(err)
+				}
+
+				filteredResources = append(filteredResources, resource)
+			}
 		}
 	}
 	elapsedFilter := time.Since(startFilter)
@@ -1814,9 +1838,9 @@ func (a *ServerWithRoles) GetUIResources(ctx context.Context, namespace string) 
 		"elapsed_filter": elapsedFilter,
 	}).Debugf(
 		"GetUIResources(%v->%v) in %v.",
-		len(uiResources), len(filteredNodes), elapsedFetch+elapsedFilter)
+		len(uiResources), len(filteredResources), elapsedFetch+elapsedFilter)
 
-	return filteredNodes, nil
+	return filteredResources, nil
 }
 
 // listResourcesWithSort retrieves all resources of a certain resource type with rbac applied

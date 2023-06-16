@@ -17,6 +17,8 @@ limitations under the License.
 package services
 
 import (
+	"fmt"
+
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -129,17 +131,14 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	resourceKey := ResourceSeenKey{}
-	if filter.ResourceKind == types.KindUIResource {
-		filter.ResourceKind = resource.GetKind()
-	}
-	switch filter.ResourceKind {
+	switch resource.GetKind() {
 	case types.KindNode,
 		types.KindDatabaseService,
 		types.KindKubernetesCluster, types.KindKubePod,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
 		types.KindUserGroup:
 		specResource = resource
-		resourceKey.name = specResource.GetName()
+		resourceKey.name = fmt.Sprintf("%s/%s", specResource.GetName(), specResource.GetKind())
 
 	case types.KindKubeServer:
 		if seenMap != nil {
@@ -154,7 +153,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		}
 		specResource = server.GetApp()
 		app := server.GetApp()
-		resourceKey.name = app.GetName()
+		resourceKey.name = fmt.Sprintf("%s/%s/", app.GetName(), app.GetKind())
 		resourceKey.addr = app.GetPublicAddr()
 
 	case types.KindDatabaseServer:
@@ -163,7 +162,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 			return false, trace.BadParameter("expected types.DatabaseServer, got %T", resource)
 		}
 		specResource = server.GetDatabase()
-		resourceKey.name = specResource.GetName()
+		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), specResource.GetKind())
 
 	default:
 		return false, trace.NotImplemented("filtering for resource kind %q not supported", filter.ResourceKind)

@@ -394,10 +394,21 @@ func (c *UIResourceCache) processEvent(event Event) {
 type DatabaseServersGetter interface {
 	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]types.DatabaseServer, error)
 }
+
+type AppServersGetter interface {
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+}
+
+type WindowsDesktopGetter interface {
+	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+}
 type UIResourceWatcherConfig struct {
 	ResourceWatcherConfig
 	NodesGetter
 	DatabaseServersGetter
+	AppServersGetter
+	WindowsDesktopGetter
+	KubernetesClusterGetter
 }
 
 type UIResourceWatcher struct {
@@ -468,6 +479,16 @@ func (u *uiResourceCollector) getResourcesAndUpdateCurrent(ctx context.Context) 
 		return trace.Wrap(err)
 	}
 
+	err = u.getAndUpdateApps(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = u.getAndUpdateDesktops(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -501,6 +522,41 @@ func (u *uiResourceCollector) getAndUpdateDatabases(ctx context.Context) error {
 		})
 	}
 	return u.current.PutRange(ctx, dbs)
+}
+
+func (u *uiResourceCollector) getAndUpdateApps(ctx context.Context) error {
+	newApps, err := u.AppServersGetter.GetApplicationServers(ctx, apidefaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	apps := make([]Item, 0)
+	for _, app := range newApps {
+		apps = append(apps, Item{
+			Key:   backend.Key(prefix, app.GetNamespace(), app.GetName(), types.KindApp),
+			Value: app,
+			ID:    u.current.generateID(),
+		})
+	}
+	return u.current.PutRange(ctx, apps)
+}
+
+func (u *uiResourceCollector) getAndUpdateDesktops(ctx context.Context) error {
+	newDesktops, err := u.WindowsDesktopGetter.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	desktops := make([]Item, 0)
+	for _, desktop := range newDesktops {
+		desktops = append(desktops, Item{
+			Key:   backend.Key(prefix, desktop.GetMetadata().Namespace, desktop.GetName(), types.KindWindowsDesktop),
+			Value: desktop,
+			ID:    u.current.generateID(),
+		})
+	}
+
+	return u.current.PutRange(ctx, desktops)
 }
 
 func (c *UIResourceCache) generateID() int64 {
@@ -541,6 +597,5 @@ func (u *uiResourceCollector) resourceKind() string {
 }
 
 const (
-	separator = "/"
-	prefix    = "ui_resource"
+	prefix = "ui_resource"
 )

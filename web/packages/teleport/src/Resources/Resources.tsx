@@ -94,7 +94,7 @@ export function Resources() {
       {attempt.status !== 'processing' && !hasNoNodes && (
         <UIResourceList
           resources={fetchedData.agents}
-          onLoginMenuOpen={getNodeLoginOptions}
+          // onLoginMenuOpen={getNodeLoginOptions}
           onLoginSelect={onLoginSelect}
           fetchNext={fetchNext}
           fetchPrev={fetchPrev}

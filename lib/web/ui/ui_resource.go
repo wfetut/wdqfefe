@@ -30,6 +30,11 @@ type UIResource struct {
 	Name string `json:"name"`
 	// Labels is this server list of labels
 	Labels []Label `json:"tags"`
+
+	// The fields below are supplied on for specific resources.
+
+	// Addr is the address of the Server and Desktop
+	Addr string `json:"addr"`
 }
 
 // i need to make this an actual interface
@@ -40,13 +45,13 @@ func MakeUIResource(clusterName string, resources []types.ResourceWithLabels, ac
 	for _, resource := range resources {
 		switch r := resource.(type) {
 		case types.Server:
-			serverLabels := r.GetStaticLabels()
-			serverCmdLabels := r.GetCmdLabels()
-			uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
+			serverLabels := r.GetAllLabels()
+			uiLabels := makeLabels(serverLabels)
 			uiResources = append(uiResources, UIResource{
 				Kind:   r.GetKind(),
 				Name:   r.GetHostname(),
 				Labels: uiLabels,
+				Addr:   r.GetAddr(),
 			})
 		case types.DatabaseServer:
 			// dbNames, dbUsers, err := getDatabaseUsersAndNames(accessChecker)
@@ -58,6 +63,21 @@ func MakeUIResource(clusterName string, resources []types.ResourceWithLabels, ac
 				Kind:   r.GetKind(),
 				Name:   r.GetName(),
 				Labels: uiLabels,
+			})
+		case types.AppServer:
+			uiLabels := makeLabels(r.GetAllLabels())
+			uiResources = append(uiResources, UIResource{
+				Kind:   r.GetKind(),
+				Name:   r.GetName(),
+				Labels: uiLabels,
+			})
+		case types.WindowsDesktop:
+			uiLabels := makeLabels(r.GetAllLabels())
+			uiResources = append(uiResources, UIResource{
+				Kind:   r.GetKind(),
+				Name:   r.GetName(),
+				Labels: uiLabels,
+				Addr:   r.GetAddr(),
 			})
 		default:
 			return nil, trace.Errorf("UI Resource has unknown type: %T", resource)
