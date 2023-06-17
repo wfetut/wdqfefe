@@ -32,16 +32,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
-)
-
-const (
-	// computeEngineScope is the GCP Compute Engine Scope for OAuth2.
-	// https://developers.google.com/identity/protocols/oauth2/scopes#compute
-	computeEngineScope = "ttps://www.googleapis.com/auth/compute"
 )
 
 func convertGoogleError(err error) error {
@@ -52,27 +44,28 @@ func convertGoogleError(err error) error {
 	return err
 }
 
+// InstanceClient is a client to interact with GCP VMs.
 type InstancesClient interface {
+	// ListInstances lists the GCP VMs that belong to the given project and
+	// location.
+	// location supports wildcard "*".
 	ListInstances(ctx context.Context, projectID, location string) ([]*Instance, error)
-
+	// GetInstance gets a GCP VM.
 	GetInstance(ctx context.Context, req *InstanceRequest) (*Instance, error)
-
+	// AddSSHKey adds an SSH key to a GCP VM's metadata.
 	AddSSHKey(ctx context.Context, req *SSHKeyRequest) error
-
+	// RemoveSSHKey removes an SSH key from a GCP VM's metadata.
 	RemoveSSHKey(ctx context.Context, req *SSHKeyRequest) error
 }
 
+// InstancesClientConfig is the client configuration for InstancesClient.
 type InstancesClientConfig struct {
+	// InstanceClient is the underlying GCP client for the instances service.
 	InstanceClient gcpInstanceClient
-	TokenSource    oauth2.TokenSource
 }
 
+// CheckAndSetsDefaults checks and sets defaults for InstancesClientConfig.
 func (c *InstancesClientConfig) CheckAndSetDefaults(ctx context.Context) (err error) {
-	if c.TokenSource == nil {
-		if c.TokenSource, err = google.DefaultTokenSource(ctx, computeEngineScope); err != nil {
-			return trace.Wrap(err)
-		}
-	}
 	if c.InstanceClient == nil {
 		if c.InstanceClient, err = compute.NewInstancesRESTClient(ctx); err != nil {
 			return trace.Wrap(err)
@@ -81,6 +74,8 @@ func (c *InstancesClientConfig) CheckAndSetDefaults(ctx context.Context) (err er
 	return nil
 }
 
+// gcpInstancesClient is a subset of compute.InstancesClient methods used in
+// this package.
 type gcpInstanceClient interface {
 	List(ctx context.Context, req *computepb.ListInstancesRequest, opts ...gax.CallOption) *compute.InstanceIterator
 	Get(ctx context.Context, req *computepb.GetInstanceRequest, opts ...gax.CallOption) (*computepb.Instance, error)
@@ -88,25 +83,35 @@ type gcpInstanceClient interface {
 	SetMetadata(ctx context.Context, req *computepb.SetMetadataInstanceRequest, opts ...gax.CallOption) (*compute.Operation, error)
 }
 
+// make sure compute.InstancesClient satisfies InstancesClient interface.
 var _ gcpInstanceClient = &compute.InstancesClient{}
 
+// Instance represents a GCP VM.
 type Instance struct {
-	Name           string
-	Zone           string
-	ProjectID      string
+	// Name is the instance's name.
+	Name string
+	// Zone is the instance's zone.
+	Zone string
+	// ProjectID is the ID of the project the VM is in.
+	ProjectID string
+	// ServiceAccount is the email address of the VM's service account, if any.
 	ServiceAccount string
-	Labels         map[string]string
-	hostname       string
-	hostKeys       []ssh.PublicKey
-	metadata       *computepb.Metadata
+	// Labels is the instance's labels.
+	Labels   map[string]string
+	hostname string
+	hostKeys []ssh.PublicKey
+	metadata *computepb.Metadata
 }
 
+// NewInstanccesClient creates a new InstancesClient.
 func NewInstancesClient(ctx context.Context) (InstancesClient, error) {
 	var cfg InstancesClientConfig
 	client, err := NewInstancesClientWithConfig(ctx, cfg)
 	return client, trace.Wrap(err)
 }
 
+// NewInstanccesClientWithConfig creates a new InstancesClient with custom
+// config.
 func NewInstancesClientWithConfig(ctx context.Context, cfg InstancesClientConfig) (InstancesClient, error) {
 	if err := cfg.CheckAndSetDefaults(ctx); err != nil {
 		return nil, trace.Wrap(err)
@@ -114,6 +119,8 @@ func NewInstancesClientWithConfig(ctx context.Context, cfg InstancesClientConfig
 	return &instancesClient{}, nil
 }
 
+// instancesClient implements the InstancesClient interface by wrapping
+// compute.InstancesClient.
 type instancesClient struct {
 	InstancesClientConfig
 }
@@ -133,6 +140,9 @@ func toInstance(origInstance *computepb.Instance) *Instance {
 	return inst
 }
 
+// ListInstances lists the GCP VMs that belong to the given project and
+// location.
+// location supports wildcard "*".
 func (clt *instancesClient) ListInstances(ctx context.Context, projectID, location string) ([]*Instance, error) {
 	if len(projectID) == 0 {
 		return nil, trace.BadParameter("projectID must be set")
@@ -163,10 +173,14 @@ func (clt *instancesClient) ListInstances(ctx context.Context, projectID, locati
 	}
 }
 
+// InstanceRequest contains parameters for making a request to a specific instance.
 type InstanceRequest struct {
+	// ProjectID is the ID of the VM's project.
 	ProjectID string
-	Zone      string
-	Name      string
+	// Zone is the instance's zone.
+	Zone string
+	// Name is the instance's name.
+	Name string
 }
 
 func (req *InstanceRequest) CheckAndSetDefaults() error {
@@ -182,6 +196,7 @@ func (req *InstanceRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
+// getHostKeys gets the SSH host keys from the VM, if available.
 func (clt *instancesClient) getHostKeys(ctx context.Context, req *InstanceRequest) ([]ssh.PublicKey, error) {
 	queryPath := "hostkeys/"
 	guestAttributes, err := clt.InstanceClient.GetGuestAttributes(ctx, &computepb.GetGuestAttributesInstanceRequest{
@@ -207,6 +222,7 @@ func (clt *instancesClient) getHostKeys(ctx context.Context, req *InstanceReques
 	return keys, trace.NewAggregate(errors...)
 }
 
+// GetInstance gets a GCP VM.
 func (clt *instancesClient) GetInstance(ctx context.Context, req *InstanceRequest) (*Instance, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -258,18 +274,19 @@ func addSSHKey(meta *computepb.Metadata, user string, pubKey []byte, expires tim
 	sshKeyItem.Value = &newKeys
 }
 
+// SSHKeyRequest contains parameters to add/removed SSH keys from an instance.
 type SSHKeyRequest struct {
-	ProjectID string
-	Instance  *Instance
-	User      string
+	// Instance is the instance to add/remove keys form.
+	Instance *Instance
+	// User is the user associated with the key.
+	User string
+	// PublicKey is the key to add. Ignored when removing a key.
 	PublicKey ssh.PublicKey
-	Expires   time.Time
+	// Expires is the expiration time of the key. Ignored when removing a key.
+	Expires time.Time
 }
 
 func (req *SSHKeyRequest) CheckAndSetDefaults() error {
-	if req.ProjectID == "" {
-		return trace.BadParameter("project ID not set")
-	}
 	if req.Instance == nil {
 		return trace.BadParameter("instance not set")
 	}
@@ -282,6 +299,7 @@ func (req *SSHKeyRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
+// AddSSHKey adds an SSH key to a GCP VM's metadata.
 func (clt *instancesClient) AddSSHKey(ctx context.Context, req *SSHKeyRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -293,7 +311,7 @@ func (clt *instancesClient) AddSSHKey(ctx context.Context, req *SSHKeyRequest) e
 	op, err := clt.InstanceClient.SetMetadata(ctx, &computepb.SetMetadataInstanceRequest{
 		Instance:         req.Instance.Name,
 		MetadataResource: req.Instance.metadata,
-		Project:          req.ProjectID,
+		Project:          req.Instance.ProjectID,
 		Zone:             req.Instance.Zone,
 	})
 	if err == nil {
@@ -322,6 +340,7 @@ func removeSSHKey(meta *computepb.Metadata, user string) {
 	}
 }
 
+// RemoveSSHKey removes an SSH key from a GCP VM's metadata.
 func (clt *instancesClient) RemoveSSHKey(ctx context.Context, req *SSHKeyRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -330,7 +349,7 @@ func (clt *instancesClient) RemoveSSHKey(ctx context.Context, req *SSHKeyRequest
 	op, err := clt.InstanceClient.SetMetadata(ctx, &computepb.SetMetadataInstanceRequest{
 		Instance:         req.Instance.Name,
 		MetadataResource: req.Instance.metadata,
-		Project:          req.ProjectID,
+		Project:          req.Instance.ProjectID,
 		Zone:             req.Instance.Zone,
 	})
 	if err != nil {
@@ -342,9 +361,13 @@ func (clt *instancesClient) RemoveSSHKey(ctx context.Context, req *SSHKeyRequest
 	return nil
 }
 
+// RunCommandRequest contains parameters for running a command on an instance.
 type RunCommandRequest struct {
+	// Client is the instance client to use.
 	Client InstancesClient
+	// InstanceRequest is the set of parameters identifying the instance.
 	InstanceRequest
+	// Script is the script to execute.
 	Script string
 	dialer func(ctx context.Context, network, addr string) (net.Conn, error)
 }
@@ -379,23 +402,23 @@ func generateKeyPair() (ssh.Signer, ssh.PublicKey, error) {
 	return signer, publicKey, nil
 }
 
+// RunCommand runs a command on an instance.
 func RunCommand(ctx context.Context, req *RunCommandRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
+	// Generate keys and add them to the instance.
 	signer, publicKey, err := generateKeyPair()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	instance, err := req.Client.GetInstance(ctx, &req.InstanceRequest)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	user := "teleport"
 	keyReq := &SSHKeyRequest{
-		ProjectID: req.ProjectID,
 		Instance:  instance,
 		PublicKey: publicKey,
 		User:      user,
@@ -404,12 +427,14 @@ func RunCommand(ctx context.Context, req *RunCommandRequest) error {
 		return trace.Wrap(err)
 	}
 
+	// Clean up the key when we're done.
 	defer func() {
 		if err := req.Client.RemoveSSHKey(ctx, keyReq); err != nil {
 			logrus.WithError(err).Warn("Error deleting SSH Key")
 		}
 	}()
 
+	// Configure the SSH client.
 	callback, err := sshutils.HostKeyCallback(instance.hostKeys, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -439,6 +464,7 @@ func RunCommand(ctx context.Context, req *RunCommandRequest) error {
 	}
 	defer session.Close()
 
+	// Execute the command.
 	var b bytes.Buffer
 	session.Stdout = &b
 	if err := session.Run(req.Script); err != nil {

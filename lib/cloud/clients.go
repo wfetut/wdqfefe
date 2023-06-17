@@ -93,6 +93,8 @@ type GCPClients interface {
 	GetGCPSQLAdminClient(context.Context) (gcp.SQLAdminClient, error)
 	// GetGCPGKEClient returns GKE client.
 	GetGCPGKEClient(context.Context) (gcp.GKEClient, error)
+	// GetGCPInstancesClient returns instances client.
+	GetGCPInstancesClient(context.Context) (gcp.InstancesClient, error)
 }
 
 // AWSClients is an interface for providing AWS API clients.
@@ -198,6 +200,8 @@ type cloudClients struct {
 	instanceMetadata InstanceMetadata
 	// gcpGKE is the cached GCP Cloud GKE client.
 	gcpGKE gcp.GKEClient
+	// gcpInstances is the cached GCP instances client.
+	gcpInstances gcp.InstancesClient
 	// azureClients contains Azure-specific clients.
 	azureClients
 	// mtx is used for locking.
@@ -440,6 +444,17 @@ func (c *cloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, erro
 	return c.initGCPGKEClient(ctx)
 }
 
+// GetGCPInstancesClient returns instances client.
+func (c *cloudClients) GetGCPInstancesClient(ctx context.Context) (gcp.InstancesClient, error) {
+	c.mtx.RLock()
+	if c.gcpInstances != nil {
+		defer c.mtx.RUnlock()
+		return c.gcpInstances, nil
+	}
+	c.mtx.RUnlock()
+	return c.initGCPInstancesClient(ctx)
+}
+
 // GetAzureCredential returns default Azure token credential chain.
 func (c *cloudClients) GetAzureCredential() (azcore.TokenCredential, error) {
 	c.mtx.RLock()
@@ -617,6 +632,21 @@ func (c *cloudClients) initGCPGKEClient(ctx context.Context) (gcp.GKEClient, err
 	return gcpGKE, nil
 }
 
+func (c *cloudClients) initGCPInstancesClient(ctx context.Context) (gcp.InstancesClient, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if c.gcpInstances != nil { // If some other thread already got here first.
+		return c.gcpInstances, nil
+	}
+	logrus.Debug("Initializing GCP instances client.")
+	gcpInstances, err := gcp.NewInstancesClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+		c.gcpInstances = gcpInstances
+	}
+	return gcpInstances, nil
+}
+
 func (c *cloudClients) initAzureCredential() (azcore.TokenCredential, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -765,6 +795,7 @@ type TestCloudClients struct {
 	STS                     stsiface.STSAPI
 	GCPSQL                  gcp.SQLAdminClient
 	GCPGKE                  gcp.GKEClient
+	GCPInstances            gcp.InstancesClient
 	EC2                     ec2iface.EC2API
 	SSM                     ssmiface.SSMAPI
 	InstanceMetadata        InstanceMetadata
@@ -939,6 +970,11 @@ func (c *TestCloudClients) GetInstanceMetadataClient(ctx context.Context) (Insta
 // GetGCPGKEClient returns GKE client.
 func (c *TestCloudClients) GetGCPGKEClient(ctx context.Context) (gcp.GKEClient, error) {
 	return c.GCPGKE, nil
+}
+
+// GetGCPInstancesClient returns instances client.
+func (c *TestCloudClients) GetGCPInstancesClient(ctx context.Context) (gcp.InstancesClient, error) {
+	return c.GCPInstances, nil
 }
 
 // GetAzureCredential returns default Azure token credential chain.
