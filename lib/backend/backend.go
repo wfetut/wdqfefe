@@ -317,6 +317,8 @@ func GetPaginationKey(r types.Resource) string {
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
 	case types.WindowsDesktop:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	case types.SAMLIdPServiceProvider:
+		return string(internalKey(resourceWithType.GetKind(), resourceWithType.GetName()))
 	default:
 		return r.GetName()
 	}

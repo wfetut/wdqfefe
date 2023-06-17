@@ -162,6 +162,22 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		specResource = server.GetDatabase()
 		resourceKey.name = specResource.GetName()
 
+	case types.KindAppAndIdPServiceProvider:
+		appServer, okApp := resource.(types.AppServer)
+		sp, okSP := resource.(types.SAMLIdPServiceProvider)
+		if !okApp && !okSP {
+			return false, trace.BadParameter("expected types.SAMLIdPServiceProvider or types.AppServer, got %T", resource)
+		}
+
+		if okApp {
+			app := appServer.GetApp()
+			specResource = app
+			resourceKey.name = app.GetPublicAddr()
+			resourceKey.addr = app.GetPublicAddr()
+		} else if okSP {
+			specResource = sp
+			resourceKey.name = sp.GetName()
+		}
 	default:
 		return false, trace.NotImplemented("filtering for resource kind %q not supported", filter.ResourceKind)
 	}

@@ -40,6 +40,7 @@ import (
 )
 
 // clusterAppsGet returns a list of applications in a form the UI can present.
+// This includes Application Servers as well as SAML IdP Service providers.
 func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	identity, err := sctx.GetIdentity()
 	if err != nil {
@@ -52,28 +53,29 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := convertListResourcesRequest(r, types.KindAppServer)
+	req, err := convertListResourcesRequest(r, types.KindAppAndIdPServiceProvider)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	page, err := client.GetResourcePage[types.AppServer](r.Context(), clt, req)
+	page, err := client.GetResourcePage[types.AppServerOrSAMLIdPServiceProvider](r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var apps types.Apps
-	for _, server := range page.Resources {
-		apps = append(apps, server.GetApp())
+	var appsAndSPs types.AppServersOrSAMLIdPServiceProviders
+	for _, appOrSP := range page.Resources {
+
+		appsAndSPs = append(appsAndSPs, appOrSP)
 	}
 
 	return listResourcesGetResponse{
 		Items: ui.MakeApps(ui.MakeAppsConfig{
-			LocalClusterName:  h.auth.clusterName,
-			LocalProxyDNSName: h.proxyDNSName(),
-			AppClusterName:    site.GetName(),
-			Identity:          identity,
-			Apps:              apps,
+			LocalClusterName:                   h.auth.clusterName,
+			LocalProxyDNSName:                  h.proxyDNSName(),
+			AppClusterName:                     site.GetName(),
+			Identity:                           identity,
+			AppServerOrSAMLIdPServiceProviders: appsAndSPs,
 		}),
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,

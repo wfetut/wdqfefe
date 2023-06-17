@@ -140,6 +140,10 @@ const (
 	// KindApp is a web app resource.
 	KindApp = "app"
 
+	// KindAppAndIdPServiceProvider is any app that can be displayed in the WebUI.
+	// This includes regular apps as well as SAML IdP Service Providers (SAML Applications).
+	KindAppAndIdPServiceProvider = "app_server_saml_idp_sp"
+
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
 
@@ -695,4 +699,9 @@ const (
 	// teleport automated user provisioning system get added to so
 	// already existing users are not deleted
 	TeleportServiceGroup = "teleport-system"
+)
+
+const (
+	// This is the `Description`` of a SAML IdP Service Provider to show when listing it in the WebUI.
+	SAMLIdPServiceProviderDescription = "SAML Application"
 )
