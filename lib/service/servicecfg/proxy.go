@@ -136,6 +136,14 @@ type ProxyConfig struct {
 	// AssistAPIKey is the OpenAI API key.
 	// TODO: This key will be moved to a plugin once support for plugins is implemented.
 	AssistAPIKey string
+
+	// ProxyGroupID is the reverse tunnel group ID, advertised as a label and
+	// used by reverse tunnel agents in proxy peering mode.
+	ProxyGroupID string
+
+	// ProxyGroupGeneration is the reverse tunnel group generation, advertised
+	// as a label and used by reverse tunnel agents in proxy peering mode.
+	ProxyGroupGeneration string
 }
 
 // WebPublicAddr returns the address for the web endpoint on this proxy that
