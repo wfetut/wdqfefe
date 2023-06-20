@@ -4491,14 +4491,14 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			switch appOrSP := resource.(type) {
 			case *types.AppServerV3:
 				protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-					AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+					AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{AppServerOrSP: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
 						AppServer: appOrSP,
 					},
 					},
 				}}
 			case *types.SAMLIdPServiceProviderV1:
 				protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-					AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+					AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{AppServerOrSP: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
 						SAMLIdPServiceProvider: appOrSP,
 					},
 					},

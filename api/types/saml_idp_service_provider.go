@@ -213,7 +213,7 @@ func (a *AppServerOrSAMLIdPServiceProviderV1) GetAppOrServiceProviderPublicAddr(
 // IsAppServer returns a bool that determines whether this AppServerOrSAMLIdPServiceProvider holds an AppServer.
 // If it is false, it means it holds a SAMLIdPServiceProvider instead.
 func (a *AppServerOrSAMLIdPServiceProviderV1) IsAppServer() bool {
-	appOrSP := a.AppServerOrSAMLIdPServiceProvider
+	appOrSP := a.AppServerOrSP
 	_, ok := appOrSP.(*AppServerOrSAMLIdPServiceProviderV1_AppServer)
 	return ok
 }
