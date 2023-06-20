@@ -150,43 +150,30 @@ func (s SAMLIdPServiceProviders) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 // SAMLIdPServiceProviders in the UI.
 type AppServerOrSAMLIdPServiceProvider interface {
 	ResourceWithLabels
-	GetAppServer() AppServer
-	SetAppServer(AppServer) error
-	GetSAMLIdPServiceProvider() SAMLIdPServiceProvider
-	SetSAMLIdPServiceProvider(SAMLIdPServiceProvider) error
+	GetAppServer() *AppServerV3
+	GetSAMLIdPServiceProvider() *SAMLIdPServiceProviderV1
 	GetAppOrServiceProviderName() string
 	GetAppOrServiceProviderDescription() string
 	GetAppOrServiceProviderPublicAddr() string
 	IsAppServer() bool
 }
 
-// GetAppServer returns the AppServer in this AppServerOrSAMLIdPServiceProvider.
-func (a *AppServerOrSAMLIdPServiceProviderV1) GetAppServer() AppServer {
-	return a.AppServer
-}
+const (
+	// This is the `Description` of a SAML IdP Service Provider to show when listing it in the WebUI.
+	SAMLIdPServiceProviderDescription = "SAML Application"
+)
 
-// GetAppServer returns the GetSAMLIdPServiceProvider in this AppServerOrSAMLIdPServiceProvider.
-func (a *AppServerOrSAMLIdPServiceProviderV1) GetSAMLIdPServiceProvider() SAMLIdPServiceProvider {
-	return a.SAMLIdPServiceProvider
-}
+// // GetAppServer returns the AppServer in this AppServerOrSAMLIdPServiceProvider.
+// func (a *AppServerOrSAMLIdPServiceProviderV1) GetAppServer() AppServer {
+// 	appOrSP := a.AppServerOrSAMLIdPServiceProvider
+// 	return appOrSP.(AppServer)
+// }
 
-func (a *AppServerOrSAMLIdPServiceProviderV1) SetAppServer(appServer AppServer) error {
-	appServerV3, ok := appServer.(*AppServerV3)
-	if !ok {
-		return trace.BadParameter("expected *AppServerV3, got %T", appServer)
-	}
-	a.AppServer = appServerV3
-	return nil
-}
-
-func (a *AppServerOrSAMLIdPServiceProviderV1) SetSAMLIdPServiceProvider(sp SAMLIdPServiceProvider) error {
-	spV1, ok := sp.(*SAMLIdPServiceProviderV1)
-	if !ok {
-		return trace.BadParameter("expected *SAMLIdPServiceProviderV1, got %T", sp)
-	}
-	a.SAMLIdPServiceProvider = spV1
-	return nil
-}
+// // GetAppServer returns the GetSAMLIdPServiceProvider in this AppServerOrSAMLIdPServiceProvider.
+// func (a *AppServerOrSAMLIdPServiceProviderV1) GetSAMLIdPServiceProvider() SAMLIdPServiceProvider {
+// 	appOrSP := a.AppServerOrSAMLIdPServiceProvider
+// 	return appOrSP.(SAMLIdPServiceProvider)
+// }
 
 func (a *AppServerOrSAMLIdPServiceProviderV1) GetKind() string {
 	if a.IsAppServer() {
@@ -208,7 +195,7 @@ func (a *AppServerOrSAMLIdPServiceProviderV1) GetAppOrServiceProviderName() stri
 // the AppServerOrSAMLIdPServiceProvider holds.
 func (a *AppServerOrSAMLIdPServiceProviderV1) GetAppOrServiceProviderDescription() string {
 	if a.IsAppServer() {
-		return a.AppServer.GetApp().GetDescription()
+		return a.GetAppServer().GetApp().GetDescription()
 	}
 	return SAMLIdPServiceProviderDescription
 }
@@ -226,7 +213,9 @@ func (a *AppServerOrSAMLIdPServiceProviderV1) GetAppOrServiceProviderPublicAddr(
 // IsAppServer returns a bool that determines whether this AppServerOrSAMLIdPServiceProvider holds an AppServer.
 // If it is false, it means it holds a SAMLIdPServiceProvider instead.
 func (a *AppServerOrSAMLIdPServiceProviderV1) IsAppServer() bool {
-	return a.AppServer != nil
+	appOrSP := a.AppServerOrSAMLIdPServiceProvider
+	_, ok := appOrSP.(*AppServerOrSAMLIdPServiceProviderV1_AppServer)
+	return ok
 }
 
 // AppServersOrSAMLIdPServiceProviders is a list of AppServers or SAMLIdPServiceProviders.
@@ -288,50 +277,45 @@ func (a *AppServerOrSAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 func (a *AppServerOrSAMLIdPServiceProviderV1) Expiry() time.Time {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		return appServerV3.Metadata.Expiry()
+		return appServer.Metadata.Expiry()
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		return spV1.Metadata.Expiry()
+		return sp.Metadata.Expiry()
 	}
 }
 
 func (a *AppServerOrSAMLIdPServiceProviderV1) GetAllLabels() map[string]string {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
 		staticLabels := make(map[string]string)
-		for name, value := range appServerV3.Metadata.Labels {
+		for name, value := range appServer.Metadata.Labels {
 			staticLabels[name] = value
 		}
 
 		var dynamicLabels map[string]CommandLabelV2
-		if appServerV3.Spec.App != nil {
-			for name, value := range appServerV3.Spec.App.Metadata.Labels {
+		if appServer.Spec.App != nil {
+			for name, value := range appServer.Spec.App.Metadata.Labels {
 				staticLabels[name] = value
 			}
 
-			dynamicLabels = appServerV3.Spec.App.Spec.DynamicLabels
+			dynamicLabels = appServer.Spec.App.Spec.DynamicLabels
 		}
 
 		return CombineLabels(staticLabels, dynamicLabels)
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		return spV1.Metadata.Labels
+		return sp.Metadata.Labels
 	}
 }
 
 func (a *AppServerOrSAMLIdPServiceProviderV1) GetLabel(key string) (value string, ok bool) {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		if cmd, ok := appServerV3.Spec.App.Spec.DynamicLabels[key]; ok {
+		if cmd, ok := appServer.Spec.App.Spec.DynamicLabels[key]; ok {
 			return cmd.Result, ok
 		}
 
-		v, ok := appServerV3.Spec.App.Metadata.Labels[key]
+		v, ok := appServer.Spec.App.Metadata.Labels[key]
 		return v, ok
 	} else {
 		return "", true
@@ -341,12 +325,10 @@ func (a *AppServerOrSAMLIdPServiceProviderV1) GetLabel(key string) (value string
 func (a *AppServerOrSAMLIdPServiceProviderV1) GetMetadata() Metadata {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		return appServerV3.Metadata
+		return appServer.Metadata
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		return spV1.Metadata
+		return sp.Metadata
 	}
 }
 
@@ -355,108 +337,90 @@ func (a *AppServerOrSAMLIdPServiceProviderV1) GetMetadata() Metadata {
 func (a *AppServerOrSAMLIdPServiceProviderV1) GetName() string {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		return appServerV3.Metadata.Name
+		return appServer.Metadata.Name
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		return spV1.Metadata.Name
+		return sp.Metadata.Name
 	}
 }
 
 func (a *AppServerOrSAMLIdPServiceProviderV1) SetName(name string) {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		appServerV3.Metadata.Name = name
+		appServer.Metadata.Name = name
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		spV1.Metadata.Name = name
+		sp.Metadata.Name = name
 	}
 }
 
 func (a *AppServerOrSAMLIdPServiceProviderV1) GetResourceID() int64 {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		return appServerV3.Metadata.ID
+		return appServer.Metadata.ID
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		return spV1.Metadata.ID
+		return sp.Metadata.ID
 	}
 }
 
 func (a *AppServerOrSAMLIdPServiceProviderV1) SetResourceID(id int64) {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		appServerV3.Metadata.ID = id
+		appServer.Metadata.ID = id
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		spV1.Metadata.ID = id
+		sp.Metadata.ID = id
 	}
 }
 
 func (a *AppServerOrSAMLIdPServiceProviderV1) GetStaticLabels() map[string]string {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		return appServerV3.Metadata.Labels
+		return appServer.Metadata.Labels
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		return spV1.Metadata.Labels
+		return sp.Metadata.Labels
 	}
 }
 
 func (a *AppServerOrSAMLIdPServiceProviderV1) SetStaticLabels(sl map[string]string) {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		appServerV3.Metadata.Labels = sl
+		appServer.Metadata.Labels = sl
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		spV1.Metadata.Labels = sl
+		sp.Metadata.Labels = sl
 	}
 }
 
 func (a *AppServerOrSAMLIdPServiceProviderV1) GetSubKind() string {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		return appServerV3.SubKind
+		return appServer.SubKind
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		return spV1.SubKind
+		return sp.SubKind
 	}
 }
 
 func (a *AppServerOrSAMLIdPServiceProviderV1) SetSubKind(sk string) {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		appServerV3.SubKind = sk
+		appServer.SubKind = sk
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		spV1.SubKind = sk
+		sp.SubKind = sk
 	}
 }
 
 func (a *AppServerOrSAMLIdPServiceProviderV1) GetVersion() string {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		return appServerV3.Version
+		return appServer.Version
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		return spV1.Version
+		return sp.Version
 	}
 }
 
@@ -469,12 +433,10 @@ func (a *AppServerOrSAMLIdPServiceProviderV1) MatchSearch(values []string) bool 
 func (a *AppServerOrSAMLIdPServiceProviderV1) Origin() string {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		return appServerV3.Metadata.Origin()
+		return appServer.Metadata.Origin()
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		return spV1.Metadata.Origin()
+		return sp.Metadata.Origin()
 	}
 }
 
@@ -482,37 +444,31 @@ func (a *AppServerOrSAMLIdPServiceProviderV1) Origin() string {
 func (a *AppServerOrSAMLIdPServiceProviderV1) SetOrigin(origin string) {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		appServerV3.Metadata.SetOrigin(origin)
+		appServer.Metadata.SetOrigin(origin)
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		spV1.Metadata.SetOrigin(origin)
+		sp.Metadata.SetOrigin(origin)
 	}
 }
 
 func (a *AppServerOrSAMLIdPServiceProviderV1) SetExpiry(expiry time.Time) {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
-		appServerV3.Metadata.SetExpiry(expiry)
+		appServer.Metadata.SetExpiry(expiry)
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
-		spV1.Metadata.SetExpiry(expiry)
+		sp.Metadata.SetExpiry(expiry)
 	}
 }
 
 func (a *AppServerOrSAMLIdPServiceProviderV1) String() string {
 	if a.IsAppServer() {
 		appServer := a.GetAppServer()
-		appServerV3 := appServer.(*AppServerV3)
 		return fmt.Sprintf("AppServer(Name=%v, Version=%v, Hostname=%v, HostID=%v, App=%v)",
-			appServerV3.GetName(), appServerV3.GetVersion(), appServerV3.GetHostname(), appServerV3.GetHostID(), appServerV3.GetApp())
+			appServer.GetName(), appServer.GetVersion(), appServer.GetHostname(), appServer.GetHostID(), appServer.GetApp())
 	} else {
 		sp := a.GetSAMLIdPServiceProvider()
-		spV1 := sp.(*SAMLIdPServiceProviderV1)
 		return fmt.Sprintf("SAMLIdPServiceProvider(Name=%v, Version=%v, EntityID=%v)",
-			spV1.GetName(), spV1.GetVersion(), spV1.GetEntityID())
+			sp.GetName(), sp.GetVersion(), sp.GetEntityID())
 	}
 }

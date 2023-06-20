@@ -4612,7 +4612,8 @@ func (a *ServerWithRoles) GetAppServersAndSAMLIdPServiceProviders(ctx context.Co
 			return nil, trace.Wrap(err)
 		} else if err == nil {
 			appServerV3 := appserver.(*types.AppServerV3)
-			appAndSPs = append(appAndSPs, &types.AppServerOrSAMLIdPServiceProviderV1{AppServer: appServerV3})
+			appAndSP := &types.AppServerOrSAMLIdPServiceProviderV1{AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{AppServer: appServerV3}}
+			appAndSPs = append(appAndSPs, appAndSP)
 		}
 	}
 
@@ -4624,7 +4625,8 @@ func (a *ServerWithRoles) GetAppServersAndSAMLIdPServiceProviders(ctx context.Co
 		}
 		for _, sp := range serviceProviders {
 			spV1 := sp.(*types.SAMLIdPServiceProviderV1)
-			appAndSPs = append(appAndSPs, &types.AppServerOrSAMLIdPServiceProviderV1{SAMLIdPServiceProvider: spV1})
+			appAndSP := &types.AppServerOrSAMLIdPServiceProviderV1{AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{SAMLIdPServiceProvider: spV1}}
+			appAndSPs = append(appAndSPs, appAndSP)
 		}
 	}
 

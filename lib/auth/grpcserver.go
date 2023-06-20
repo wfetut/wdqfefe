@@ -4488,18 +4488,24 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}}
 		case types.KindAppAndIdPServiceProvider:
-			appServer, okApp := resource.(*types.AppServerV3)
-			sp, okSP := resource.(*types.SAMLIdPServiceProviderV1)
-			if !okApp && !okSP {
-				return nil, trace.BadParameter("expected types.SAMLIdPServiceProvider or types.AppServer, got %T", resource)
+			switch appOrSP := resource.(type) {
+			case *types.AppServerV3:
+				protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+					AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+						AppServer: appOrSP,
+					},
+					},
+				}}
+			case *types.SAMLIdPServiceProviderV1:
+				protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
+					AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+						SAMLIdPServiceProvider: appOrSP,
+					},
+					},
+				}}
+			default:
+				return nil, trace.BadParameter("expected types.SAMLIdPServiceProviderV1 or types.AppServerV3, got %T", resource)
 			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_AppServerOrSAMLIdPServiceProvider{
-				AppServerOrSAMLIdPServiceProvider: &types.AppServerOrSAMLIdPServiceProviderV1{
-					AppServer:              appServer,
-					SAMLIdPServiceProvider: sp,
-				},
-			}}
 
 		default:
 			return nil, trace.NotImplemented("resource type %s doesn't support pagination", req.ResourceType)

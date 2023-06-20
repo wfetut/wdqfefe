@@ -700,8 +700,3 @@ const (
 	// already existing users are not deleted
 	TeleportServiceGroup = "teleport-system"
 )
-
-const (
-	// This is the `Description`` of a SAML IdP Service Provider to show when listing it in the WebUI.
-	SAMLIdPServiceProviderDescription = "SAML Application"
-)

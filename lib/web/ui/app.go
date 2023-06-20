@@ -98,12 +98,9 @@ func MakeApps(c MakeAppsConfig) []App {
 			resultApp := App{
 				Name:         appOrSP.GetAppOrServiceProviderName(),
 				Description:  appOrSP.GetAppOrServiceProviderDescription(),
-				URI:          "",
 				PublicAddr:   appOrSP.GetAppOrServiceProviderPublicAddr(),
 				Labels:       labels,
 				ClusterID:    c.AppClusterName,
-				FQDN:         "",
-				AWSConsole:   false,
 				FriendlyName: services.FriendlyName(appOrSP),
 				SAMLApp:      true,
 			}

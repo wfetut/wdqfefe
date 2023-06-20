@@ -879,15 +879,16 @@ message AppSpecV3 {
 message AppServerOrSAMLIdPServiceProviderV1 {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
-
   // Kind is the resource kind. Always "app_server_saml_idp_sp".
   string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // AppServer is the AppServer resource. If it is nil, it means this AppServerOrSAMLIdPServiceProvider
-  // resource holds a SAMLIdPServiceProvider.
-  AppServerV3 AppServer = 2 [(gogoproto.jsontag) = "app_server,omitempty"];
-  // SAMLIdPServiceProvider is the SAMLIdPServiceProvider resource. If it is nil, it means this AppServerOrSAMLIdPServiceProvider
-  // resource holds an AppServer.
-  SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 3 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
+  oneof AppServerOrSAMLIdPServiceProvider {
+    // AppServer is the AppServer resource. If it is nil, it means this AppServerOrSAMLIdPServiceProvider
+    // resource holds a SAMLIdPServiceProvider.
+    AppServerV3 AppServer = 2 [(gogoproto.jsontag) = "app_server,omitempty"];
+    // SAMLIdPServiceProvider is the SAMLIdPServiceProvider resource. If it is nil, it means this AppServerOrSAMLIdPServiceProvider
+    // resource holds an AppServer.
+    SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 3 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
+  }
 }
 
 // App is a specific application that a server proxies.
