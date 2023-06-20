@@ -26,12 +26,15 @@ import auth, {
   ResetPasswordWithWebauthnReqWithEvent,
   ResetToken,
 } from 'teleport/services/auth';
+import { UseTokenState } from 'teleport/Welcome/NewCredentials/types';
 
-export default function useToken(tokenId: string) {
+export default function useToken(tokenId: string): UseTokenState {
   const [resetToken, setResetToken] = useState<ResetToken>();
   const [recoveryCodes, setRecoveryCodes] = useState<RecoveryCodes>();
   const [success, setSuccess] = useState(false); // TODO rename
   const [privateKeyPolicyEnabled, setPrivateKeyPolicyEnabled] = useState(false);
+  const [displayOnboardingQuestionnaire, setDisplayOnboardingQuestionnaire] =
+    useState(cfg.isUsageBasedBilling && cfg.isCloud);
 
   const fetchAttempt = useAttempt('');
   const submitAttempt = useAttempt('');
@@ -45,6 +48,7 @@ export default function useToken(tokenId: string) {
     );
   }, []);
 
+  // todo have BE send an indication of survey
   function handleResponse(res: ChangedUserAuthn) {
     if (res.privateKeyPolicyEnabled) {
       setPrivateKeyPolicyEnabled(true);
@@ -109,7 +113,7 @@ export default function useToken(tokenId: string) {
     success,
     finishedRegister,
     privateKeyPolicyEnabled,
+    displayOnboardingQuestionnaire,
+    setDisplayOnboardingQuestionnaire,
   };
 }
-
-export type State = ReturnType<typeof useToken>;

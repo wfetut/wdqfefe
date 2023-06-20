@@ -16,6 +16,14 @@
 
 import { EmployeeOptions, TeamOptions, TitleOptions } from './constants';
 
+export type QuestionnaireProps = {
+  // full indicates if a full survey should be presented
+  // false indicates that a partial survey is shown (some questions are skipped)
+  full: boolean;
+  // optional callback to handle parent interaction
+  onSubmit?: () => void;
+};
+
 export type QuestionProps = {
   updateFields: (fields: Partial<QuestionnaireFormFields>) => void;
 };

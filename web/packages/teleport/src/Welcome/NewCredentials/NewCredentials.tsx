@@ -23,7 +23,14 @@ import { NewFlow, StepComponentProps, StepSlider } from 'design/StepSlider';
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
 import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolicy';
 
-import useToken, { State } from '../useToken';
+import {
+  NewCredentialsProps,
+  UseTokenState,
+} from 'teleport/Welcome/NewCredentials/types';
+
+import Questionnaire from 'teleport/Welcome/Questionnaire';
+
+import useToken from '../useToken';
 
 import { Expired } from './Expired';
 import { RegisterSuccess } from './Success';
@@ -42,11 +49,11 @@ const loginFlows = {
 };
 
 export function Container({ tokenId = '', resetMode = false }) {
-  const state = useToken(tokenId);
+  const state: UseTokenState = useToken(tokenId);
   return <NewCredentials {...state} resetMode={resetMode} />;
 }
 
-export function NewCredentials(props: State & Props) {
+export function NewCredentials(props: NewCredentialsProps) {
   const {
     fetchAttempt,
     recoveryCodes,
@@ -57,12 +64,23 @@ export function NewCredentials(props: State & Props) {
     success,
     finishedRegister,
     privateKeyPolicyEnabled,
+    displayOnboardingQuestionnaire,
+    setDisplayOnboardingQuestionnaire,
   } = props;
+
+  // Check which flow to render as default.
+  const [password, setPassword] = useState('');
+  const [newFlow, setNewFlow] = useState<NewFlow<LoginFlow>>();
+  const [flow, setFlow] = useState<LoginFlow>(() => {
+    if (primaryAuthType === 'sso' || primaryAuthType === 'local') {
+      return 'local';
+    }
+    return 'passwordless';
+  });
 
   if (fetchAttempt.status === 'failed') {
     return <Expired resetMode={resetMode} />;
   }
-
   if (fetchAttempt.status !== 'success') {
     return null;
   }
@@ -71,6 +89,16 @@ export function NewCredentials(props: State & Props) {
     return (
       <PrivateKeyLoginDisabledCard
         title={resetMode ? 'Reset Complete' : 'Registration Complete'}
+      />
+    );
+  }
+
+  if (success && !resetMode && displayOnboardingQuestionnaire) {
+    // todo (michellescripts) check cluster config to determine if all or partial questions are asked
+    return (
+      <Questionnaire
+        full={true}
+        onSubmit={() => setDisplayOnboardingQuestionnaire(false)}
       />
     );
   }
@@ -96,16 +124,7 @@ export function NewCredentials(props: State & Props) {
     );
   }
 
-  // Check which flow to render as default.
-  const [password, setPassword] = useState('');
-  const [newFlow, setNewFlow] = useState<NewFlow<LoginFlow>>();
-  const [flow, setFlow] = useState<LoginFlow>(() => {
-    if (primaryAuthType === 'sso' || primaryAuthType === 'local') {
-      return 'local';
-    }
-    return 'passwordless';
-  });
-
+  // display credentials flow
   function onSwitchFlow(flow: LoginFlow) {
     setFlow(flow);
   }
@@ -133,7 +152,3 @@ export function NewCredentials(props: State & Props) {
     </Card>
   );
 }
-
-export type Props = State & {
-  resetMode?: boolean;
-};

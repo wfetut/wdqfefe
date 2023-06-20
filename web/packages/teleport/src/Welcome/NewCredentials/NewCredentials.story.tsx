@@ -17,7 +17,9 @@ limitations under the License.
 import React from 'react';
 import { Card } from 'design';
 
-import { Props, NewCredentials, SliderProps } from './NewCredentials';
+import { NewCredentialsProps } from 'teleport/Welcome/NewCredentials/types';
+
+import { NewCredentials, SliderProps } from './NewCredentials';
 import { NewMfaDevice } from './NewMfaDevice';
 
 export default {
@@ -173,7 +175,7 @@ const sliderProps: SliderProps & {
   password: '',
   updatePassword: () => null,
 };
-const props: Props = {
+const props: NewCredentialsProps = {
   auth2faType: 'off',
   primaryAuthType: 'local',
   isPasswordlessEnabled: true,
@@ -233,4 +235,6 @@ const props: Props = {
       'QUKIICFEkBAiSAgRJIQ8GZ3rjnbtD76d3X92ber60v0xsClnB9/OsnUO3pAgIUSQECJICBEkhAgSQgQJ' +
       'IYKEEEFCiCAh5KMwdgQ8OCEhRJAQ8v8AAAD//1QuL6EmJFBiAAAAAElFTkSuQmCC',
   },
+  displayOnboardingQuestionnaire: false,
+  setDisplayOnboardingQuestionnaire: () => {},
 };

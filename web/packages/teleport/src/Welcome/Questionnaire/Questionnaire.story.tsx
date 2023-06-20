@@ -22,6 +22,10 @@ export default {
   title: 'Teleport/Welcome/Questionnaire',
 };
 
-export const Loaded = () => {
-  return <Questionnaire />;
+export const Full = () => {
+  return <Questionnaire full={true} />;
+};
+
+export const Partial = () => {
+  return <Questionnaire full={false} />;
 };

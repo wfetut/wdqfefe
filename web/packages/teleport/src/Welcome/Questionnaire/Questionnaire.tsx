@@ -18,13 +18,13 @@ import React, { useState } from 'react';
 import { ButtonPrimary, Card, Text } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
 
-import { QuestionnaireFormFields } from './types';
+import { QuestionnaireFormFields, QuestionnaireProps } from './types';
 import { Company } from './Company';
 import { Role } from './Role';
 import { Resources } from './Resources';
 import { supportedResources } from './constants';
 
-export const Questionnaire = () => {
+export const Questionnaire = ({ full, onSubmit }: QuestionnaireProps) => {
   const [formFields, setFormFields] = useState<QuestionnaireFormFields>({
     companyName: '',
     employeeCount: undefined,
@@ -48,8 +48,9 @@ export const Questionnaire = () => {
       return;
     }
 
-    // todo (michellescripts) submit all Qs to Sales Center
-    // todo (michellescripts) set resource Q on user state
+    if (onSubmit) {
+      onSubmit();
+    }
   };
 
   // todo (michellescripts) only display <Company .../> if the survey is unanswered for the account
@@ -61,11 +62,13 @@ export const Questionnaire = () => {
       <Validation>
         {({ validator }) => (
           <>
-            <Company
-              companyName={formFields.companyName}
-              numberOfEmployees={formFields.employeeCount}
-              updateFields={updateForm}
-            />
+            {full && (
+              <Company
+                companyName={formFields.companyName}
+                numberOfEmployees={formFields.employeeCount}
+                updateFields={updateForm}
+              />
+            )}
             <Role
               role={formFields.role}
               team={formFields.team}

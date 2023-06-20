@@ -19,15 +19,44 @@ import React from 'react';
 import { render } from 'design/utils/testing';
 
 import { Questionnaire } from './Questionnaire';
+import { QuestionnaireProps } from './types';
 
 describe('questionnaire', () => {
+  let props: QuestionnaireProps;
+
+  beforeEach(() => {
+    props = {
+      full: false,
+    };
+  });
+
   test('loads each question', () => {
-    render(<Questionnaire />);
+    props.full = true;
+    render(<Questionnaire {...props} />);
 
     expect(screen.getByText('Tell us about yourself')).toBeInTheDocument();
 
     expect(screen.getByLabelText('Company Name')).toBeInTheDocument();
     expect(screen.getByLabelText('Number of Employees')).toBeInTheDocument();
+    expect(screen.getByLabelText('Which Team are you on?')).toBeInTheDocument();
+    expect(screen.getByLabelText('Job Title')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Which infrastructure resources do you need to access frequently?'
+      )
+    ).toBeInTheDocument();
+  });
+
+  test('skips questions if not full', () => {
+    props.full = false;
+    render(<Questionnaire {...props} />);
+
+    expect(screen.getByText('Tell us about yourself')).toBeInTheDocument();
+
+    expect(screen.queryByLabelText('Company Name')).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Number of Employees')
+    ).not.toBeInTheDocument();
     expect(screen.getByLabelText('Which Team are you on?')).toBeInTheDocument();
     expect(screen.getByLabelText('Job Title')).toBeInTheDocument();
     expect(
