@@ -593,8 +593,13 @@ func (u *uiResourceCollector) processEventAndUpdateCurrent(ctx context.Context, 
 	}
 }
 
-func (u *uiResourceCollector) resourceKind() string {
-	return types.KindNode
+func (u *uiResourceCollector) resourceKind() []types.WatchKind {
+	return []types.WatchKind{
+		{Kind: types.KindNode},
+		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindAppServer},
+		{Kind: types.KindWindowsDesktop},
+	}
 }
 
 func (u *uiResourceCollector) defineCollectorAsInitialized() {
