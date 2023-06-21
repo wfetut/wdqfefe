@@ -1111,7 +1111,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			// did not request access to any Kubernetes resource type, the allowed
 			// list will be empty.
 			allowed, denied := actx.Checker.GetKubeResources(ks)
-			if err := matchKubernetesResource(*actx.kubeResource, allowed, denied); err != nil {
+			if result, err := matchKubernetesResource(*actx.kubeResource, allowed, denied); err != nil || !result {
 				return trace.AccessDenied(notFoundMessage)
 			}
 		}
@@ -1128,24 +1128,22 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any
 // entry from the deny list and matches at least one entry from the allowed list.
-func matchKubernetesResource(resource types.KubernetesResource, allowed, denied []types.KubernetesResource) error {
+func matchKubernetesResource(resource types.KubernetesResource, allowed, denied []types.KubernetesResource) (bool, error) {
 	// utils.KubeResourceMatchesRegex checks if the resource.Kind is strictly equal
 	// to each entry and validates if the Name and Namespace fields matches the
 	// regex allowed by each entry.
 	result, err := utils.KubeResourceMatchesRegex(resource, denied)
 	if err != nil {
-		return trace.Wrap(err)
+		return false, trace.Wrap(err)
 	} else if result {
-		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
+		return false, nil
 	}
 
 	result, err = utils.KubeResourceMatchesRegex(resource, allowed)
 	if err != nil {
-		return trace.Wrap(err)
-	} else if !result {
-		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
+		return false, trace.Wrap(err)
 	}
-	return nil
+	return result, nil
 }
 
 // newStreamer returns sync or async streamer based on the configuration

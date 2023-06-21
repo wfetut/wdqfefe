@@ -158,21 +158,22 @@ func pointerArrayToArray[T any](arr []*T) []T {
 // FilterObj receives a runtime.Object type and filters the resources on it
 // based on allowed and denied rules.
 // After filtering them, the obj is manipulated to hold the filtered information.
-// The boolean returned indicates if the client is allowed to receive the event
-// that originated this check.
-func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
+// The isAllowed boolean returned indicates if the client is allowed to receive the event
+// with the object.
+// The isListObj boolean returned indicates if the object is a list of resources.
+func (d *resourceFilterer) FilterObj(obj runtime.Object) (isAllowed bool, isList bool, err error) {
 	switch o := obj.(type) {
 	case *metav1.Status:
 		// Status object is returned when the Kubernetes API returns an error and
 		// should be forwarded to the user.
 		return true, false, nil
 	case *corev1.Pod:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
-		if err != nil && !trace.IsAccessDenied(err) {
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		if err != nil {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *corev1.PodList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -181,12 +182,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.Secret:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *corev1.SecretList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -195,12 +196,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.ConfigMap:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *corev1.ConfigMapList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -209,12 +210,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.Namespace:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *corev1.NamespaceList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -223,12 +224,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.Service:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *corev1.ServiceList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -237,12 +238,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.ServiceAccount:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *corev1.ServiceAccountList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -251,12 +252,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.Node:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *corev1.NodeList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -265,12 +266,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.PersistentVolume:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *corev1.PersistentVolumeList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -279,12 +280,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		)
 		return len(o.Items) > 0, true, nil
 	case *corev1.PersistentVolumeClaim:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *corev1.PersistentVolumeClaimList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -294,12 +295,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		return len(o.Items) > 0, true, nil
 
 	case *appsv1.Deployment:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *appsv1.DeploymentList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -309,12 +310,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		return len(o.Items) > 0, true, nil
 
 	case *appsv1.ReplicaSet:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *appsv1.ReplicaSetList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -323,12 +324,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		)
 		return len(o.Items) > 0, true, nil
 	case *appsv1.StatefulSet:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *appsv1.StatefulSetList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -338,12 +339,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		return len(o.Items) > 0, true, nil
 
 	case *appsv1.DaemonSet:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *appsv1.DaemonSetList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -352,12 +353,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		)
 		return len(o.Items) > 0, true, nil
 	case *authv1.ClusterRole:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *authv1.ClusterRoleList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -366,12 +367,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		)
 		return len(o.Items) > 0, true, nil
 	case *authv1.Role:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *authv1.RoleList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -381,12 +382,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		return len(o.Items) > 0, true, nil
 
 	case *authv1.ClusterRoleBinding:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *authv1.ClusterRoleBindingList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -396,12 +397,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		return len(o.Items) > 0, true, nil
 
 	case *authv1.RoleBinding:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *authv1.RoleBindingList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -411,12 +412,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		return len(o.Items) > 0, true, nil
 
 	case *batchv1.CronJob:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *batchv1.CronJobList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -426,12 +427,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		return len(o.Items) > 0, true, nil
 
 	case *batchv1.Job:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *batchv1.JobList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -441,13 +442,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		return len(o.Items) > 0, true, nil
 
 	case *certificatesv1.CertificateSigningRequest:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
-
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *certificatesv1.CertificateSigningRequestList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -456,13 +456,12 @@ func (d *resourceFilterer) FilterObj(obj runtime.Object) (bool, bool, error) {
 		)
 		return len(o.Items) > 0, true, nil
 	case *networkingv1.Ingress:
-		err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
+		result, err := filterResource(d.kind, o, d.allowedResources, d.deniedResources)
 		if err != nil && !trace.IsAccessDenied(err) {
 			d.log.WithError(err).Warn("Unable to compile role kubernetes_resources.")
 		}
-		// if err is not nil we should not include it.
-		return err == nil, false, nil
-
+		// if err is not nil or result is false, we should not include it.
+		return err == nil && result, false, nil
 	case *networkingv1.IngressList:
 		o.Items = pointerArrayToArray(
 			filterResourceList(
@@ -529,9 +528,9 @@ func (d *resourceFilterer) encode(obj runtime.Object, w io.Writer) error {
 func filterResourceList[T kubeObjectInterface](kind string, originalList []T, allowed, denied []types.KubernetesResource, log logrus.FieldLogger) []T {
 	filteredList := make([]T, 0, len(originalList))
 	for _, resource := range originalList {
-		if err := filterResource(kind, resource, allowed, denied); err == nil {
+		if result, err := filterResource(kind, resource, allowed, denied); err == nil && result {
 			filteredList = append(filteredList, resource)
-		} else if !trace.IsAccessDenied(err) {
+		} else if err != nil {
 			log.WithError(err).Warnf("Unable to compile role kubernetes_resources.")
 		}
 	}
@@ -547,15 +546,15 @@ type kubeObjectInterface interface {
 }
 
 // filterResource validates if the user should access the current resource.
-func filterResource[T kubeObjectInterface](kind string, resource T, allowed, denied []types.KubernetesResource) error {
-	err := matchKubernetesResource(
+func filterResource(kind string, resource kubeObjectInterface, allowed, denied []types.KubernetesResource) (bool, error) {
+	result, err := matchKubernetesResource(
 		getKubeResource(kind, resource),
 		allowed, denied,
 	)
-	return trace.Wrap(err)
+	return result, trace.Wrap(err)
 }
 
-func getKubeResource[T kubeObjectInterface](kind string, obj T) types.KubernetesResource {
+func getKubeResource(kind string, obj kubeObjectInterface) types.KubernetesResource {
 	return types.KubernetesResource{
 		Kind:      kind,
 		Namespace: obj.GetNamespace(),
@@ -576,9 +575,9 @@ func (d *resourceFilterer) filterMetaV1Table(table *metav1.Table, allowedResourc
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if err := matchKubernetesResource(resource, allowedResources, deniedResources); err == nil {
+		if result, err := matchKubernetesResource(resource, allowedResources, deniedResources); err == nil && result {
 			resources = append(resources, *row)
-		} else if !trace.IsAccessDenied(err) {
+		} else if err != nil {
 			d.log.WithError(err).Warn("Unable to compile regex expression.")
 		}
 	}
