@@ -18,6 +18,7 @@ package gcp
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
@@ -26,12 +27,13 @@ import (
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
-	gax "github.com/googleapis/gax-go/v2"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 )
@@ -61,7 +63,7 @@ type InstancesClient interface {
 // InstancesClientConfig is the client configuration for InstancesClient.
 type InstancesClientConfig struct {
 	// InstanceClient is the underlying GCP client for the instances service.
-	InstanceClient gcpInstanceClient
+	InstanceClient *compute.InstancesClient
 }
 
 // CheckAndSetsDefaults checks and sets defaults for InstancesClientConfig.
@@ -74,18 +76,6 @@ func (c *InstancesClientConfig) CheckAndSetDefaults(ctx context.Context) (err er
 	return nil
 }
 
-// gcpInstancesClient is a subset of compute.InstancesClient methods used in
-// this package.
-type gcpInstanceClient interface {
-	List(ctx context.Context, req *computepb.ListInstancesRequest, opts ...gax.CallOption) *compute.InstanceIterator
-	Get(ctx context.Context, req *computepb.GetInstanceRequest, opts ...gax.CallOption) (*computepb.Instance, error)
-	GetGuestAttributes(ctx context.Context, req *computepb.GetGuestAttributesInstanceRequest, opts ...gax.CallOption) (*computepb.GuestAttributes, error)
-	SetMetadata(ctx context.Context, req *computepb.SetMetadataInstanceRequest, opts ...gax.CallOption) (*compute.Operation, error)
-}
-
-// make sure compute.InstancesClient satisfies InstancesClient interface.
-var _ gcpInstanceClient = &compute.InstancesClient{}
-
 // Instance represents a GCP VM.
 type Instance struct {
 	// Name is the instance's name.
@@ -97,10 +87,18 @@ type Instance struct {
 	// ServiceAccount is the email address of the VM's service account, if any.
 	ServiceAccount string
 	// Labels is the instance's labels.
-	Labels   map[string]string
-	hostname string
-	hostKeys []ssh.PublicKey
-	metadata *computepb.Metadata
+	Labels    map[string]string
+	ipAddress string
+	hostKeys  []ssh.PublicKey
+	metadata  *computepb.Metadata
+}
+
+func (i *Instance) InstanceRequest() InstanceRequest {
+	return InstanceRequest{
+		ProjectID: i.ProjectID,
+		Zone:      i.Zone,
+		Name:      i.Name,
+	}
 }
 
 // NewInstanccesClient creates a new InstancesClient.
@@ -116,7 +114,7 @@ func NewInstancesClientWithConfig(ctx context.Context, cfg InstancesClientConfig
 	if err := cfg.CheckAndSetDefaults(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &instancesClient{}, nil
+	return &instancesClient{InstancesClientConfig: cfg}, nil
 }
 
 // instancesClient implements the InstancesClient interface by wrapping
@@ -125,13 +123,32 @@ type instancesClient struct {
 	InstancesClientConfig
 }
 
+func isExternalNAT(s string) bool {
+	return slices.Contains([]string{
+		"external-nat",
+		"External NAT",
+	}, s)
+}
+
 func toInstance(origInstance *computepb.Instance) *Instance {
+	zoneParts := strings.Split(origInstance.GetZone(), "/")
+	zone := zoneParts[len(zoneParts)-1]
+	var ipAddress string
+outer:
+	for _, netInterface := range origInstance.GetNetworkInterfaces() {
+		for _, accessConfig := range netInterface.AccessConfigs {
+			if isExternalNAT(accessConfig.GetName()) {
+				ipAddress = accessConfig.GetNatIP()
+				break outer
+			}
+		}
+	}
 	inst := &Instance{
-		Name:     origInstance.GetName(),
-		Zone:     origInstance.GetZone(),
-		Labels:   origInstance.GetLabels(),
-		hostname: origInstance.GetHostname(),
-		metadata: origInstance.GetMetadata(),
+		Name:      origInstance.GetName(),
+		Zone:      zone,
+		Labels:    origInstance.GetLabels(),
+		ipAddress: ipAddress,
+		metadata:  origInstance.GetMetadata(),
 	}
 	// GCP VMs can have at most one service account.
 	if len(origInstance.ServiceAccounts) > 0 {
@@ -141,35 +158,58 @@ func toInstance(origInstance *computepb.Instance) *Instance {
 }
 
 // ListInstances lists the GCP VMs that belong to the given project and
-// location.
-// location supports wildcard "*".
-func (clt *instancesClient) ListInstances(ctx context.Context, projectID, location string) ([]*Instance, error) {
+// zone.
+// zone supports wildcard "*".
+func (clt *instancesClient) ListInstances(ctx context.Context, projectID, zone string) ([]*Instance, error) {
 	if len(projectID) == 0 {
 		return nil, trace.BadParameter("projectID must be set")
 	}
-	if len(location) == 0 {
+	if len(zone) == 0 {
 		return nil, trace.BadParameter("location must be set")
 	}
 
-	it := clt.InstanceClient.List(
-		ctx,
-		&computepb.ListInstancesRequest{
-			Project: projectID,
-			Zone:    convertLocationToGCP(location),
-		},
-	)
 	var instances []*Instance
+	var getInstances func() ([]*computepb.Instance, error)
+
+	if zone == types.Wildcard {
+		it := clt.InstanceClient.AggregatedList(ctx, &computepb.AggregatedListInstancesRequest{
+			Project: projectID,
+		})
+		getInstances = func() ([]*computepb.Instance, error) {
+			resp, err := it.Next()
+			if resp.Value == nil {
+				return nil, trace.Wrap(err)
+			}
+			return resp.Value.GetInstances(), trace.Wrap(err)
+		}
+	} else {
+		it := clt.InstanceClient.List(ctx, &computepb.ListInstancesRequest{
+			Project: projectID,
+			Zone:    zone,
+		},
+		)
+		getInstances = func() ([]*computepb.Instance, error) {
+			resp, err := it.Next()
+			if resp == nil {
+				return nil, trace.Wrap(err)
+			}
+			return []*computepb.Instance{resp}, trace.Wrap(err)
+		}
+	}
+
 	for {
-		resp, err := it.Next()
+		resp, err := getInstances()
 		if errors.Is(err, iterator.Done) {
 			return instances, nil
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		inst := toInstance(resp)
-		inst.ProjectID = projectID
-		instances = append(instances, inst)
+		for _, rawInst := range resp {
+			inst := toInstance(rawInst)
+			inst.ProjectID = projectID
+			instances = append(instances, inst)
+		}
 	}
 }
 
@@ -247,14 +287,18 @@ func (clt *instancesClient) GetInstance(ctx context.Context, req *InstanceReques
 	return inst, nil
 }
 
-func formatSSHKey(user string, pubKey []byte, expires time.Time) string {
+func formatSSHKey(user string, pubKey ssh.PublicKey, expires time.Time) string {
 	const iso8601Format = "2006-01-02T15:04:05-0700"
-	return fmt.Sprintf(`%s:%s google-ssh {"userName":%q,"expireOn":%q}`,
-		user, bytes.TrimSpace(pubKey), user, expires.Format(iso8601Format),
+	return fmt.Sprintf(`%s:%s %s google-ssh {"userName":%q,"expireOn":%q}`,
+		user,
+		pubKey.Type(),
+		base64.StdEncoding.EncodeToString(bytes.TrimSpace(pubKey.Marshal())),
+		user,
+		expires.Format(iso8601Format),
 	)
 }
 
-func addSSHKey(meta *computepb.Metadata, user string, pubKey []byte, expires time.Time) {
+func addSSHKey(meta *computepb.Metadata, user string, pubKey ssh.PublicKey, expires time.Time) {
 	var sshKeyItem *computepb.Items
 	for _, item := range meta.GetItems() {
 		if item.GetKey() == "ssh-keys" {
@@ -304,17 +348,18 @@ func (clt *instancesClient) AddSSHKey(ctx context.Context, req *SSHKeyRequest) e
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	fmt.Printf("AddSSHKey: %+v %s\n", req, req.PublicKey.Marshal())
 	if req.PublicKey == nil {
 		return trace.BadParameter("public key not set")
 	}
-	addSSHKey(req.Instance.metadata, req.User, req.PublicKey.Marshal(), req.Expires)
+	addSSHKey(req.Instance.metadata, req.User, req.PublicKey, req.Expires)
 	op, err := clt.InstanceClient.SetMetadata(ctx, &computepb.SetMetadataInstanceRequest{
 		Instance:         req.Instance.Name,
 		MetadataResource: req.Instance.metadata,
 		Project:          req.Instance.ProjectID,
 		Zone:             req.Instance.Zone,
 	})
-	if err == nil {
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	if err := op.Wait(ctx); err != nil {
@@ -407,6 +452,7 @@ func RunCommand(ctx context.Context, req *RunCommandRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+	fmt.Printf("RunCommand: %+v\n", req)
 
 	// Generate keys and add them to the instance.
 	signer, publicKey, err := generateKeyPair()
@@ -414,8 +460,16 @@ func RunCommand(ctx context.Context, req *RunCommandRequest) error {
 		return trace.Wrap(err)
 	}
 	instance, err := req.Client.GetInstance(ctx, &req.InstanceRequest)
+	fmt.Printf("Instance: %+v\n", instance)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if len(instance.hostKeys) == 0 {
+		// TODO: link to docs for fix.
+		return trace.NotFound("Instances %v is missing host keys.", req.Name)
+	}
+	if len(instance.ipAddress) == 0 {
+		return trace.NotFound("Instance %v has no ip address.", req.Name)
 	}
 	user := "teleport"
 	keyReq := &SSHKeyRequest{
@@ -429,8 +483,12 @@ func RunCommand(ctx context.Context, req *RunCommandRequest) error {
 
 	// Clean up the key when we're done.
 	defer func() {
+		var err error
+		if keyReq.Instance, err = req.Client.GetInstance(ctx, &req.InstanceRequest); err != nil {
+			logrus.WithError(err).Warn("Error fetching instance.")
+		}
 		if err := req.Client.RemoveSSHKey(ctx, keyReq); err != nil {
-			logrus.WithError(err).Warn("Error deleting SSH Key")
+			logrus.WithError(err).Warn("Error deleting SSH Key.")
 		}
 	}()
 
@@ -446,7 +504,7 @@ func RunCommand(ctx context.Context, req *RunCommandRequest) error {
 		},
 		HostKeyCallback: callback,
 	}
-	addr := net.JoinHostPort(instance.hostname, "22")
+	addr := net.JoinHostPort(instance.ipAddress, "22")
 	conn, err := req.dialer(ctx, "tcp", addr)
 	if err != nil {
 		return trace.Wrap(err)
@@ -467,13 +525,17 @@ func RunCommand(ctx context.Context, req *RunCommandRequest) error {
 	// Execute the command.
 	var b bytes.Buffer
 	session.Stdout = &b
+	fmt.Printf("running command: %q\n", req.Script)
 	if err := session.Run(req.Script); err != nil {
 		if errors.Is(err, &ssh.ExitError{}) {
 			logrus.WithError(err).Debugf("Command exited with error.")
 			logrus.Debugf(b.String())
 		}
+		fmt.Println("command finished with error")
 		return trace.Wrap(err)
 	}
+	fmt.Println("command finished")
+	fmt.Println(b.String())
 
 	return nil
 }

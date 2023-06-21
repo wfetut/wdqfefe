@@ -128,7 +128,7 @@ type AzureMatcher struct {
 
 // GCPMatcher matches GCP resources.
 type GCPMatcher struct {
-	// Types are GKE resource types to match: "gke".
+	// Types are GKE resource types to match: "gke", "vm".
 	Types []string `yaml:"types,omitempty"`
 	// Locations are GCP locations to search resources for.
 	Locations []string `yaml:"locations,omitempty"`
@@ -136,6 +136,10 @@ type GCPMatcher struct {
 	Tags types.Labels `yaml:"tags,omitempty"`
 	// ProjectIDs are the GCP project IDs where the resources are deployed.
 	ProjectIDs []string `yaml:"project_ids,omitempty"`
+
+	ServiceAccounts []string `yaml:"service_accounts,omitempty"`
+
+	Params InstallerParams
 }
 
 // SimplifyAzureMatchers returns simplified Azure Matchers.
@@ -413,10 +417,13 @@ var SupportedAzureMatchers = []string{
 const (
 	// GCPMatcherKubernetes is the GCP matcher type for GCP kubernetes.
 	GCPMatcherKubernetes = "gke"
+	// GCPMatcherVM is the GCP matcher for GCP VMs.
+	GCPMatcherVM = "vm"
 )
 
 // SupportedGCPMatchers is list of GCP services currently supported by the
 // Teleport discovery service.
 var SupportedGCPMatchers = []string{
 	GCPMatcherKubernetes,
+	GCPMatcherVM,
 }

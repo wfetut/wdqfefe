@@ -175,7 +175,7 @@ func TestRunCommand(t *testing.T) {
 		Name:      "my-instance",
 		Zone:      "my-zone",
 		ProjectID: "my-project-id",
-		hostname:  "test.example.com",
+		ipAddress: "test.example.com",
 		metadata:  &computepb.Metadata{},
 	}
 	mock.setInstance(inst)

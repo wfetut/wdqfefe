@@ -18,6 +18,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -28,8 +29,9 @@ import (
 
 // Instances contains information about discovered cloud instances from any provider.
 type Instances struct {
-	*EC2Instances
-	*AzureInstances
+	EC2   *EC2Instances
+	Azure *AzureInstances
+	GCP   *GCPInstances
 }
 
 // Fetcher fetches instances from a particular cloud provider.
@@ -72,6 +74,7 @@ func (w *Watcher) sendInstancesOrLogError(instancesColl []Instances, err error) 
 // Run starts the watcher's main watch loop.
 func (w *Watcher) Run() {
 	if len(w.fetchers) == 0 {
+		fmt.Println("no fetchers")
 		return
 	}
 	ticker := time.NewTicker(w.fetchInterval)

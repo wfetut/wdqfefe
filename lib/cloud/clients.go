@@ -642,8 +642,8 @@ func (c *cloudClients) initGCPInstancesClient(ctx context.Context) (gcp.Instance
 	gcpInstances, err := gcp.NewInstancesClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
-		c.gcpInstances = gcpInstances
 	}
+	c.gcpInstances = gcpInstances
 	return gcpInstances, nil
 }
 

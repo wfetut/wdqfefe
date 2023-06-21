@@ -484,6 +484,12 @@ const (
 	// on the node.
 	VMIDLabel = TeleportNamespace + "/vm-id"
 
+	ProjectIDLabel = TeleportNamespace + "/project-id"
+
+	ZoneLabel = TeleportNamespace + "/zone"
+
+	NameLabel = TeleportNamespace + "/name"
+
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
 

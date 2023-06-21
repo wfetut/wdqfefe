@@ -897,6 +897,8 @@ const (
 // when templating the script to be executed.
 const AzureInviteTokenName = "azure-discovery-token"
 
+const GCPInviteTokenName = "gcp-discovery-token"
+
 const (
 	// FilePermissions are safe default permissions to use when
 	// creating files.
