@@ -489,6 +489,7 @@ func (u *uiResourceCollector) getResourcesAndUpdateCurrent(ctx context.Context) 
 		return trace.Wrap(err)
 	}
 
+	u.defineCollectorAsInitialized()
 	return nil
 }
 
@@ -594,6 +595,13 @@ func (u *uiResourceCollector) processEventAndUpdateCurrent(ctx context.Context, 
 
 func (u *uiResourceCollector) resourceKind() string {
 	return types.KindNode
+}
+
+func (u *uiResourceCollector) defineCollectorAsInitialized() {
+	u.once.Do(func() {
+		// mark watcher as initialized.
+		close(u.initializationC)
+	})
 }
 
 const (
