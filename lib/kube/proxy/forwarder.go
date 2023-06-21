@@ -2293,15 +2293,14 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*reverseproxy.Fo
 		return nil, trace.Wrap(err)
 	}
 
-	forwarder := reverseproxy.New(
-		true,
+	forwarder, err := reverseproxy.New(
 		reverseproxy.WithFlushInterval(100*time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
 		reverseproxy.WithLogger(f.log),
-		reverseproxy.WithErrorHandler(reverseproxy.ErrorHandlerFunc(f.formatForwardResponseError)),
+		reverseproxy.WithErrorHandler(f.formatForwardResponseError),
 	)
 
-	return forwarder, nil
+	return forwarder, trace.Wrap(err)
 }
 
 // getOrCreateRequestContext creates a new certificate request for a given context,

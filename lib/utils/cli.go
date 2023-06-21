@@ -124,6 +124,7 @@ type Logger interface {
 type FieldLoggerWithWriter interface {
 	logrus.FieldLogger
 	Writer() *io.PipeWriter
+	WriterLevel(logrus.Level) *io.PipeWriter
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging

@@ -94,14 +94,14 @@ func NewAWSSignerHandler(ctx context.Context, config SignerHandlerConfig) (http.
 	}
 	// Explicitly passing false here to be clear that we always want the host
 	// header to be the same as the outbound request's URL host.
-	handler.fwd = reverseproxy.New(
-		false,
+	var err error
+	handler.fwd, err = reverseproxy.New(
 		reverseproxy.WithRoundTripper(config.RoundTripper),
 		reverseproxy.WithLogger(config.Log),
 		reverseproxy.WithErrorHandler(reverseproxy.ErrorHandlerFunc(handler.formatForwardResponseError)),
 	)
 
-	return handler, nil
+	return handler, trace.Wrap(err)
 }
 
 // formatForwardResponseError converts an error to a status code and writes the code to a response.

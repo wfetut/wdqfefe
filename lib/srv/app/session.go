@@ -184,8 +184,7 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 	}
 
 	delegate := reverseproxy.NewHeaderRewriter()
-	sess.handler = reverseproxy.New(
-		false,
+	sess.handler, err = reverseproxy.New(
 		reverseproxy.WithFlushInterval(100*time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
 		reverseproxy.WithLogger(sess.log),

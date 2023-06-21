@@ -100,14 +100,17 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	hr := common.NewHeaderRewriter(delegate)
 
 	// Create a forwarder that will be used to forward requests.
-	fwd := reverseproxy.New(true,
+	fwd, err := reverseproxy.New(
+		reverseproxy.WithPassHostHeader(),
 		reverseproxy.WithFlushInterval(100*time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
 		reverseproxy.WithLogger(h.log),
-		reverseproxy.WithErrorHandler(reverseproxy.ErrorHandlerFunc(h.handleForwardError)),
+		reverseproxy.WithErrorHandler(h.handleForwardError),
 		reverseproxy.WithRewriter(hr),
 	)
-
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &session{
 		fwd: fwd,
 		ws:  ws,

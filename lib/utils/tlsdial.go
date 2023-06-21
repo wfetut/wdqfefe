@@ -13,9 +13,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// DialFunc dials without context
-type DialFunc func(network, addr string) (net.Conn, error)
-
 // DialWithContextFunc dials with context
 type DialWithContextFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 

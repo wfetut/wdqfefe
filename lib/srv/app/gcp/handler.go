@@ -136,13 +136,12 @@ func newGCPHandler(ctx context.Context, config HandlerConfig) (*handler, error) 
 
 	// Explicitly passing false here to be clear that we always want the host
 	// header to be the same as the outbound request's URL host.
-	svc.fwd = reverseproxy.New(
-		false,
+	svc.fwd, err = reverseproxy.New(
 		reverseproxy.WithRoundTripper(config.RoundTripper),
 		reverseproxy.WithLogger(config.Log),
-		reverseproxy.WithErrorHandler(reverseproxy.ErrorHandlerFunc(svc.formatForwardResponseError)),
+		reverseproxy.WithErrorHandler(svc.formatForwardResponseError),
 	)
-	return svc, nil
+	return svc, trace.Wrap(err)
 }
 
 // RoundTrip handles incoming requests and forwards them to the proper API.

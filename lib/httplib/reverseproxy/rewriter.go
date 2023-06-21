@@ -28,7 +28,7 @@ type Rewriter interface {
 	Rewrite(*http.Request)
 }
 
-// NewHeaderRewriter creates a new HeaderRewriter middleware.
+// NewHeaderRewriter creates a new HeaderRewriter.
 func NewHeaderRewriter() *HeaderRewriter {
 	h, err := os.Hostname()
 	if err != nil {
@@ -37,15 +37,10 @@ func NewHeaderRewriter() *HeaderRewriter {
 	return &HeaderRewriter{TrustForwardHeader: true, Hostname: h}
 }
 
-// HeaderRewriter is responsible for removing hop-by-hop headers and setting forwarding headers.
+// HeaderRewriter re-sets the X-Forwarded-* headers and sets X-Real-IP header.
 type HeaderRewriter struct {
 	TrustForwardHeader bool
 	Hostname           string
-}
-
-// clean up IP in case if it is ipv6 address and it has {zone} information in it, like "[fe80::d806:a55d:eb1b:49cc%vEthernet (vmxnet3 Ethernet Adapter - Virtual Switch)]:64692".
-func ipv6fix(clientIP string) string {
-	return strings.Split(clientIP, "%")[0]
 }
 
 // Rewrite request headers.
@@ -56,22 +51,11 @@ func (rw *HeaderRewriter) Rewrite(req *http.Request) {
 		}
 	}
 
-	if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
-		clientIP = ipv6fix(clientIP)
+	// Set X-Real-IP header if it is not set to the IP address of the client making the request.
+	maybeSetXRealIP(req)
 
-		if req.Header.Get(XRealIP) == "" {
-			req.Header.Set(XRealIP, clientIP)
-		}
-	}
-
-	xfProto := req.Header.Get(XForwardedProto)
-	if xfProto == "" {
-		if req.TLS != nil {
-			req.Header.Set(XForwardedProto, "https")
-		} else {
-			req.Header.Set(XForwardedProto, "http")
-		}
-	}
+	// Set X-Forwarded-Proto header if it is not set to the scheme of the request.
+	maybeSetForwardedProto(req)
 
 	if xfPort := req.Header.Get(XForwardedPort); xfPort == "" {
 		req.Header.Set(XForwardedPort, forwardedPort(req))
@@ -86,6 +70,8 @@ func (rw *HeaderRewriter) Rewrite(req *http.Request) {
 	}
 }
 
+// forwardedPort returns the port part of the Host header if present, otherwise,
+// returns "80" if the scheme is http or "443" if the scheme is https or wss.
 func forwardedPort(req *http.Request) string {
 	if req == nil {
 		return ""
@@ -104,4 +90,36 @@ func forwardedPort(req *http.Request) string {
 	}
 
 	return "80"
+}
+
+// maybeSetXRealIP sets X-Real-IP header if it is not set to the IP address of
+// the client making the request.
+func maybeSetXRealIP(req *http.Request) {
+	if req.Header.Get(XRealIP) != "" {
+		return
+	}
+	if clientIP, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
+		clientIP = ipv6fix(clientIP)
+		req.Header.Set(XRealIP, clientIP)
+	}
+}
+
+// maybeSetForwardedProto sets X-Forwarded-Proto header if it is not set to the
+// scheme of the request.
+func maybeSetForwardedProto(req *http.Request) {
+	if req.Header.Get(XForwardedProto) != "" {
+		return
+	}
+
+	if req.TLS != nil {
+		req.Header.Set(XForwardedProto, "https")
+	} else {
+		req.Header.Set(XForwardedProto, "http")
+	}
+}
+
+// clean up IP in case if it is ipv6 address and it has {zone} information in
+// it, like "[fe80::d806:a55d:eb1b:49cc%vEthernet (vmxnet3 Ethernet Adapter - Virtual Switch)]:64692".
+func ipv6fix(clientIP string) string {
+	return strings.Split(clientIP, "%")[0]
 }
