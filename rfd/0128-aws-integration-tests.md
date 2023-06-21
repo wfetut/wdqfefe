@@ -190,7 +190,12 @@ to access it. This will allow us to run the integration tests without having to
 wait for the EKS cluster to be created. Since we can interact with the EKS API
 and we do not need to run any workloads on the cluster, the existing EKS cluster
 does not need to have dedicated nodes to run workloads. A single control plane
-deployed on a single availability zone is enough.
+deployed on a single availability zone is enough. To ensure that the EKS cluster
+is up to date and we don't have to deal with the cluster upgrades having
+major impacts on the development, we will run the Terraform script to destroy
+and recreate the cluster during the weekend. This ensures that the EKS cluster is
+available for the E2E tests during the week (with minor downtime on weekends)
+and that we don't have to deal with cluster upgrades/security patches.
 
 ## Security
 
