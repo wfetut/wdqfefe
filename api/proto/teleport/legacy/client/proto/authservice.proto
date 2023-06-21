@@ -1865,6 +1865,9 @@ message ListResourcesRequest {
   // UsePreviewAsRoles indicates that the response should include all resources
   // the caller would be able to access with their preview_as_roles
   bool UsePreviewAsRoles = 12 [(gogoproto.jsontag) = "use_preview_as_roles,omitempty"];
+  // Kinds is a list of kinds to match against a resource's kind. This can be used in a
+  // unified resource request that can include multiple types.
+  repeated string Kinds = 13 [(gogoproto.jsontag) = "kinds,omitempty"];
 }
 
 // ListResourceResponse response of ListResources.
