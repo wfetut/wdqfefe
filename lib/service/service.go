@@ -258,6 +258,15 @@ const (
 	TeleportOKEvent = "TeleportOKEvent"
 )
 
+const (
+	// embeddingInitialDelay is the time to wait before the first embedding
+	// routine is started.
+	embeddingInitialDelay = 10 * time.Second
+	// embeddingPeriod is the time between two embedding routines.
+	// A seventh jitter is applied on the period.
+	embeddingPeriod = time.Hour
+)
+
 // Connector has all resources process needs to connect to other parts of the
 // cluster: client and identity.
 type Connector struct {
@@ -1706,16 +1715,16 @@ func (process *TeleportProcess) initAuthService() error {
 		log.Debugf("Starting embedding watcher")
 		openAIClient := ai.NewClient(cfg.Auth.AssistAPIKey)
 		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
-			AIClient:      openAIClient,
-			EmbeddingsMap: authServer.EmbeddingsMap,
-			EmbeddingSrv:  authServer,
-			NodeSrv:       authServer,
-			Log:           log,
-			Jitter:        retryutils.NewFullJitter(),
+			AIClient:            openAIClient,
+			EmbeddingsRetriever: authServer.EmbeddingsMap,
+			EmbeddingSrv:        authServer,
+			NodeSrv:             authServer,
+			Log:                 log,
+			Jitter:              retryutils.NewFullJitter(),
 		})
 
 		process.RegisterFunc("ai.embedding-processor", func() error {
-			return embeddingProcessor.Run(process.ExitContext(), ai.EmbeddingPeriod)
+			return embeddingProcessor.Run(process.ExitContext(), embeddingInitialDelay, embeddingPeriod)
 		})
 	}
 
