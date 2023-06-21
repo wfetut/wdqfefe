@@ -159,7 +159,7 @@ export function useCreateDatabase() {
         // Check if the error is a result of an existing database.
         if (err instanceof ApiError) {
           if (err.response.status === 409) {
-            const isAwsRds = Boolean(db.awsRds && db.awsRds.accountId);
+            const isAwsRds = Boolean(db.awsRdsDb && db.awsRdsDb.accountId);
             return attemptDbServerQueryAndBuildErrMsg(db.name, isAwsRds);
           }
         }
@@ -195,6 +195,7 @@ export function useCreateDatabase() {
           ...(agentMeta as DbMeta),
           resourceName: db.name,
           agentMatcherLabels: db.labels,
+          awsRdsDb: db.awsRdsDb,
         });
         setAttempt({ status: 'success' });
         return;
@@ -269,8 +270,8 @@ export function useCreateDatabase() {
 
     return (
       createdDb.uri !== db.uri ||
-      createdDb.awsRds?.accountId !== db.awsRds?.accountId ||
-      createdDb.awsRds?.resourceId !== db.awsRds?.resourceId
+      createdDb.awsRdsDb?.accountId !== db.awsRdsDb?.accountId ||
+      createdDb.awsRdsDb?.resourceId !== db.awsRdsDb?.resourceId
     );
   }
 

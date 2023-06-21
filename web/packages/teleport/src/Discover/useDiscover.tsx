@@ -40,6 +40,7 @@ import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
 import type { AgentLabel } from 'teleport/services/agents';
 import type { ResourceSpec } from './SelectResource';
+import type { AwsRdsDatabase } from 'teleport/services/integrations';
 
 export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
@@ -444,6 +445,7 @@ export type DbMeta = BaseMeta & {
   // The enroll event expects num count of enrolled RDS's, update accordingly.
   db: Database;
   integrationName?: string;
+  awsRdsDb: AwsRdsDatabase;
 };
 
 // KubeMeta describes the fields for a kube resource
