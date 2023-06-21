@@ -255,7 +255,7 @@ func TestResourceIDs(t *testing.T) {
 				Name:            "cluster",
 				SubResourceName: "/service_account*",
 			}},
-			expected:         `["/one/service_account/cluster//service_account*"]`,
+			expected:         `["/one/serviceaccount/cluster//service_account*"]`,
 			expectParseError: true,
 		},
 		{
@@ -265,7 +265,7 @@ func TestResourceIDs(t *testing.T) {
 				Kind:        KindKubeServiceAccount,
 				Name:        "cluster",
 			}},
-			expected:         `["/one/service_account/cluster"]`,
+			expected:         `["/one/serviceaccount/cluster"]`,
 			expectParseError: true,
 		},
 		{
@@ -276,7 +276,7 @@ func TestResourceIDs(t *testing.T) {
 				Name:            "cluster",
 				SubResourceName: "namespace/service_account*",
 			}},
-			expected: `["/one/service_account/cluster/namespace/service_account*"]`,
+			expected: `["/one/serviceaccount/cluster/namespace/service_account*"]`,
 		},
 		{
 			desc: "persistent_volume_claim resource name with missing namespace",
@@ -286,7 +286,7 @@ func TestResourceIDs(t *testing.T) {
 				Name:            "cluster",
 				SubResourceName: "/persistent_volume_claim*",
 			}},
-			expected:         `["/one/persistent_volume_claim/cluster//persistent_volume_claim*"]`,
+			expected:         `["/one/persistentvolumeclaim/cluster//persistent_volume_claim*"]`,
 			expectParseError: true,
 		},
 		{
@@ -296,7 +296,7 @@ func TestResourceIDs(t *testing.T) {
 				Kind:        KindKubePersistentVolumeClaim,
 				Name:        "cluster",
 			}},
-			expected:         `["/one/persistent_volume_claim/cluster"]`,
+			expected:         `["/one/persistentvolumeclaim/cluster"]`,
 			expectParseError: true,
 		},
 		{
@@ -346,7 +346,7 @@ func TestResourceIDs(t *testing.T) {
 				Kind:        KindKubePersistentVolume,
 				Name:        "cluster",
 			}},
-			expected:         `["/one/persistent_volume/cluster"]`,
+			expected:         `["/one/persistentvolume/cluster"]`,
 			expectParseError: true,
 		},
 		{
@@ -357,7 +357,7 @@ func TestResourceIDs(t *testing.T) {
 				Name:            "cluster",
 				SubResourceName: "persistent_volume*",
 			}},
-			expected: `["/one/persistent_volume/cluster/persistent_volume*"]`,
+			expected: `["/one/persistentvolume/cluster/persistent_volume*"]`,
 		},
 		{
 			desc: "cluster_role resource name with missing namespace and pod name",
@@ -366,7 +366,7 @@ func TestResourceIDs(t *testing.T) {
 				Kind:        KindKubeClusterRole,
 				Name:        "cluster",
 			}},
-			expected:         `["/one/cluster_role/cluster"]`,
+			expected:         `["/one/clusterrole/cluster"]`,
 			expectParseError: true,
 		},
 		{
@@ -377,7 +377,7 @@ func TestResourceIDs(t *testing.T) {
 				Name:            "cluster",
 				SubResourceName: "cluster_role*",
 			}},
-			expected: `["/one/cluster_role/cluster/cluster_role*"]`,
+			expected: `["/one/clusterrole/cluster/cluster_role*"]`,
 		},
 		{
 			desc: "cluster_role_binding resource name with missing namespace and pod name",
@@ -386,7 +386,7 @@ func TestResourceIDs(t *testing.T) {
 				Kind:        KindKubeClusterRoleBinding,
 				Name:        "cluster",
 			}},
-			expected:         `["/one/cluster_role_binding/cluster"]`,
+			expected:         `["/one/clusterrolebinding/cluster"]`,
 			expectParseError: true,
 		},
 		{
@@ -397,7 +397,7 @@ func TestResourceIDs(t *testing.T) {
 				Name:            "cluster",
 				SubResourceName: "cluster_role_binding*",
 			}},
-			expected: `["/one/cluster_role_binding/cluster/cluster_role_binding*"]`,
+			expected: `["/one/clusterrolebinding/cluster/cluster_role_binding*"]`,
 		},
 		{
 			desc: "certificate_signing_request resource name with missing namespace and pod name",
@@ -406,7 +406,7 @@ func TestResourceIDs(t *testing.T) {
 				Kind:        KindKubeCertificateSigningRequest,
 				Name:        "cluster",
 			}},
-			expected:         `["/one/certificate_signing_request/cluster"]`,
+			expected:         `["/one/certificatesigningrequest/cluster"]`,
 			expectParseError: true,
 		},
 		{
@@ -417,7 +417,7 @@ func TestResourceIDs(t *testing.T) {
 				Name:            "cluster",
 				SubResourceName: "certificate_signing_request*",
 			}},
-			expected: `["/one/certificate_signing_request/cluster/certificate_signing_request*"]`,
+			expected: `["/one/certificatesigningrequest/cluster/certificate_signing_request*"]`,
 		},
 	}
 	for _, tc := range testCases {

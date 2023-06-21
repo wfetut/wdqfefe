@@ -161,7 +161,6 @@ func TestRole_GetKubeResources(t *testing.T) {
 		want                []KubernetesResource
 		assertErrorCreation require.ErrorAssertionFunc
 	}{
-		// TODO(tigrato): add more tests once we support other kubernetes resources.
 		{
 			name: "v7 with error",
 			args: args{
@@ -235,13 +234,14 @@ func TestRole_GetKubeResources(t *testing.T) {
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: []KubernetesResource{
+			want: append([]KubernetesResource{
 				{
 					Kind:      KindKubePod,
 					Namespace: "test",
 					Name:      "test",
 				},
 			},
+				appendV7KubeResources()...),
 		},
 		{
 			name: "v6 to v7 with wildcard",
@@ -279,13 +279,14 @@ func TestRole_GetKubeResources(t *testing.T) {
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: []KubernetesResource{
+			want: append([]KubernetesResource{
 				{
 					Kind:      KindKubePod,
 					Namespace: "test",
 					Name:      "test",
 				},
 			},
+				appendV7KubeResources()...),
 		},
 		{
 			name: "v5 to v7: populate with defaults.",
@@ -337,4 +338,21 @@ func TestRole_GetKubeResources(t *testing.T) {
 			require.Empty(t, got)
 		})
 	}
+}
+
+func appendV7KubeResources() []KubernetesResource {
+	resources := []KubernetesResource{}
+	// append other kubernetes resources
+	for _, resource := range KubernetesResourcesKinds {
+		if resource == KindKubePod {
+			continue
+		}
+		resources = append(resources, KubernetesResource{
+			Kind:      resource,
+			Namespace: Wildcard,
+			Name:      Wildcard,
+		},
+		)
+	}
+	return resources
 }
