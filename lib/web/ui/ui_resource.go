@@ -23,7 +23,7 @@ import (
 )
 
 // Unified Resource describes a unified resource for webapp
-type UIResource struct {
+type UnifiedResource struct {
 	// Kind is the resource kind
 	Kind string `json:"kind"`
 	// Name is this server name
@@ -35,19 +35,23 @@ type UIResource struct {
 
 	// Addr is the address of the Server and Desktop
 	Addr string `json:"addr"`
+	// SSHLogins is the list of logins this user can use on this server. This exists for Databases and Servers
+	SSHLogins []string `json:"sshLogins"`
+	// Logins is the list of logins this user can use on this desktop.
+	Logins []string `json:"logins"`
 }
 
 // i need to make this an actual interface
 
 // MakeUIResource creates server objects for webapp
-func MakeUIResource(clusterName string, resources []types.ResourceWithLabels, accessChecker services.AccessChecker) ([]UIResource, error) {
-	uiResources := []UIResource{}
+func MakeUIResource(clusterName string, resources []types.ResourceWithLabels, accessChecker services.AccessChecker) ([]UnifiedResource, error) {
+	uiResources := []UnifiedResource{}
 	for _, resource := range resources {
 		switch r := resource.(type) {
 		case types.Server:
 			serverLabels := r.GetAllLabels()
 			uiLabels := makeLabels(serverLabels)
-			uiResources = append(uiResources, UIResource{
+			uiResources = append(uiResources, UnifiedResource{
 				Kind:   r.GetKind(),
 				Name:   r.GetHostname(),
 				Labels: uiLabels,
@@ -59,21 +63,21 @@ func MakeUIResource(clusterName string, resources []types.ResourceWithLabels, ac
 			// 	return nil, trace.Wrap(err)
 			// }
 			uiLabels := makeLabels(r.GetAllLabels())
-			uiResources = append(uiResources, UIResource{
+			uiResources = append(uiResources, UnifiedResource{
 				Kind:   r.GetKind(),
 				Name:   r.GetName(),
 				Labels: uiLabels,
 			})
 		case types.AppServer:
 			uiLabels := makeLabels(r.GetAllLabels())
-			uiResources = append(uiResources, UIResource{
+			uiResources = append(uiResources, UnifiedResource{
 				Kind:   r.GetKind(),
 				Name:   r.GetName(),
 				Labels: uiLabels,
 			})
 		case types.WindowsDesktop:
 			uiLabels := makeLabels(r.GetAllLabels())
-			uiResources = append(uiResources, UIResource{
+			uiResources = append(uiResources, UnifiedResource{
 				Kind:   r.GetKind(),
 				Name:   r.GetName(),
 				Labels: uiLabels,

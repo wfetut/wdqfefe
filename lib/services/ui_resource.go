@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"sync"
-	"sync/atomic"
 
 	"github.com/google/btree"
 	"github.com/gravitational/teleport"
@@ -31,10 +30,6 @@ type Config struct {
 	EventsOff bool
 	// BufferSize sets up event buffer size
 	BufferSize int
-	// Mirror mode is used when the memory backend is used for caching. In mirror
-	// mode, record IDs for Put and PutRange requests are re-used (instead of
-	// generating fresh ones) and expiration is turned off.
-	Mirror bool
 }
 
 // New creates a new memory cache that holds the unified resources
@@ -116,17 +111,11 @@ func (p *prefixItem) Less(iother btree.Item) bool {
 type Item struct {
 	// Key is a key of the key value item
 	Key []byte
-	// Value is a value of the key value item
+	// Value represents a resource such as types.Server or types.DatabaseServer
 	Value types.ResourceWithLabels
-	// ID is a record ID, newer records have newer ids
-	ID int64
 }
 
 type UIResourceCache struct {
-	// nextID is a next record ID
-	// intentionally placed first to ensure 64-bit alignment
-	nextID int64
-
 	*sync.Mutex
 	*log.Entry
 	Config
@@ -175,11 +164,7 @@ func (c *UIResourceCache) Create(ctx context.Context, i Item) error {
 		Type: types.OpPut,
 		Item: i,
 	}
-	event.Item.ID = c.generateID()
 	c.processEvent(event)
-	// if !c.EventsOff {
-	// 	c.buf.Emit(event)
-	// }
 	return nil
 }
 
@@ -211,11 +196,7 @@ func (c *UIResourceCache) Update(ctx context.Context, i Item) error {
 		Type: types.OpPut,
 		Item: i,
 	}
-	event.Item.ID = c.generateID()
 	c.processEvent(event)
-	// if !m.EventsOff {
-	// 	m.buf.Emit(event)
-	// }
 	return nil
 }
 
@@ -231,7 +212,6 @@ func (c *UIResourceCache) Put(ctx context.Context, i Item) error {
 		Type: types.OpPut,
 		Item: i,
 	}
-	event.Item.ID = c.generateID()
 	c.processEvent(event)
 	return nil
 }
@@ -251,7 +231,6 @@ func (c *UIResourceCache) PutRange(ctx context.Context, items []Item) error {
 			Type: types.OpPut,
 			Item: item,
 		}
-		event.Item.ID = c.generateID()
 		c.processEvent(event)
 	}
 	return nil
@@ -444,9 +423,7 @@ func NewUIResourceWatcher(ctx context.Context, cfg UIResourceWatcherConfig) (*UI
 		return nil, trace.Wrap(err)
 	}
 
-	mem, err := NewUIResourceCache(Config{
-		Mirror: true,
-	})
+	mem, err := NewUIResourceCache(Config{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -503,7 +480,6 @@ func (u *uiResourceCollector) getAndUpdateNodes(ctx context.Context) error {
 		nodes = append(nodes, Item{
 			Key:   backend.Key(prefix, node.GetNamespace(), node.GetName(), types.KindNode),
 			Value: node,
-			ID:    u.current.generateID(),
 		})
 	}
 	return u.current.PutRange(ctx, nodes)
@@ -519,7 +495,6 @@ func (u *uiResourceCollector) getAndUpdateDatabases(ctx context.Context) error {
 		dbs = append(dbs, Item{
 			Key:   backend.Key(prefix, db.GetNamespace(), db.GetName(), types.KindDatabaseServer),
 			Value: db,
-			ID:    u.current.generateID(),
 		})
 	}
 	return u.current.PutRange(ctx, dbs)
@@ -536,7 +511,6 @@ func (u *uiResourceCollector) getAndUpdateApps(ctx context.Context) error {
 		apps = append(apps, Item{
 			Key:   backend.Key(prefix, app.GetNamespace(), app.GetName(), types.KindApp),
 			Value: app,
-			ID:    u.current.generateID(),
 		})
 	}
 	return u.current.PutRange(ctx, apps)
@@ -553,15 +527,10 @@ func (u *uiResourceCollector) getAndUpdateDesktops(ctx context.Context) error {
 		desktops = append(desktops, Item{
 			Key:   backend.Key(prefix, desktop.GetMetadata().Namespace, desktop.GetName(), types.KindWindowsDesktop),
 			Value: desktop,
-			ID:    u.current.generateID(),
 		})
 	}
 
 	return u.current.PutRange(ctx, desktops)
-}
-
-func (c *UIResourceCache) generateID() int64 {
-	return atomic.AddInt64(&c.nextID, 1)
 }
 
 func (u *uiResourceCollector) notifyStale() {}
@@ -585,7 +554,6 @@ func (u *uiResourceCollector) processEventAndUpdateCurrent(ctx context.Context, 
 		u.current.Put(ctx, Item{
 			Key:   backend.Key(prefix, event.Resource.GetMetadata().Namespace, event.Resource.GetName(), event.Resource.GetKind()),
 			Value: event.Resource.(types.ResourceWithLabels),
-			ID:    u.current.generateID(),
 		})
 	default:
 		u.Log.Warnf("unsupported event type %s.", event.Type)
