@@ -1008,6 +1008,10 @@ func (t *WSStream) processMessages(ctx context.Context) {
 					websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
 					return
 				}
+				var closeErr *websocket.CloseError
+				if errors.As(err, &closeErr) && closeErr.Code == websocket.CloseNormalClosure {
+					return
+				}
 
 				msg := err.Error()
 				if len(bytes) > 0 {

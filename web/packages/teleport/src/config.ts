@@ -236,7 +236,8 @@ const cfg = {
       '/v1/webapi/assistant/conversations/:conversationId/title',
     assistGenerateSummaryPath: '/v1/webapi/assistant/title/summary',
     assistConversationWebSocketPath:
-      'wss://:hostname/v1/webapi/sites/:clusterId/assistant',
+      // 'wss://:hostname/v1/webapi/sites/:clusterId/assistant',
+      'wss://:hostname/v1/webapi/sites/:clusterId/assistant/v2',
     assistConversationHistoryPath:
       '/v1/webapi/assistant/conversations/:conversationId',
     assistExecuteCommandWebSocketPath:
@@ -696,7 +697,7 @@ const cfg = {
   ) {
     const searchParams = new URLSearchParams();
 
-    searchParams.set('access_token', accessToken);
+    // searchParams.set('access_token', accessToken);
     searchParams.set('conversation_id', conversationId);
 
     return (

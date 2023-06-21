@@ -117,6 +117,12 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
     window.clearTimeout(refreshWebSocketTimeout.current);
 
+    const initialPayload = {
+      access_token: getAccessToken(),
+    };
+
+    initialMessage = JSON.stringify(initialPayload);
+
     // refresh the websocket connection just before the ten-minute timeout of the session
     refreshWebSocketTimeout.current = window.setTimeout(
       () => setupWebSocket(conversationId),

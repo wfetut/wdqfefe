@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"html/template"
 	"io"
 	"net"
@@ -784,6 +785,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// WebSocket endpoint for the chat conversation
 	h.GET("/webapi/sites/:site/assistant", h.WithClusterAuth(h.assistant))
+	h.GET("/webapi/sites/:site/assistant/v2", h.WithClusterWSAuth(h.assistantV2))
 
 	// Sets the title for the conversation.
 	h.POST("/webapi/assistant/conversations/:conversation_id/title", h.WithAuth(h.setAssistantTitle))
@@ -3503,6 +3505,8 @@ type ContextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 // ClusterHandler is a authenticated handler that is called for some existing remote cluster
 type ClusterHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error)
 
+type ClusterWSHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite, ws *websocket.Conn) (any, error)
+
 // WithClusterAuth wraps a ClusterHandler to ensure that a request is authenticated to this proxy
 // (the same as WithAuth), as well as to grab the remoteSite (which can represent this local cluster
 // or a remote trusted cluster) as specified by the ":site" url parameter.
@@ -3515,6 +3519,31 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 
 		return fn(w, r, p, sctx, site)
 	})
+}
+
+func (h *Handler) WithClusterWSAuth(fn ClusterWSHandler) httprouter.Handle {
+	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+		sctx, site, ws, err := h.authenticateWSWithCluster(w, r, p)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return fn(w, r, p, sctx, site, ws)
+	})
+}
+
+func (h *Handler) authenticateWSWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, reversetunnel.RemoteSite, *websocket.Conn, error) {
+	sctx, ws, err := h.AuthenticateWSConnection(w, r)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	site, err := h.getSiteByParams(sctx, p)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	return sctx, site, ws, nil
 }
 
 // authenticateRequestWithCluster ensures that a request is authenticated
@@ -3846,6 +3875,54 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		}
 	}
 	return ctx, nil
+}
+
+// AuthenticateWSConnection
+func (h *Handler) AuthenticateWSConnection(w http.ResponseWriter, r *http.Request) (*SessionContext, *websocket.Conn, error) {
+	sessionCtx, err := h.AuthenticateRequest(w, r, false)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     func(r *http.Request) bool { return true },
+	}
+
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return nil, nil, trace.Errorf("failed to upgrade the connection to websocket: %w", err)
+	}
+	// ws close in case of error
+
+	ws.SetReadLimit(teleport.MaxHTTPRequestSize)
+
+	// read the first message which is the auth request
+	_, msg, err := ws.ReadMessage()
+	if err != nil {
+		return nil, nil, trace.Errorf("failed to read the first message: %w", err)
+	}
+
+	type authRequest struct {
+		// BearerToken is a token used to authenticate the user.
+		AccessToken string `json:"access_token"`
+	}
+
+	var req authRequest // TODO: add read limit
+	if err := json.Unmarshal(msg, &req); err != nil {
+		return nil, nil, trace.Errorf("failed to unmarshal the auth request: %w", err)
+	}
+
+	if req.AccessToken == "" {
+		return nil, nil, trace.AccessDenied("missing access token")
+	}
+
+	if err := sessionCtx.validateBearerToken(r.Context(), req.AccessToken); err != nil {
+		return nil, nil, trace.AccessDenied("bad bearer token")
+	}
+
+	return sessionCtx, ws, nil
 }
 
 // ProxyWithRoles returns a reverse tunnel proxy verifying the permissions
