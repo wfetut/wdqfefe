@@ -16,7 +16,7 @@ limitations under the License.
 
 import { formatDatabaseInfo } from 'shared/services/databases';
 
-import { Database, DatabaseService } from './types';
+import { Aws, Database, DatabaseService } from './types';
 
 export function makeDatabase(json: any): Database {
   const { name, desc, protocol, type, aws } = json;
@@ -24,11 +24,13 @@ export function makeDatabase(json: any): Database {
   const labels = json.labels || [];
 
   // Only setting RDS fields for now.
-  let rds;
+  let rds: Aws;
   if (aws && aws.rds) {
     rds = {
       rds: {
         resourceId: aws.rds.resource_id,
+        region: aws.rds.region,
+        subnets: aws.rds.subnets || [],
       },
     };
   }
