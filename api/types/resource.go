@@ -457,6 +457,23 @@ func MatchLabels(resource ResourceWithLabels, labels map[string]string) bool {
 	return true
 }
 
+// MatchKinds takes an array of strings that represent a Kind and
+// returns true if the resource's kind matches any item in the given array.
+func MatchKinds(resource ResourceWithLabels, kinds []string) bool {
+	if len(kinds) == 0 {
+		return true
+	}
+	resourceKind := resource.GetKind()
+
+	for _, kind := range kinds {
+		if kind == resourceKind {
+			return true
+		}
+	}
+
+	return false
+}
+
 // LabelPattern is a regexp that describes a valid label key
 const LabelPattern = `^[a-zA-Z/.0-9_:*-]+$`
 

@@ -40,7 +40,6 @@ class ResourceService {
       .then(json => {
         const items = json?.items || [];
 
-        console.log('items', items);
         return {
           agents: items.map(makeUIResource),
           startKey: json?.startKey,

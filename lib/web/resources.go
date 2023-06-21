@@ -391,12 +391,19 @@ func convertListResourcesRequest(r *http.Request, kind string) (*proto.ListResou
 
 	sortBy := types.GetSortByFromString(values.Get("sort"))
 
+	var kinds []string
+	reqKinds := values["kinds"]
+	if len(reqKinds) > 0 && reqKinds[0] != "" {
+		kinds = reqKinds
+	}
+
 	startKey := values.Get("startKey")
 	return &proto.ListResourcesRequest{
 		ResourceType:        kind,
 		Limit:               limit,
 		StartKey:            startKey,
 		SortBy:              sortBy,
+		Kinds:               kinds,
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
 		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",

@@ -1658,6 +1658,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		Labels:              req.Labels,
 		SearchKeywords:      req.SearchKeywords,
 		PredicateExpression: req.PredicateExpression,
+		Kinds:               req.Kinds,
 	}
 	req.Labels = nil
 	req.SearchKeywords = nil

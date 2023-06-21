@@ -127,18 +127,19 @@ type ResourceSeenKey struct{ name, addr string }
 // is not provided but is provided for kind `KubernetesCluster`.
 func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResourceFilter, seenMap map[ResourceSeenKey]struct{}) (bool, error) {
 	var specResource types.ResourceWithLabels
+	resourceKind := resource.GetKind()
 
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	resourceKey := ResourceSeenKey{}
-	switch resource.GetKind() {
+	switch resourceKind {
 	case types.KindNode,
 		types.KindDatabaseService,
 		types.KindKubernetesCluster, types.KindKubePod,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
 		types.KindUserGroup:
 		specResource = resource
-		resourceKey.name = fmt.Sprintf("%s/%s", specResource.GetName(), specResource.GetKind())
+		resourceKey.name = fmt.Sprintf("%s/%s", specResource.GetName(), resourceKind)
 
 	case types.KindKubeServer:
 		if seenMap != nil {
@@ -162,7 +163,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 			return false, trace.BadParameter("expected types.DatabaseServer, got %T", resource)
 		}
 		specResource = server.GetDatabase()
-		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), specResource.GetKind())
+		resourceKey.name = fmt.Sprintf("%s/%s/", specResource.GetName(), resourceKind)
 
 	default:
 		return false, trace.NotImplemented("filtering for resource kind %q not supported", filter.ResourceKind)
@@ -170,7 +171,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 
 	var match bool
 
-	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" {
+	if len(filter.Labels) == 0 && len(filter.SearchKeywords) == 0 && filter.PredicateExpression == "" && len(filter.Kinds) == 0 {
 		match = true
 	}
 
@@ -206,6 +207,10 @@ func matchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		case !match:
 			return false, nil
 		}
+	}
+
+	if !types.MatchKinds(resource, filter.Kinds) {
+		return false, nil
 	}
 
 	if !types.MatchLabels(resource, filter.Labels) {
@@ -245,12 +250,16 @@ func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchR
 
 // MatchResourceFilter holds the filter values to match against a resource.
 type MatchResourceFilter struct {
-	// ResourceKind is the resource kind and is used to fine tune the filtering.
+	// ResourceKinds is a list of resource kinds and is used to fine tune the filtering.
 	ResourceKind string
 	// Labels are the labels to match.
 	Labels map[string]string
 	// SearchKeywords is a list of search keywords to match.
 	SearchKeywords []string
+	// Kinds is a list of resourceKinds to be used when doing a unified resource query.
+	// It will filter out any kind not present in the list. If the list is not present or empty
+	// then all kinds are valid and will be returned (still subject to other included filters)
+	Kinds []string
 	// PredicateExpression holds boolean conditions that must be matched.
 	PredicateExpression string
 }

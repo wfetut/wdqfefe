@@ -1696,6 +1696,7 @@ func FakePaginate(resources []types.ResourceWithLabels, req proto.ListResourcesR
 		ResourceKind:        req.ResourceType,
 		Labels:              req.Labels,
 		SearchKeywords:      req.SearchKeywords,
+		Kinds:               req.Kinds,
 		PredicateExpression: req.PredicateExpression,
 	}
 
