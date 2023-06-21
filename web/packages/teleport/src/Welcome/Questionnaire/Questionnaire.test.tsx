@@ -27,6 +27,7 @@ describe('questionnaire', () => {
   beforeEach(() => {
     props = {
       full: false,
+      username: '',
     };
   });
 

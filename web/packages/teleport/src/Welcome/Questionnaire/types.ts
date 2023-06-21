@@ -20,6 +20,7 @@ export type QuestionnaireProps = {
   // full indicates if a full survey should be presented
   // false indicates that a partial survey is shown (some questions are skipped)
   full: boolean;
+  username: string;
   // optional callback to handle parent interaction
   onSubmit?: () => void;
 };

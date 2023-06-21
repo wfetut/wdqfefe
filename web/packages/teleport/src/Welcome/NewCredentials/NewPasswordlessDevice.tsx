@@ -26,9 +26,7 @@ import { UseTokenState } from 'teleport/Welcome/NewCredentials/types';
 
 import { SliderProps } from './NewCredentials';
 
-export function NewPasswordlessDevice(
-  props: UseTokenState & SliderProps
-) {
+export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
   const {
     submitAttempt,
     onSubmitWithWebauthn,

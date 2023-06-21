@@ -98,6 +98,7 @@ export function NewCredentials(props: NewCredentialsProps) {
     return (
       <Questionnaire
         full={true}
+        username={resetToken.user}
         onSubmit={() => setDisplayOnboardingQuestionnaire(false)}
       />
     );

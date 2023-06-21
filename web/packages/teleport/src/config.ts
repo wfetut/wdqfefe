@@ -241,6 +241,8 @@ const cfg = {
       '/v1/webapi/assistant/conversations/:conversationId',
     assistExecuteCommandWebSocketPath:
       'wss://:hostname/v1/webapi/command/:clusterId/execute',
+
+    surveyPath: '/v1/enterprise/cloud/survey',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {

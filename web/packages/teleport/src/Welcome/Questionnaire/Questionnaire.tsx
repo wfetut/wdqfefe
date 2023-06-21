@@ -17,14 +17,19 @@
 import React, { useState } from 'react';
 import { ButtonPrimary, Card, Text } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
-
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import { SurveyRequest, surveyService } from 'teleport/services/survey';
 import { QuestionnaireFormFields, QuestionnaireProps } from './types';
 import { Company } from './Company';
 import { Role } from './Role';
 import { Resources } from './Resources';
 import { supportedResources } from './constants';
 
-export const Questionnaire = ({ full, onSubmit }: QuestionnaireProps) => {
+export const Questionnaire = ({
+  full,
+  username,
+  onSubmit,
+}: QuestionnaireProps) => {
   const [formFields, setFormFields] = useState<QuestionnaireFormFields>({
     companyName: '',
     employeeCount: undefined,
@@ -48,6 +53,25 @@ export const Questionnaire = ({ full, onSubmit }: QuestionnaireProps) => {
       return;
     }
 
+    const request: SurveyRequest = {
+      companyName: formFields.companyName,
+      employeeCount: formFields.employeeCount,
+      resources: formFields.resources,
+      role: formFields.role,
+      team: formFields.team,
+      username: username,
+    };
+
+    // submit answers to BE for storage in Sales Center and Cluster state
+    surveyService.submitSurvey(request);
+
+    // submit a posthog event
+    userEventService.capturePreUserEvent({
+      event: CaptureEvent.PreUserOnboardQuestionnaireSubmitEvent,
+      username: username,
+    });
+
+    // callback to continue flow
     if (onSubmit) {
       onSubmit();
     }

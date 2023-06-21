@@ -48,7 +48,6 @@ export default function useToken(tokenId: string): UseTokenState {
     );
   }, []);
 
-  // todo have BE send an indication of survey
   function handleResponse(res: ChangedUserAuthn) {
     if (res.privateKeyPolicyEnabled) {
       setPrivateKeyPolicyEnabled(true);

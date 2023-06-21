@@ -20,7 +20,7 @@ import Image from 'design/Image';
 import { CheckboxInput } from 'design/Checkbox';
 import { useRule } from 'shared/components/Validation';
 
-import {requiredArrayField} from "teleport/Welcome/Questionnaire/constants";
+import { requiredArrayField } from 'teleport/Welcome/Questionnaire/constants';
 
 import { ResourcesProps, ResourceType } from './types';
 import { ResourceWrapper } from './ResourceWrapper';
