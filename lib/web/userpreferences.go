@@ -61,7 +61,7 @@ func (h *Handler) updateUserPreferences(_ http.ResponseWriter, r *http.Request,
 	}
 
 	preferences := &userpreferencesv1.UpdateUserPreferencesRequest{
-		Username: sctx.GetUser(),
+		Username:    sctx.GetUser(),
 		Preferences: &req,
 	}
 

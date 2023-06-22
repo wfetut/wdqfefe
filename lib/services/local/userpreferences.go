@@ -52,7 +52,16 @@ func NewUserPreferencesService(backend backend.Backend) *UserPreferencesService 
 
 // GetUserPreferences returns the user preferences for the given user.
 func (u *UserPreferencesService) GetUserPreferences(ctx context.Context,req *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.UserPreferences, error) {
-	return u.upsertUserPreferences(ctx, req.Username)
+	preferences, err := u.getUserPreferences(ctx, req.Username)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return DefaultUserPreferences, nil
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	return preferences, nil
 }
 
 // UpdateUserPreferences updates the user preferences for the given user.
@@ -64,45 +73,58 @@ func (u *UserPreferencesService) UpdateUserPreferences(ctx context.Context, req 
 		return trace.Wrap(err)
 	}
 
-	item, err := createBackendItem(req.Username, req.Preferences)
+	// if there is already an entry for this user, update it. if not, we'll create it
+	create := false
+
+	preferences, err := u.getUserPreferences(ctx, req.Username)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
+		create = false
+		preferences = DefaultUserPreferences
+	}
+
+	if req.Preferences.Theme != userpreferencesv1.Theme_THEME_UNSPECIFIED {
+		preferences.Theme = req.Preferences.Theme
+	}
+	if req.Preferences.Assist != nil {
+		preferences.Assist = assistuserpreferences.MergeUserPreferences(preferences.Assist, req.Preferences.Assist)
+	}
+
+	item, err := createBackendItem(req.Username, preferences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if _, err = u.Update(ctx, item); err != nil {
+	if create {
+		if _, err := u.Create(ctx, item); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}
+
+	if _, err := u.Update(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-// upsertUserPreferences returns the user preferences for the given user, creating a record with the
-// default preferences if they do not already exist.
-func (u *UserPreferencesService) upsertUserPreferences(ctx context.Context, username string) (*userpreferencesv1.UserPreferences, error) {
+func (u *UserPreferencesService) getUserPreferences(ctx context.Context, username string) (*userpreferencesv1.UserPreferences, error) {
 	existing, err := u.Get(ctx, u.backendKey(username))
-	if err == nil {
-		var p userpreferencesv1.UserPreferences
-		if err := json.Unmarshal(existing.Value, &p); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return &p, nil
-	}
-
-	if !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	item, err := createBackendItem(username, DefaultUserPreferences)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err = u.Create(ctx, item); err != nil {
+	var p userpreferencesv1.UserPreferences
+	if err := json.Unmarshal(existing.Value, &p); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return DefaultUserPreferences, nil
+	return &p, nil
 }
 
 // backendKey returns the backend key for the user preferences for the given username.
@@ -114,12 +136,6 @@ func (u *UserPreferencesService) backendKey(username string) []byte {
 func validatePreferences(preferences *userpreferencesv1.UserPreferences) error {
 	if preferences == nil {
 		return trace.BadParameter("missing preferences")
-	}
-	if preferences.Theme == userpreferencesv1.Theme_THEME_UNSPECIFIED {
-		return trace.BadParameter("missing theme")
-	}
-	if err := assistuserpreferences.ValidateUserPreferences(preferences.Assist); err != nil {
-		return trace.Wrap(err)
 	}
 
 	return nil

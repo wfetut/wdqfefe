@@ -19,14 +19,12 @@
 package userpreferences
 
 import (
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 )
 
 type AssistUserPreferencesResponse struct {
-	PreferredLogins []string `json:"preferred_logins"`
-	ViewMode assist.AssistantViewMode `json:"view_mode"`
+	PreferredLogins []string                 `json:"preferred_logins"`
+	ViewMode        assist.AssistantViewMode `json:"view_mode"`
 }
 
 // DefaultUserPreferences is the default assist user preferences.
@@ -35,21 +33,20 @@ var DefaultUserPreferences = &assist.AssistantUserPreferences{
 	ViewMode:        assist.AssistantViewMode_ASSISTANT_VIEW_MODE_DOCKED,
 }
 
-// ValidateUserPreferences validates the given assist user preferences.
-func ValidateUserPreferences(preferences *assist.AssistantUserPreferences) error {
-	if preferences == nil {
-		return trace.BadParameter("missing assist preferences")
-	}
-	if preferences.PreferredLogins == nil {
-		return trace.BadParameter("missing assist preferred logins")
-	}
-	if preferences.ViewMode == assist.AssistantViewMode_ASSISTANT_VIEW_MODE_UNSPECIFIED {
-		return trace.BadParameter("missing assist view mode")
+// MergeUserPreferences merges the given assist user preferences.
+func MergeUserPreferences(a, b *assist.AssistantUserPreferences) *assist.AssistantUserPreferences {
+	if b.PreferredLogins != nil {
+		a.PreferredLogins = b.PreferredLogins
 	}
 
-	return nil
+	if b.ViewMode != assist.AssistantViewMode_ASSISTANT_VIEW_MODE_UNSPECIFIED {
+		a.ViewMode = b.ViewMode
+	}
+
+	return a
 }
 
+// UserPreferencesResponse creates a JSON response from the given assist user preferences.
 func UserPreferencesResponse(resp *assist.AssistantUserPreferences) AssistUserPreferencesResponse {
 	jsonResp := AssistUserPreferencesResponse{
 		PreferredLogins: make([]string, 0, len(resp.PreferredLogins)),
