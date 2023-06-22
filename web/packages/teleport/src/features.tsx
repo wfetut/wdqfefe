@@ -98,7 +98,7 @@ export class FeatureNodes implements TeleportFeature {
   }
 }
 
-export class FeatureUIResources implements TeleportFeature {
+export class FeatureUnifiedResources implements TeleportFeature {
   route = {
     title: 'Resources',
     path: cfg.routes.resources,
@@ -111,7 +111,7 @@ export class FeatureUIResources implements TeleportFeature {
     icon: <ServersIcon />,
     exact: true,
     getLink(clusterId: string) {
-      return cfg.getUIResourcesRoute(clusterId);
+      return cfg.getUnifiedResourcesRoute(clusterId);
     },
   };
 
@@ -604,7 +604,7 @@ export class FeatureHelpAndSupport implements TeleportFeature {
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
-    new FeatureUIResources(),
+    new FeatureUnifiedResources(),
     new FeatureNodes(),
     new FeatureApps(),
     new FeatureKubes(),

@@ -25,7 +25,7 @@ import {
 import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import useTeleport from 'teleport/useTeleport';
-import { UIResourceList } from 'teleport/components/UIResourcesList';
+import { UnifiedResourceList } from 'teleport/components/UnifiedResourcesList';
 
 import { useResources } from './useResources';
 
@@ -92,7 +92,7 @@ export function Resources() {
         </Box>
       )}
       {attempt.status !== 'processing' && !hasNoNodes && (
-        <UIResourceList
+        <UnifiedResourceList
           resources={fetchedData.agents}
           // onLoginMenuOpen={getNodeLoginOptions}
           onLoginSelect={onLoginSelect}

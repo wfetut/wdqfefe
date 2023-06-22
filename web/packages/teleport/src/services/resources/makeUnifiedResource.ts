@@ -1,6 +1,6 @@
-import { UIResource } from './types';
+import { UnifiedResource } from './types';
 
-export function makeUIResource(json: any): UIResource {
+export function makeUnifiedResource(json: any): UnifiedResource {
   json = json || {};
 
   return {

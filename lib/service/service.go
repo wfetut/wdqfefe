@@ -1712,10 +1712,10 @@ func (process *TeleportProcess) initAuthService() error {
 		})
 	}
 
-	unifiedResourceWatcher, err := services.NewUIResourceWatcher(process.ExitContext(), services.UIResourceWatcherConfig{
+	unifiedResourceWatcher, err := services.NewUnifiedResourceWatcher(process.ExitContext(), services.UnifiedResourceWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component:    teleport.ComponentUIResource,
-			Log:          process.log.WithField(trace.Component, teleport.ComponentUIResource),
+			Component:    teleport.ComponentUnifiedResource,
+			Log:          process.log.WithField(trace.Component, teleport.ComponentUnifiedResource),
 			Client:       authServer,
 			MaxStaleness: time.Minute,
 		},
@@ -1729,7 +1729,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	authServer.SetUIResourceWatcher(unifiedResourceWatcher)
+	authServer.SetUnifiedResourceWatcher(unifiedResourceWatcher)
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(process.ExitContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,

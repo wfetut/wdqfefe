@@ -1762,14 +1762,14 @@ func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAcc
 	}
 }
 
-func (a *ServerWithRoles) GetUIResources(ctx context.Context, namespace string) ([]types.ResourceWithLabels, error) {
+func (a *ServerWithRoles) GetUnifiedResources(ctx context.Context, namespace string) ([]types.ResourceWithLabels, error) {
 	if err := a.action(namespace, types.KindNode, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Fetch full list of nodes in the backend.
 	startFetch := time.Now()
-	uiResources, err := a.authServer.uiResourceWatcher.GetUIResources(ctx, namespace)
+	unifiedResources, err := a.authServer.unifiedResourceWatcher.GetUnifiedResources(ctx, namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1778,7 +1778,7 @@ func (a *ServerWithRoles) GetUIResources(ctx context.Context, namespace string) 
 	// Filter resources to return the ones for the connected identity.
 	filteredResources := make([]types.ResourceWithLabels, 0)
 	startFilter := time.Now()
-	for _, resource := range uiResources {
+	for _, resource := range unifiedResources {
 		switch r := resource.(type) {
 		case types.Server:
 			{
@@ -1838,8 +1838,8 @@ func (a *ServerWithRoles) GetUIResources(ctx context.Context, namespace string) 
 		"elapsed_fetch":  elapsedFetch,
 		"elapsed_filter": elapsedFilter,
 	}).Debugf(
-		"GetUIResources(%v->%v) in %v.",
-		len(uiResources), len(filteredResources), elapsedFetch+elapsedFilter)
+		"GetUnifiedResources(%v->%v) in %v.",
+		len(unifiedResources), len(filteredResources), elapsedFetch+elapsedFilter)
 
 	return filteredResources, nil
 }
@@ -1853,13 +1853,13 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 
 	var resources []types.ResourceWithLabels
 	switch req.ResourceType {
-	case types.KindUIResource:
-		uiResources, err := a.GetUIResources(ctx, req.Namespace)
+	case types.KindUnifiedResource:
+		unifiedResources, err := a.GetUnifiedResources(ctx, req.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		resources = uiResources
+		resources = unifiedResources
 	case types.KindNode:
 		nodes, err := a.GetNodes(ctx, req.Namespace)
 		if err != nil {

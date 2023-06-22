@@ -331,7 +331,7 @@ const cfg = {
     return generatePath(cfg.routes.nodes, { clusterId });
   },
 
-  getUIResourcesRoute(clusterId: string) {
+  getUnifiedResourcesRoute(clusterId: string) {
     return generatePath(cfg.routes.resources, { clusterId });
   },
 
@@ -514,7 +514,7 @@ const cfg = {
     return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
   },
 
-  getUIResourcesUrl(clusterId: string, params: UrlResourcesParams) {
+  getUnifiedResourcesUrl(clusterId: string, params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.resourcesPath, {
       clusterId,
       ...params,

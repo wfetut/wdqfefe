@@ -20,12 +20,12 @@ import { FetchStatus, SortType } from 'design/DataTable/types';
 
 import { Node } from 'teleport/services/nodes';
 import { AgentLabel, AgentFilter } from 'teleport/services/agents';
-import { UIResource } from 'teleport/services/resources';
+import { UnifiedResource } from 'teleport/services/resources';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
 
 import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 
-export function UIResourceList(props: Props) {
+export function UnifiedResourceList(props: Props) {
   const {
     resources = [],
     // onLoginMenuOpen,
@@ -163,7 +163,7 @@ function renderTunnel() {
 }
 
 type Props = {
-  resources: UIResource[];
+  resources: UnifiedResource[];
   onLoginSelect(e: React.SyntheticEvent, login: string, serverId: string): void;
   fetchNext: () => void;
   fetchPrev: () => void;

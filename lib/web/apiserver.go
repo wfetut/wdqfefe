@@ -628,7 +628,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// get namespaces
 	h.GET("/webapi/sites/:site/namespaces", h.WithClusterAuth(h.getSiteNamespaces))
 
-	h.GET("/webapi/sites/:site/resources", h.WithClusterAuth(h.clusterUIResourcesGet))
+	h.GET("/webapi/sites/:site/resources", h.WithClusterAuth(h.clusterUnifiedResourcesGet))
 	// get nodes
 	h.GET("/webapi/sites/:site/nodes", h.WithClusterAuth(h.clusterNodesGet))
 
@@ -2428,9 +2428,9 @@ func (h *Handler) getSiteNamespaces(w http.ResponseWriter, r *http.Request, _ ht
 	}, nil
 }
 
-// clusterUIResourcesGet returns a list of resources for a given cluster site. This includes all resources available to be displayed in the web ui
+// clusterUnifiedResourcesGet returns a list of resources for a given cluster site. This includes all resources available to be displayed in the web ui
 // such as Nodes, Apps, Desktops, etc etc
-func (h *Handler) clusterUIResourcesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of resources.
 	clt, err := sctx.GetUserClient(r.Context(), site)
@@ -2438,7 +2438,7 @@ func (h *Handler) clusterUIResourcesGet(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	req, err := convertListResourcesRequest(r, types.KindUIResource)
+	req, err := convertListResourcesRequest(r, types.KindUnifiedResource)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2453,13 +2453,13 @@ func (h *Handler) clusterUIResourcesGet(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	uiResources, err := ui.MakeUIResource(site.GetName(), page.Resources, accessChecker)
+	unifiedResources, err := ui.MakeUnifiedResource(site.GetName(), page.Resources, accessChecker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
-		Items:      uiResources,
+		Items:      unifiedResources,
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
 	}, nil

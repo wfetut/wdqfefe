@@ -24,7 +24,7 @@ export type Resource<T extends Kind> = {
   content: string;
 };
 
-export type UIResource = {
+export type UnifiedResource = {
   kind: string;
   name: string;
   labels: AgentLabel[];

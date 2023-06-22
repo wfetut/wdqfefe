@@ -43,15 +43,15 @@ type UnifiedResource struct {
 
 // i need to make this an actual interface
 
-// MakeUIResource creates server objects for webapp
-func MakeUIResource(clusterName string, resources []types.ResourceWithLabels, accessChecker services.AccessChecker) ([]UnifiedResource, error) {
-	uiResources := []UnifiedResource{}
+// MakeUnifiedResource creates server objects for webapp
+func MakeUnifiedResource(clusterName string, resources []types.ResourceWithLabels, accessChecker services.AccessChecker) ([]UnifiedResource, error) {
+	unifiedResources := []UnifiedResource{}
 	for _, resource := range resources {
 		switch r := resource.(type) {
 		case types.Server:
 			serverLabels := r.GetAllLabels()
 			uiLabels := makeLabels(serverLabels)
-			uiResources = append(uiResources, UnifiedResource{
+			unifiedResources = append(unifiedResources, UnifiedResource{
 				Kind:   r.GetKind(),
 				Name:   r.GetHostname(),
 				Labels: uiLabels,
@@ -63,21 +63,21 @@ func MakeUIResource(clusterName string, resources []types.ResourceWithLabels, ac
 			// 	return nil, trace.Wrap(err)
 			// }
 			uiLabels := makeLabels(r.GetAllLabels())
-			uiResources = append(uiResources, UnifiedResource{
+			unifiedResources = append(unifiedResources, UnifiedResource{
 				Kind:   r.GetKind(),
 				Name:   r.GetName(),
 				Labels: uiLabels,
 			})
 		case types.AppServer:
 			uiLabels := makeLabels(r.GetAllLabels())
-			uiResources = append(uiResources, UnifiedResource{
+			unifiedResources = append(unifiedResources, UnifiedResource{
 				Kind:   r.GetKind(),
 				Name:   r.GetName(),
 				Labels: uiLabels,
 			})
 		case types.WindowsDesktop:
 			uiLabels := makeLabels(r.GetAllLabels())
-			uiResources = append(uiResources, UnifiedResource{
+			unifiedResources = append(unifiedResources, UnifiedResource{
 				Kind:   r.GetKind(),
 				Name:   r.GetName(),
 				Labels: uiLabels,
@@ -88,7 +88,7 @@ func MakeUIResource(clusterName string, resources []types.ResourceWithLabels, ac
 		}
 	}
 
-	return uiResources, nil
+	return unifiedResources, nil
 }
 
 // func getDatabaseUsersAndNames(accessChecker services.AccessChecker) (dbNames []string, dbUsers []string, err error) {

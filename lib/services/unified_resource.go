@@ -33,7 +33,7 @@ type Config struct {
 }
 
 // New creates a new memory cache that holds the unified resources
-func NewUIResourceCache(cfg Config) (*UIResourceCache, error) {
+func NewUnifiedResourceCache(cfg Config) (*UnifiedResourceCache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -42,7 +42,7 @@ func NewUIResourceCache(cfg Config) (*UIResourceCache, error) {
 		backend.BufferCapacity(cfg.BufferSize),
 	)
 	buf.SetInit()
-	m := &UIResourceCache{
+	m := &UnifiedResourceCache{
 		Mutex: &sync.Mutex{},
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentMemory,
@@ -73,7 +73,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	if cfg.Component == "" {
-		cfg.Component = teleport.ComponentUIResource
+		cfg.Component = teleport.ComponentUnifiedResource
 	}
 	return nil
 }
@@ -115,7 +115,7 @@ type Item struct {
 	Value types.ResourceWithLabels
 }
 
-type UIResourceCache struct {
+type UnifiedResourceCache struct {
 	*sync.Mutex
 	*log.Entry
 	Config
@@ -137,7 +137,7 @@ type Event struct {
 }
 
 // Close closes memory backend
-func (c *UIResourceCache) Close() error {
+func (c *UnifiedResourceCache) Close() error {
 	c.cancel()
 	c.Lock()
 	defer c.Unlock()
@@ -146,12 +146,12 @@ func (c *UIResourceCache) Close() error {
 }
 
 // Clock returns clock used by this backend
-func (c *UIResourceCache) Clock() clockwork.Clock {
+func (c *UnifiedResourceCache) Clock() clockwork.Clock {
 	return c.Config.Clock
 }
 
 // Create creates item if it does not exist
-func (c *UIResourceCache) Create(ctx context.Context, i Item) error {
+func (c *UnifiedResourceCache) Create(ctx context.Context, i Item) error {
 	if len(i.Key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
@@ -169,7 +169,7 @@ func (c *UIResourceCache) Create(ctx context.Context, i Item) error {
 }
 
 // Get returns a single item or not found error
-func (c *UIResourceCache) Get(ctx context.Context, key []byte) (*Item, error) {
+func (c *UnifiedResourceCache) Get(ctx context.Context, key []byte) (*Item, error) {
 	if len(key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
 	}
@@ -183,7 +183,7 @@ func (c *UIResourceCache) Get(ctx context.Context, key []byte) (*Item, error) {
 }
 
 // Update updates item if it exists, or returns NotFound error
-func (c *UIResourceCache) Update(ctx context.Context, i Item) error {
+func (c *UnifiedResourceCache) Update(ctx context.Context, i Item) error {
 	if len(i.Key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
@@ -202,7 +202,7 @@ func (c *UIResourceCache) Update(ctx context.Context, i Item) error {
 
 // Put puts value into backend (creates if it does not
 // exist, updates it otherwise)
-func (c *UIResourceCache) Put(ctx context.Context, i Item) error {
+func (c *UnifiedResourceCache) Put(ctx context.Context, i Item) error {
 	if len(i.Key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
@@ -218,7 +218,7 @@ func (c *UIResourceCache) Put(ctx context.Context, i Item) error {
 
 // PutRange puts range of items into backend (creates if items do not
 // exist, updates it otherwise)
-func (c *UIResourceCache) PutRange(ctx context.Context, items []Item) error {
+func (c *UnifiedResourceCache) PutRange(ctx context.Context, items []Item) error {
 	for i := range items {
 		if items[i].Key == nil {
 			return trace.BadParameter("missing parameter key in item %v", i)
@@ -238,7 +238,7 @@ func (c *UIResourceCache) PutRange(ctx context.Context, items []Item) error {
 
 // Delete deletes item by key, returns NotFound error
 // if item does not exist
-func (c *UIResourceCache) Delete(ctx context.Context, key []byte) error {
+func (c *UnifiedResourceCache) Delete(ctx context.Context, key []byte) error {
 	if len(key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
@@ -262,7 +262,7 @@ func (c *UIResourceCache) Delete(ctx context.Context, key []byte) error {
 
 // DeleteRange deletes range of items with keys between startKey and endKey
 // Note that elements deleted by range do not produce any events
-func (c *UIResourceCache) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
+func (c *UnifiedResourceCache) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
 	if len(startKey) == 0 {
 		return trace.BadParameter("missing parameter startKey")
 	}
@@ -286,7 +286,7 @@ func (c *UIResourceCache) DeleteRange(ctx context.Context, startKey, endKey []by
 }
 
 // GetRange returns query range
-func (c *UIResourceCache) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error) {
+func (c *UnifiedResourceCache) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error) {
 	if len(startKey) == 0 {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
@@ -306,7 +306,7 @@ func (c *UIResourceCache) GetRange(ctx context.Context, startKey []byte, endKey 
 }
 
 // CompareAndSwap compares item with existing item and replaces it with replaceWith item
-func (c *UIResourceCache) CompareAndSwap(ctx context.Context, expected Item, replaceWith Item) error {
+func (c *UnifiedResourceCache) CompareAndSwap(ctx context.Context, expected Item, replaceWith Item) error {
 	if len(expected.Key) == 0 {
 		return trace.BadParameter("missing parameter Key")
 	}
@@ -342,7 +342,7 @@ type GetResult struct {
 	Items []Item
 }
 
-func (c *UIResourceCache) getRange(ctx context.Context, startKey, endKey []byte, limit int) GetResult {
+func (c *UnifiedResourceCache) getRange(ctx context.Context, startKey, endKey []byte, limit int) GetResult {
 	var res GetResult
 	c.tree.AscendRange(&btreeItem{Item: Item{Key: startKey}}, &btreeItem{Item: Item{Key: endKey}}, func(item *btreeItem) bool {
 		res.Items = append(res.Items, item.Item)
@@ -354,7 +354,7 @@ func (c *UIResourceCache) getRange(ctx context.Context, startKey, endKey []byte,
 	return res
 }
 
-func (c *UIResourceCache) processEvent(event Event) {
+func (c *UnifiedResourceCache) processEvent(event Event) {
 	switch event.Type {
 	case types.OpPut:
 		item := &btreeItem{Item: event.Item, index: -1}
@@ -381,7 +381,7 @@ type AppServersGetter interface {
 type WindowsDesktopGetter interface {
 	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 }
-type UIResourceWatcherConfig struct {
+type UnifiedResourceWatcherConfig struct {
 	ResourceWatcherConfig
 	NodesGetter
 	DatabaseServersGetter
@@ -390,12 +390,12 @@ type UIResourceWatcherConfig struct {
 	KubernetesClusterGetter
 }
 
-type UIResourceWatcher struct {
+type UnifiedResourceWatcher struct {
 	*resourceWatcher
-	*uiResourceCollector
+	*unifiedResourceCollector
 }
 
-func (u *UIResourceWatcher) GetUIResources(ctx context.Context, namespace string) ([]types.ResourceWithLabels, error) {
+func (u *UnifiedResourceWatcher) GetUnifiedResources(ctx context.Context, namespace string) ([]types.ResourceWithLabels, error) {
 	result, err := u.current.GetRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -410,28 +410,28 @@ func (u *UIResourceWatcher) GetUIResources(ctx context.Context, namespace string
 	return resources, nil
 }
 
-type uiResourceCollector struct {
-	UIResourceWatcherConfig
-	current         *UIResourceCache
+type unifiedResourceCollector struct {
+	UnifiedResourceWatcherConfig
+	current         *UnifiedResourceCache
 	lock            sync.RWMutex
 	initializationC chan struct{}
 	once            sync.Once
 }
 
-func NewUIResourceWatcher(ctx context.Context, cfg UIResourceWatcherConfig) (*UIResourceWatcher, error) {
+func NewUnifiedResourceWatcher(ctx context.Context, cfg UnifiedResourceWatcherConfig) (*UnifiedResourceWatcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	mem, err := NewUIResourceCache(Config{})
+	mem, err := NewUnifiedResourceCache(Config{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	collector := &uiResourceCollector{
-		UIResourceWatcherConfig: cfg,
-		current:                 mem,
-		initializationC:         make(chan struct{}),
+	collector := &unifiedResourceCollector{
+		UnifiedResourceWatcherConfig: cfg,
+		current:                      mem,
+		initializationC:              make(chan struct{}),
 	}
 
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
@@ -439,13 +439,13 @@ func NewUIResourceWatcher(ctx context.Context, cfg UIResourceWatcherConfig) (*UI
 		return nil, trace.Wrap(err)
 	}
 
-	return &UIResourceWatcher{
-		resourceWatcher:     watcher,
-		uiResourceCollector: collector,
+	return &UnifiedResourceWatcher{
+		resourceWatcher:          watcher,
+		unifiedResourceCollector: collector,
 	}, nil
 }
 
-func (u *uiResourceCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+func (u *unifiedResourceCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	err := u.getAndUpdateNodes(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -470,7 +470,7 @@ func (u *uiResourceCollector) getResourcesAndUpdateCurrent(ctx context.Context) 
 	return nil
 }
 
-func (u *uiResourceCollector) getAndUpdateNodes(ctx context.Context) error {
+func (u *unifiedResourceCollector) getAndUpdateNodes(ctx context.Context) error {
 	newNodes, err := u.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err)
@@ -485,7 +485,7 @@ func (u *uiResourceCollector) getAndUpdateNodes(ctx context.Context) error {
 	return u.current.PutRange(ctx, nodes)
 }
 
-func (u *uiResourceCollector) getAndUpdateDatabases(ctx context.Context) error {
+func (u *unifiedResourceCollector) getAndUpdateDatabases(ctx context.Context) error {
 	newDbs, err := u.DatabaseServersGetter.GetDatabaseServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err)
@@ -500,7 +500,7 @@ func (u *uiResourceCollector) getAndUpdateDatabases(ctx context.Context) error {
 	return u.current.PutRange(ctx, dbs)
 }
 
-func (u *uiResourceCollector) getAndUpdateApps(ctx context.Context) error {
+func (u *unifiedResourceCollector) getAndUpdateApps(ctx context.Context) error {
 	newApps, err := u.AppServersGetter.GetApplicationServers(ctx, apidefaults.Namespace)
 	if err != nil {
 		return trace.Wrap(err)
@@ -516,7 +516,7 @@ func (u *uiResourceCollector) getAndUpdateApps(ctx context.Context) error {
 	return u.current.PutRange(ctx, apps)
 }
 
-func (u *uiResourceCollector) getAndUpdateDesktops(ctx context.Context) error {
+func (u *unifiedResourceCollector) getAndUpdateDesktops(ctx context.Context) error {
 	newDesktops, err := u.WindowsDesktopGetter.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
 	if err != nil {
 		return trace.Wrap(err)
@@ -533,13 +533,13 @@ func (u *uiResourceCollector) getAndUpdateDesktops(ctx context.Context) error {
 	return u.current.PutRange(ctx, desktops)
 }
 
-func (u *uiResourceCollector) notifyStale() {}
+func (u *unifiedResourceCollector) notifyStale() {}
 
-func (u *uiResourceCollector) initializationChan() <-chan struct{} {
+func (u *unifiedResourceCollector) initializationChan() <-chan struct{} {
 	return u.initializationC
 }
 
-func (u *uiResourceCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+func (u *unifiedResourceCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
 	if event.Resource == nil {
 		u.Log.Warnf("Unexpected event: %v.", event)
 		return
@@ -561,7 +561,7 @@ func (u *uiResourceCollector) processEventAndUpdateCurrent(ctx context.Context, 
 	}
 }
 
-func (u *uiResourceCollector) resourceKind() []types.WatchKind {
+func (u *unifiedResourceCollector) resourceKind() []types.WatchKind {
 	return []types.WatchKind{
 		{Kind: types.KindNode},
 		{Kind: types.KindDatabaseServer},
@@ -570,7 +570,7 @@ func (u *uiResourceCollector) resourceKind() []types.WatchKind {
 	}
 }
 
-func (u *uiResourceCollector) defineCollectorAsInitialized() {
+func (u *unifiedResourceCollector) defineCollectorAsInitialized() {
 	u.once.Do(func() {
 		// mark watcher as initialized.
 		close(u.initializationC)
@@ -578,5 +578,5 @@ func (u *uiResourceCollector) defineCollectorAsInitialized() {
 }
 
 const (
-	prefix = "ui_resource"
+	prefix = "unified_resource"
 )

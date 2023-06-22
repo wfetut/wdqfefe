@@ -568,7 +568,7 @@ type Server struct {
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
 
-	uiResourceWatcher *services.UIResourceWatcher
+	unifiedResourceWatcher *services.UnifiedResourceWatcher
 
 	inventory *inventory.Controller
 
@@ -725,10 +725,10 @@ func (a *Server) SetLockWatcher(lockWatcher *services.LockWatcher) {
 	a.lockWatcher = lockWatcher
 }
 
-func (a *Server) SetUIResourceWatcher(uiResourceWatcher *services.UIResourceWatcher) {
+func (a *Server) SetUnifiedResourceWatcher(unifiedResourceWatcher *services.UnifiedResourceWatcher) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	a.uiResourceWatcher = uiResourceWatcher
+	a.unifiedResourceWatcher = unifiedResourceWatcher
 }
 
 func (a *Server) checkLockInForce(mode constants.LockingMode, targets []types.LockTarget) error {

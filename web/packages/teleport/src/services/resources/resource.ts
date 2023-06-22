@@ -19,9 +19,9 @@ import cfg, { UrlResourcesParams } from 'teleport/config';
 
 import { AgentResponse } from '../agents';
 
-import { makeUIResource } from './makeUIResource';
+import { makeUnifiedResource } from './makeUnifiedResource';
 
-import { UIResource, makeResource, makeResourceList } from './';
+import { UnifiedResource, makeResource, makeResourceList } from './';
 
 class ResourceService {
   fetchTrustedClusters() {
@@ -34,14 +34,14 @@ class ResourceService {
     clusterId?: string,
     params?: UrlResourcesParams,
     signal?: AbortSignal
-  ): Promise<AgentResponse<UIResource>> {
+  ): Promise<AgentResponse<UnifiedResource>> {
     return api
-      .get(cfg.getUIResourcesUrl(clusterId, params), signal)
+      .get(cfg.getUnifiedResourcesUrl(clusterId, params), signal)
       .then(json => {
         const items = json?.items || [];
 
         return {
-          agents: items.map(makeUIResource),
+          agents: items.map(makeUnifiedResource),
           startKey: json?.startKey,
           totalCount: json?.totalCount,
         };
