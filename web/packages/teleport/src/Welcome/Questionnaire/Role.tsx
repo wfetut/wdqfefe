@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { Box, Flex } from 'design';
-
 import React, { useMemo } from 'react';
 
-import { InputLabel } from 'design/Input/InputLabel';
+import { Option } from 'shared/components/Select';
 
-import Select, { Option } from 'shared/components/Select';
+import FieldSelect from 'shared/components/FieldSelect';
+
+import { requiredField } from 'shared/components/Validation/rules';
 
 import {
   RoleProps,
@@ -54,41 +54,27 @@ export const Role = ({ team, role, updateFields }: RoleProps) => {
     }, []);
 
   return (
-    <Flex flexDirection="column">
-      <InputLabel label="Which Team are you on?" aria="team" required />
-      <Box mb={3}>
-        <Select
-          inputId="team"
-          label="team"
-          hasError={false}
-          elevated={false}
-          placeholder="Select Team"
-          onChange={(e: Option<TeamOptionsStrings, string>) =>
-            updateFields({
-              team: e.value,
-            })
-          }
-          options={teamOptions}
-          value={team ? { label: team, value: team } : null}
-        />
-      </Box>
-      <InputLabel label="Job Title" aria="role" required />
-      <Box mb={3}>
-        <Select
-          inputId="role"
-          label="role"
-          hasError={false}
-          elevated={false}
-          placeholder="Select Job Title"
-          onChange={(e: Option<TitleOptionsStrings, string>) =>
-            updateFields({
-              role: e.value,
-            })
-          }
-          options={titleOptions}
-          value={role ? { label: role, value: role } : null}
-        />
-      </Box>
-    </Flex>
+    <>
+      <FieldSelect
+        label="Which Team are you on?"
+        rule={requiredField('Team is required')}
+        placeholder="Select Team"
+        onChange={(e: Option<TeamOptionsStrings, string>) =>
+          updateFields({ team: e.value })
+        }
+        options={teamOptions}
+        value={team ? { label: team, value: team } : null}
+      />
+      <FieldSelect
+        label="Job Title"
+        rule={requiredField('Job Title is required')}
+        placeholder="Select Job Title"
+        onChange={(e: Option<TitleOptionsStrings, string>) =>
+          updateFields({ role: e.value })
+        }
+        options={titleOptions}
+        value={role ? { label: role, value: role } : null}
+      />
+    </>
   );
 };

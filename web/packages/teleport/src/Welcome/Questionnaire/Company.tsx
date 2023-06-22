@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-import { Box, Flex, Input } from 'design';
-
 import React, { useMemo } from 'react';
 
-import Select, { Option } from 'shared/components/Select';
+import { Option } from 'shared/components/Select';
 
-import { InputLabel } from 'design/Input/InputLabel';
+import FieldInput from 'shared/components/FieldInput';
+
+import FieldSelect from 'shared/components/FieldSelect';
+
+import { requiredField } from 'shared/components/Validation/rules';
 
 import {
   CompanyProps,
@@ -44,41 +46,32 @@ export const Company = ({
     }, []);
 
   return (
-    <Flex flexDirection="column">
-      <InputLabel label="Company Name" aria="company-name" required />
-      <Input
-        mb={3}
+    <>
+      <FieldInput
+        label="Company Name"
+        rule={requiredField('Company Name is required')}
         id="company-name"
         type="text"
         value={companyName}
         placeholder="ex. github"
         onChange={e => {
-          updateFields({
-            companyName: e.target.value,
-          });
+          updateFields({ companyName: e.target.value });
         }}
       />
-      <InputLabel label="Number of Employees" aria="employees" required />
-      <Box mb={3}>
-        <Select
-          inputId="employees"
-          label="employees"
-          hasError={false}
-          elevated={false}
-          placeholder="Select Team Size"
-          onChange={(e: Option<EmployeeOptionsStrings, string>) =>
-            updateFields({
-              employeeCount: e.value,
-            })
-          }
-          options={options}
-          value={
-            numberOfEmployees
-              ? { label: numberOfEmployees, value: numberOfEmployees }
-              : null
-          }
-        />
-      </Box>
-    </Flex>
+      <FieldSelect
+        label="Number of Employees"
+        rule={requiredField('Number of Employees is required')}
+        placeholder="Select Team Size"
+        onChange={(e: Option<EmployeeOptionsStrings, string>) =>
+          updateFields({ employeeCount: e.value })
+        }
+        value={
+          numberOfEmployees
+            ? { label: numberOfEmployees, value: numberOfEmployees }
+            : null
+        }
+        options={options}
+      />
+    </>
   );
 };
