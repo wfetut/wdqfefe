@@ -47,8 +47,13 @@ func ensureTestsEnabled(t *testing.T) {
 func TestDynamoDB(t *testing.T) {
 	ensureTestsEnabled(t)
 
+	table := tableName
+	if t := os.Getenv("TELEPORT_DYNAMODB_TEST_TABLE"); t != "" {
+		table = t
+	}
+
 	dynamoCfg := map[string]interface{}{
-		"table_name":         tableName,
+		"table_name":         table,
 		"poll_stream_period": 300 * time.Millisecond,
 	}
 

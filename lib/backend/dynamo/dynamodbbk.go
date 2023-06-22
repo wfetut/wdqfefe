@@ -143,6 +143,7 @@ type record struct {
 	Timestamp int64
 	Expires   *int64 `json:"Expires,omitempty"`
 	ID        int64
+	Revision  string
 }
 
 type keyLookup struct {
@@ -323,6 +324,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 // Create creates item if it does not exist
 func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	item.Revision = backend.CreateRevision()
 	err := b.create(ctx, item, modeCreate)
 	if trace.IsCompareFailed(err) {
 		err = trace.AlreadyExists(err.Error())
@@ -330,21 +332,23 @@ func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return b.newLease(item), nil
+	return backend.NewLease(item), nil
 }
 
 // Put puts value into backend (creates if it does not
 // exists, updates it otherwise)
 func (b *Backend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	item.Revision = backend.CreateRevision()
 	err := b.create(ctx, item, modePut)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return b.newLease(item), nil
+	return backend.NewLease(item), nil
 }
 
 // Update updates value in the backend
 func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	item.Revision = backend.CreateRevision()
 	err := b.create(ctx, item, modeUpdate)
 	if trace.IsCompareFailed(err) {
 		err = trace.NotFound(err.Error())
@@ -352,7 +356,7 @@ func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return b.newLease(item), nil
+	return backend.NewLease(item), nil
 }
 
 // GetRange returns range of elements
@@ -375,8 +379,9 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	values := make([]backend.Item, len(result.records))
 	for i, r := range result.records {
 		values[i] = backend.Item{
-			Key:   trimPrefix(r.FullPath),
-			Value: r.Value,
+			Key:      trimPrefix(r.FullPath),
+			Value:    r.Value,
+			Revision: r.Revision,
 		}
 		if r.Expires != nil {
 			values[i].Expires = time.Unix(*r.Expires, 0).UTC()
@@ -464,9 +469,10 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 		return nil, err
 	}
 	item := &backend.Item{
-		Key:   trimPrefix(r.FullPath),
-		Value: r.Value,
-		ID:    r.ID,
+		Key:      trimPrefix(r.FullPath),
+		Value:    r.Value,
+		ID:       r.ID,
+		Revision: r.Revision,
 	}
 	if r.Expires != nil {
 		item.Expires = time.Unix(*r.Expires, 0)
@@ -487,12 +493,15 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	if !bytes.Equal(expected.Key, replaceWith.Key) {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
+
+	replaceWith.Revision = backend.CreateRevision()
 	r := record{
 		HashKey:   hashKey,
 		FullPath:  prependPrefix(replaceWith.Key),
 		Value:     replaceWith.Value,
 		Timestamp: time.Now().UTC().Unix(),
 		ID:        time.Now().UTC().UnixNano(),
+		Revision:  replaceWith.Revision,
 	}
 	if !replaceWith.Expires.IsZero() {
 		r.Expires = aws.Int64(replaceWith.Expires.UTC().Unix())
@@ -523,7 +532,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		}
 		return nil, trace.Wrap(err)
 	}
-	return b.newLease(replaceWith), nil
+	return backend.NewLease(replaceWith), nil
 }
 
 // Delete deletes item by key
@@ -535,6 +544,62 @@ func (b *Backend) Delete(ctx context.Context, key []byte) error {
 		return err
 	}
 	return b.deleteKey(ctx, key)
+}
+
+func (b *Backend) ConditionalPut(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	rev := item.Revision
+	item.Revision = backend.CreateRevision()
+	err := b.conditionalCreate(ctx, item, rev, modeConditionalPut)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return backend.NewLease(item), nil
+}
+
+func (b *Backend) ConditionalUpdate(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	rev := item.Revision
+	item.Revision = backend.CreateRevision()
+	err := b.conditionalCreate(ctx, item, rev, modeConditionalUpdate)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return backend.NewLease(item), nil
+}
+
+// ConditionalDelete deletes item by key
+func (b *Backend) ConditionalDelete(ctx context.Context, key []byte, rev string) error {
+	if len(key) == 0 {
+		return trace.BadParameter("missing parameter key")
+	}
+
+	av, err := dynamodbattribute.MarshalMap(keyLookup{
+		HashKey:  hashKey,
+		FullPath: prependPrefix(key),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	input := dynamodb.DeleteItemInput{Key: av, TableName: aws.String(b.TableName)}
+	input.SetConditionExpression("#v = :rev")
+	input.SetExpressionAttributeNames(map[string]*string{
+		"#v": aws.String("Revision"),
+	})
+	input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{
+		":rev": {
+			S: aws.String(rev),
+		},
+	})
+
+	if _, err = b.svc.DeleteItemWithContext(ctx, &input); err != nil {
+		err = convertError(err)
+		if trace.IsCompareFailed(err) {
+			return trace.CompareFailed(backend.ErrIncorrectRevision)
+		}
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // NewWatcher returns a new event watcher
@@ -612,15 +677,6 @@ const (
 // Clock returns wall clock
 func (b *Backend) Clock() clockwork.Clock {
 	return b.clock
-}
-
-func (b *Backend) newLease(item backend.Item) *backend.Lease {
-	var lease backend.Lease
-	if item.Expires.IsZero() {
-		return &lease
-	}
-	lease.Key = item.Key
-	return &lease
 }
 
 // getTableStatus checks if a given table exists
@@ -786,6 +842,8 @@ const (
 	modeCreate = iota
 	modePut
 	modeUpdate
+	modeConditionalPut
+	modeConditionalUpdate
 )
 
 // prependPrefix adds leading 'teleport/' to the key for backwards compatibility
@@ -808,6 +866,7 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) error
 		Value:     item.Value,
 		Timestamp: time.Now().UTC().Unix(),
 		ID:        time.Now().UTC().UnixNano(),
+		Revision:  item.Revision,
 	}
 	if !item.Expires.IsZero() {
 		r.Expires = aws.Int64(item.Expires.UTC().Unix())
@@ -832,6 +891,54 @@ func (b *Backend) create(ctx context.Context, item backend.Item, mode int) error
 	_, err = b.svc.PutItemWithContext(ctx, &input)
 	err = convertError(err)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (b *Backend) conditionalCreate(ctx context.Context, item backend.Item, rev string, mode int) error {
+	r := record{
+		HashKey:   hashKey,
+		FullPath:  prependPrefix(item.Key),
+		Value:     item.Value,
+		Timestamp: time.Now().UTC().Unix(),
+		ID:        time.Now().UTC().UnixNano(),
+		Revision:  item.Revision,
+	}
+	if !item.Expires.IsZero() {
+		r.Expires = aws.Int64(item.Expires.UTC().Unix())
+	}
+	av, err := dynamodbattribute.MarshalMap(r)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	input := dynamodb.PutItemInput{
+		Item:      av,
+		TableName: aws.String(b.TableName),
+	}
+	input.SetExpressionAttributeNames(map[string]*string{
+		"#v": aws.String("Revision"),
+	})
+	input.SetExpressionAttributeValues(map[string]*dynamodb.AttributeValue{
+		":rev": {
+			S: aws.String(rev),
+		},
+	})
+	switch mode {
+	case modeConditionalPut:
+		input.SetConditionExpression("#v = :rev")
+	case modeConditionalUpdate:
+		input.SetConditionExpression("#v = :rev AND attribute_exists(FullPath)")
+	default:
+		return trace.BadParameter("unrecognized mode")
+	}
+
+	_, err = b.svc.PutItemWithContext(ctx, &input)
+	err = convertError(err)
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			return trace.CompareFailed(backend.ErrIncorrectRevision)
+		}
 		return trace.Wrap(err)
 	}
 	return nil
