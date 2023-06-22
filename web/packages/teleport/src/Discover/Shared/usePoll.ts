@@ -61,6 +61,7 @@ export function usePoll<T>(
       }, interval);
 
       return () => {
+        console.log('---- aborting --------------------------');
         clearInterval(id);
         abortController.current.abort();
       };

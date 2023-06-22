@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 )
@@ -420,7 +419,7 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 
 // upsertTask ensures a TaskDefinition with TaskName exists
 func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, configB64 string) (*ecsTypes.TaskDefinition, error) {
-	taskAgentContainerImage := fmt.Sprintf(teleportContainerImageFmt, teleport.Version)
+	taskAgentContainerImage := fmt.Sprintf(teleportContainerImageFmt, "13.1.1")
 
 	taskDefOut, err := clt.RegisterTaskDefinition(ctx, &ecs.RegisterTaskDefinitionInput{
 		Family: req.TaskName,

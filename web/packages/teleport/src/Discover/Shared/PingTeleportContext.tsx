@@ -27,6 +27,7 @@ import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
 interface PingTeleportContextState<T> {
   active: boolean;
   start: (tokenOrTerm: JoinToken | string) => void;
+  cancel: () => void;
   result: T | null;
 }
 
@@ -94,6 +95,10 @@ export function PingTeleportProvider<T>(props: {
     }
   }
 
+  function cancel() {
+    setActive(false);
+  }
+
   // start is called by usePingTeleport. It begins polling if polling is not
   // yet active AND we haven't yet found a result.
   // start updates state to start polling.
@@ -121,6 +126,7 @@ export function PingTeleportProvider<T>(props: {
         active,
         start,
         result,
+        cancel,
       }}
     >
       {props.children}
