@@ -20,6 +20,8 @@ package backend
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/base32"
 	"fmt"
 	"io"
 	"sort"
@@ -37,6 +39,10 @@ import (
 const (
 	Forever time.Duration = 0
 )
+
+// ErrIncorrectRevision is returned from conditional operations when revisions
+// do not match the expected value.
+var ErrIncorrectRevision = "resource revision does not match, it may have been concurrently created|modified|deleted; please work from the latest state, or use --force to overwrite"
 
 // Backend implements abstraction over local or remote storage backend.
 // Item keys are assumed to be valid UTF8, which may be enforced by the
@@ -420,4 +426,29 @@ func ExactKey(parts ...string) []byte {
 
 func internalKey(internalPrefix string, parts ...string) []byte {
 	return []byte(strings.Join(append([]string{internalPrefix}, parts...), string(Separator)))
+}
+
+// CreateRevision generates a new identifier to be used
+// a resource revision. Used by backend implementations
+// when the actual backend does not provide a version/generation/revision
+// mechanism.
+func CreateRevision() string {
+	buf := make([]byte, 5)
+	_, err := rand.Read(buf)
+	if err != nil {
+		panic(err)
+	}
+
+	return strings.ToLower(base32.HexEncoding.EncodeToString(buf))
+}
+
+// NewLease creates a lease for the provided [Item].
+func NewLease(item Item) *Lease {
+	var lease Lease
+	if item.Expires.IsZero() {
+		return &lease
+	}
+	lease.Key = item.Key
+	lease.Revision = item.Revision
+	return &lease
 }
