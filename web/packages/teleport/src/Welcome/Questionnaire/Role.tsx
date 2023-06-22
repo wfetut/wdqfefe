@@ -22,15 +22,8 @@ import FieldSelect from 'shared/components/FieldSelect';
 
 import { requiredField } from 'shared/components/Validation/rules';
 
-import {
-  RoleProps,
-  TeamOptionsStrings,
-  TitleOptionsStrings,
-} from 'teleport/Welcome/Questionnaire/types';
-import {
-  TeamSelectOptions,
-  TitleSelectOptions,
-} from 'teleport/Welcome/Questionnaire/constants';
+import { RoleProps, TeamOptionsStrings, TitleOptionsStrings } from './types';
+import { TeamSelectOptions, TitleSelectOptions } from './constants';
 
 export const Role = ({ team, role, updateFields }: RoleProps) => (
   <>

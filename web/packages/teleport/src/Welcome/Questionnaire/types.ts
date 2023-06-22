@@ -14,11 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  EmployeeOptions,
-  TeamOptions,
-  TitleOptions,
-} from 'teleport/Welcome/Questionnaire/constants';
+import { EmployeeOptions, TeamOptions, TitleOptions } from './constants';
 
 export type QuestionProps = {
   updateFields: (fields: Partial<QuestionnaireFormFields>) => void;

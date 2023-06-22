@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import { Questionnaire } from 'teleport/Welcome/Questionnaire/Questionnaire';
+import { Questionnaire } from './Questionnaire';
 
 export default {
   title: 'Teleport/Welcome/Questionnaire',

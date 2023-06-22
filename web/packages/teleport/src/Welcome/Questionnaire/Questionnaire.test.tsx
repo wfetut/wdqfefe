@@ -20,7 +20,7 @@ import React from 'react';
 
 import { render } from 'design/utils/testing';
 
-import { Questionnaire } from 'teleport/Welcome/Questionnaire/Questionnaire';
+import { Questionnaire } from './Questionnaire';
 
 describe('questionnaire', () => {
   test('loads each question', () => {
