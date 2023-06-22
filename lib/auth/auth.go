@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -233,6 +234,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Embeddings == nil {
 		cfg.Embeddings = local.NewEmbeddingsService(cfg.Backend)
 	}
+	if cfg.UserPreferences == nil {
+		cfg.UserPreferences = local.NewUserPreferencesService(cfg.Backend)
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -399,6 +403,7 @@ type Services struct {
 	services.Okta
 	services.Assistant
 	services.Embeddings
+	services.UserPreferences
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -5323,6 +5328,17 @@ func (a *Server) DeleteAssistantConversation(ctx context.Context, request *assis
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
 	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
 	return headlessAuthn, trace.Wrap(err)
+}
+
+// GetUserPreferences returns the user preferences for a given user.
+func (a *Server) GetUserPreferences(ctx context.Context, request *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.UserPreferences, error) {
+	resp, err := a.Services.GetUserPreferences(ctx, request)
+	return resp, trace.Wrap(err)
+}
+
+// UpdateUserPreferences updates the user preferences for the given user.
+func (a *Server) UpdateUserPreferences(ctx context.Context, request *userpreferencesv1.UpdateUserPreferencesRequest) error {
+	return trace.Wrap(a.Services.UpdateUserPreferences(ctx, request))
 }
 
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it
