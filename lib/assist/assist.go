@@ -192,7 +192,7 @@ func (c *Chat) ProcessComplete(ctx context.Context,
 	onMessage func(kind MessageType, payload []byte, createdTime time.Time) error, userInput string,
 ) (*model.TokensUsed, error) {
 	var tokensUsed *model.TokensUsed
-	progressUpdates := make(chan model.AgentAction)
+	progressUpdates := make(chan *model.AgentAction)
 	defer close(progressUpdates)
 
 	go func() {
@@ -202,7 +202,11 @@ func (c *Chat) ProcessComplete(ctx context.Context,
 			select {
 			case <-ctx.Done():
 				return
-			case update := <-progressUpdates:
+			case update, open := <-progressUpdates:
+				if !open {
+					return
+				}
+
 				payload, err := json.Marshal(update)
 				if err != nil {
 					log.WithError(err).Error("Failed to marshal progress update: %v", update)
