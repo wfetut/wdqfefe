@@ -77,6 +77,7 @@ Once it is time for the next self-hosted major release (every 3-4 months), the
 new release branch will cut and the Cloud release version major component will
 increment.
 
+```
                                 14.0.0     14.0.1     14.0.2
                      branch/v14 |----------|----------|---------....---->
                                 |
@@ -87,6 +88,7 @@ master -----|-------....--------|------------------|-------....-------|---------
                                                                       |
                                                            branch/v15 |---------|---------|---------...---->
                                                                       15.0.0    15.0.1    15.0.2
+```
 
 Once a self-hosted release branch is cut, subsequent self-hosted minor/patch
 releases are published without any changes to the current process, but on a
@@ -122,13 +124,15 @@ tenants being upgraded at each stage:
 3. Trials
 4. Team & Enterprise
 
-The canary tenants will be a set of precreated staging clusters with some data
-in them which engineers will use for connecting their agents and testing their
-features. Canary clusters will be updated automatically once a Cloud release is
-cut.
+The canary tenants will be a set of precreated clusters with some data in them
+which engineers will use for connecting their agents and testing their features.
+Canary clusters will be updated automatically once a Cloud release is cut.
 
-Before promoting the release further, engineers will test any significant change in the cloud staging environment and then explicitly sign off that the change is ready for deployment by applying a label (e.g. `cloud/verified`) on the master PR corresponding to the change.
-The release manager then will approve the further rollout.
+Before promoting the release further, engineers will test any significant change
+in the cloud staging environment and then explicitly sign off that the change is
+ready for deployment by applying a label (e.g. `cloud/verified`) on the master
+PR corresponding to the change. The release manager then will approve the
+further rollout.
 
 Once the change is rolled out to production tenants, engineers will be expected
 to monitor error rates and Cloud metrics relevant to their changes.
@@ -157,6 +161,25 @@ we host for our users), agents and clients:
   adjacent releases and rely on automatic upgrades to make sure they don't drift.
 - Clients. Clients require automatic upgrades to avoid breakage on behavior
   incompatible changes. This is [in progress](https://github.com/gravitational/cloud/issues/4880).
+
+### Rollbacks
+
+Bad releases can happen even with the multi-staged rollout process. In that
+situation the process will be:
+
+- For the control plane, we will prefer rolling forward in most cases to a new
+  release with the addressed issue or a rolled back change. The control plane
+  release process described above will be fast enough to be able to push the
+  new release quickly.
+    - In a scenario where a major critical path is affected and a full "roll
+      forward" process is not fast enough, the deployment team will manually
+      perform release rollback using the same process that is used today.
+- For the agents, the rollback mechanism is supported via automatic upgrade
+  system's critical/version endpoints described in the [RFD109](https://github.com/gravitational/teleport/blob/master/rfd/0109-cloud-agent-upgrades.md).
+- For the clients, which don't support automatic upgrades yet, the details are
+  TBD as part of the [automatic upgrades](https://github.com/gravitational/cloud/issues/4880)
+  work but we will likely need to build some automatic downgrade mechanism in
+  case a client was auto-upgraded but a corresponding Github release was pulled.
 
 ### Security releases
 
