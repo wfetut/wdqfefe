@@ -1712,24 +1712,24 @@ func (process *TeleportProcess) initAuthService() error {
 		})
 	}
 
-	unifiedResourceWatcher, err := services.NewUnifiedResourceWatcher(process.ExitContext(), services.UnifiedResourceWatcherConfig{
+	unifiedResourceWatcher, err := services.NewUIResourceWatcher(process.ExitContext(), services.UIResourceWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component:    teleport.ComponentUIResource,
 			Log:          process.log.WithField(trace.Component, teleport.ComponentUIResource),
 			Client:       authServer,
 			MaxStaleness: time.Minute,
 		},
-		// NodesGetter:             authServer,
-		// DatabaseServersGetter:   authServer,
-		// AppServersGetter:        authServer,
-		// WindowsDesktopGetter:    authServer,
-		// KubernetesClusterGetter: authServer,
+		NodesGetter:             authServer,
+		DatabaseServersGetter:   authServer,
+		AppServersGetter:        authServer,
+		WindowsDesktopGetter:    authServer,
+		KubernetesClusterGetter: authServer,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	authServer.SetUIResourceWatcher(uiResourceWatcher)
+	authServer.SetUIResourceWatcher(unifiedResourceWatcher)
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(process.ExitContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,
