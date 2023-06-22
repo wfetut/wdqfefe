@@ -19,11 +19,11 @@ import { ButtonPrimary, Card, Text } from 'design';
 
 import Validation, { Validator } from 'shared/components/Validation';
 
-import { QuestionnaireFormFields } from 'teleport/Welcome/Questionnaire/types';
-import { Company } from 'teleport/Welcome/Questionnaire/Company';
-import { Role } from 'teleport/Welcome/Questionnaire/Role';
-import { Resources } from 'teleport/Welcome/Questionnaire/Resources';
-import { supportedResources } from 'teleport/Welcome/Questionnaire/constants';
+import { QuestionnaireFormFields } from './types';
+import { Company } from './Company';
+import { Role } from './Role';
+import { Resources } from './Resources';
+import { supportedResources } from './constants';
 
 export const Questionnaire = () => {
   const [validResources, setValidResources] = useState<boolean>(undefined);

@@ -24,7 +24,7 @@ import {
   EmployeeOptionsStrings,
   TeamOptionsStrings,
   TitleOptionsStrings,
-} from 'teleport/Welcome/Questionnaire/types';
+} from './types';
 
 export enum EmployeeOptions {
   '0-19',

@@ -24,11 +24,9 @@ import FieldSelect from 'shared/components/FieldSelect';
 
 import { requiredField } from 'shared/components/Validation/rules';
 
-import {
-  CompanyProps,
-  EmployeeOptionsStrings,
-} from 'teleport/Welcome/Questionnaire/types';
-import { EmployeeSelectOptions } from 'teleport/Welcome/Questionnaire/constants';
+import { EmployeeSelectOptions } from './constants';
+
+import { CompanyProps, EmployeeOptionsStrings } from './types';
 
 export const Company = ({
   updateFields,

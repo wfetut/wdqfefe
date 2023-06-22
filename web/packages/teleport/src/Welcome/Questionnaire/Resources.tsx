@@ -22,11 +22,8 @@ import Image from 'design/Image';
 
 import { CheckboxInput } from 'design/Checkbox';
 
-import {
-  ResourcesProps,
-  ResourceType,
-} from 'teleport/Welcome/Questionnaire/types';
-import { ResourceWrapper } from 'teleport/Welcome/Questionnaire/ResourceWrapper';
+import { ResourcesProps, ResourceType } from './types';
+import { ResourceWrapper } from './ResourceWrapper';
 
 export const Resources = ({
   resources,
@@ -45,13 +42,13 @@ export const Resources = ({
     updateFields({ resources: updated });
   };
 
-  const renderCheck = (resource: ResourceType, index: number) => {
+  const renderCheck = (resource: ResourceType) => {
     const isSelected = checked.includes(resource.label);
     return (
       <label
         htmlFor={`box-${resource.label}`}
         data-testid={`box-${resource.label}`}
-        key={`${index}-${resource.label}`}
+        key={resource.label}
         style={{
           width: '20%',
           height: '100%',
@@ -98,7 +95,7 @@ export const Resources = ({
         </LabelInput>
       </Flex>
       <Flex gap={2} alignItems="flex-start" height="170px">
-        {resources.map((r: ResourceType, i: number) => renderCheck(r, i))}
+        {resources.map((r: ResourceType) => renderCheck(r))}
       </Flex>
     </>
   );
