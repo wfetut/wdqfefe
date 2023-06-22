@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useMemo } from 'react';
+import React from 'react';
 
 import { Option } from 'shared/components/Select';
 
@@ -28,50 +28,38 @@ import {
   CompanyProps,
   EmployeeOptionsStrings,
 } from 'teleport/Welcome/Questionnaire/types';
-import { EmployeeOptions } from 'teleport/Welcome/Questionnaire/constants';
+import { EmployeeSelectOptions } from 'teleport/Welcome/Questionnaire/constants';
 
 export const Company = ({
   updateFields,
   companyName,
   numberOfEmployees,
-}: CompanyProps) => {
-  const options: Option<EmployeeOptionsStrings, EmployeeOptionsStrings>[] =
-    useMemo(() => {
-      return Object.values(EmployeeOptions)
-        .filter(v => !isNaN(Number(v)))
-        .map(key => ({
-          value: EmployeeOptions[key],
-          label: EmployeeOptions[key],
-        }));
-    }, []);
-
-  return (
-    <>
-      <FieldInput
-        label="Company Name"
-        rule={requiredField('Company Name is required')}
-        id="company-name"
-        type="text"
-        value={companyName}
-        placeholder="ex. github"
-        onChange={e => {
-          updateFields({ companyName: e.target.value });
-        }}
-      />
-      <FieldSelect
-        label="Number of Employees"
-        rule={requiredField('Number of Employees is required')}
-        placeholder="Select Team Size"
-        onChange={(e: Option<EmployeeOptionsStrings, string>) =>
-          updateFields({ employeeCount: e.value })
-        }
-        value={
-          numberOfEmployees
-            ? { label: numberOfEmployees, value: numberOfEmployees }
-            : null
-        }
-        options={options}
-      />
-    </>
-  );
-};
+}: CompanyProps) => (
+  <>
+    <FieldInput
+      label="Company Name"
+      rule={requiredField('Company Name is required')}
+      id="company-name"
+      type="text"
+      value={companyName}
+      placeholder="ex. github"
+      onChange={e => {
+        updateFields({ companyName: e.target.value });
+      }}
+    />
+    <FieldSelect
+      label="Number of Employees"
+      rule={requiredField('Number of Employees is required')}
+      placeholder="Select Team Size"
+      onChange={(e: Option<EmployeeOptionsStrings, string>) =>
+        updateFields({ employeeCount: e.value })
+      }
+      value={
+        numberOfEmployees
+          ? { label: numberOfEmployees, value: numberOfEmployees }
+          : null
+      }
+      options={EmployeeSelectOptions}
+    />
+  </>
+);
