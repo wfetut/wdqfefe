@@ -66,7 +66,7 @@ type AgentAction struct {
 // agentFinish is an event type representing the decision to finish a thought
 // loop and return a final text answer to the user.
 type agentFinish struct {
-	// output must be Message or CompletionCommand
+	// output must be Message, StreamingMessage or CompletionCommand
 	output any
 }
 
@@ -116,6 +116,8 @@ func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHist
 			case *Message:
 				v.TokensUsed = tokensUsed
 				return v, nil
+			case *StreamingMessage:
+				v.TokensUsed = tokensUsed
 			case *CompletionCommand:
 				v.TokensUsed = tokensUsed
 				return v, nil
@@ -337,6 +339,20 @@ func parsePlanningOutput(deltas <-chan string) (*AgentAction, *agentFinish, erro
 	var text string
 	for delta := range deltas {
 		text += delta
+
+		if strings.HasPrefix(text, "<FINAL RESPONSE>") {
+			parts := make(chan string)
+			go func() {
+				defer close(parts)
+
+				parts <- strings.TrimPrefix(text, "<FINAL RESPONSE>")
+				for delta := range deltas {
+					parts <- delta
+				}
+			}()
+
+			return nil, &agentFinish{output: &StreamingMessage{Parts: parts}}, nil
+		}
 	}
 
 	log.Debugf("received planning output: \"%v\"", text)
