@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { ButtonPrimary, Card, Text } from 'design';
+
+import Validation, { Validator } from 'shared/components/Validation';
 
 import { QuestionnaireFormFields } from 'teleport/Welcome/Questionnaire/types';
 import { Company } from 'teleport/Welcome/Questionnaire/Company';
@@ -24,7 +26,7 @@ import { Resources } from 'teleport/Welcome/Questionnaire/Resources';
 import { supportedResources } from 'teleport/Welcome/Questionnaire/constants';
 
 export const Questionnaire = () => {
-  const [valid, setValid] = useState<boolean>(false);
+  const [validResources, setValidResources] = useState<boolean>(undefined);
 
   const [formFields, setFormFields] = useState<QuestionnaireFormFields>({
     companyName: '',
@@ -35,6 +37,7 @@ export const Questionnaire = () => {
   });
 
   const updateForm = (fields: Partial<QuestionnaireFormFields>) => {
+    setValidResources(undefined);
     setFormFields({
       role: fields.role ?? formFields.role,
       team: fields.team ?? formFields.team,
@@ -42,22 +45,14 @@ export const Questionnaire = () => {
       companyName: fields.companyName ?? formFields.companyName,
       employeeCount: fields.employeeCount ?? formFields.employeeCount,
     });
-
-    console.log('***: ', fields);
   };
 
-  useEffect(() => {
-    setValid(
-      formFields.resources.length != 0 &&
-        formFields.companyName != '' &&
-        formFields.employeeCount != undefined &&
-        formFields.team != undefined &&
-        formFields.role != undefined
-    );
-  }, [formFields]);
+  const submitForm = (validator: Validator) => {
+    setValidResources(formFields.resources.length !== 0);
+    if (!validator.validate() || !validResources) {
+      return;
+    }
 
-  const submitForm = () => {
-    console.info(formFields);
     // todo (michellescripts) submit all Qs to Sales Center
     // todo (michellescripts) set resource Q on user state
   };
@@ -68,30 +63,37 @@ export const Questionnaire = () => {
       <Text typography="h2" mb={4}>
         Tell us about yourself
       </Text>
-      <Company
-        companyName={formFields.companyName}
-        numberOfEmployees={formFields.employeeCount}
-        updateFields={updateForm}
-      />
-      <Role
-        role={formFields.role}
-        team={formFields.team}
-        updateFields={updateForm}
-      />
-      <Resources
-        resources={supportedResources}
-        checked={formFields.resources}
-        updateFields={updateForm}
-      />
-      <ButtonPrimary
-        mt={3}
-        width="100%"
-        size="large"
-        disabled={!valid}
-        onClick={submitForm}
-      >
-        Submit
-      </ButtonPrimary>
+      <Validation>
+        {({ validator }) => (
+          <>
+            <Company
+              companyName={formFields.companyName}
+              numberOfEmployees={formFields.employeeCount}
+              updateFields={updateForm}
+            />
+            <Role
+              role={formFields.role}
+              team={formFields.team}
+              updateFields={updateForm}
+            />
+            <Resources
+              resources={supportedResources}
+              checked={formFields.resources}
+              updateFields={updateForm}
+              valid={validResources}
+            />
+
+            <ButtonPrimary
+              mt={3}
+              width="100%"
+              size="large"
+              onClick={() => submitForm(validator)}
+            >
+              Submit
+            </ButtonPrimary>
+          </>
+        )}
+      </Validation>
     </Card>
   );
 };

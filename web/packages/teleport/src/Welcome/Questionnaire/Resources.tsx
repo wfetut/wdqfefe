@@ -14,15 +14,11 @@
  * limitations under the License.
  */
 
-import { Flex, Text } from 'design';
+import { Flex, LabelInput, Text } from 'design';
 
 import React from 'react';
 
-import { InputLabel } from 'design/Input/InputLabel';
-
 import Image from 'design/Image';
-
-import { useTheme } from 'styled-components';
 
 import { CheckboxInput } from 'design/Checkbox';
 
@@ -30,14 +26,14 @@ import {
   ResourcesProps,
   ResourceType,
 } from 'teleport/Welcome/Questionnaire/types';
+import { ResourceWrapper } from 'teleport/Welcome/Questionnaire/ResourceWrapper';
 
 export const Resources = ({
   resources,
   checked,
   updateFields,
+  valid,
 }: ResourcesProps) => {
-  const theme = useTheme();
-
   const updateResources = (label: string) => {
     let updated = checked;
     if (updated.includes(label)) {
@@ -62,22 +58,7 @@ export const Resources = ({
         }}
         onClick={() => updateResources(resource.label)}
       >
-        <Flex
-          id={`box-${resource.label}`}
-          flexDirection="column"
-          height="100%"
-          bg={theme.colors.spotBackground[0]}
-          p="12px 0"
-          gap={1}
-          borderRadius="4px"
-          style={
-            isSelected
-              ? {
-                  border: `1px solid ${theme.colors.brand}`,
-                }
-              : {}
-          }
-        >
+        <ResourceWrapper isSelected={isSelected} invalid={valid == false}>
           <CheckboxInput
             aria-labelledby="resources"
             role="checkbox"
@@ -99,19 +80,23 @@ export const Resources = ({
               {resource.label}
             </Text>
           </Flex>
-        </Flex>
+        </ResourceWrapper>
       </label>
     );
   };
 
   return (
     <>
-      <InputLabel
-        label="Which infrastructure resources do you need to access frequently?"
-        subLabel="Select all that apply."
-        aria="resources"
-        required
-      />
+      <Flex gap={1} mb={1}>
+        <LabelInput
+          htmlFor={'resources'}
+          hasError={valid == false}
+          color="blue"
+        >
+          Which infrastructure resources do you need to access frequently?{' '}
+          <i>Select all that apply.</i>
+        </LabelInput>
+      </Flex>
       <Flex gap={2} alignItems="flex-start" height="170px">
         {resources.map((r: ResourceType, i: number) => renderCheck(r, i))}
       </Flex>
