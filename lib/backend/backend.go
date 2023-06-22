@@ -93,6 +93,19 @@ type Backend interface {
 	// CloseWatchers closes all the watchers
 	// without closing the backend
 	CloseWatchers()
+
+	// ConditionalPut puts value into backend (creates if it does not
+	// exist, updates it otherwise) if the revision of the [Item] matches
+	// the stored revision.
+	ConditionalPut(ctx context.Context, i Item) (*Lease, error)
+
+	// ConditionalUpdate updates value in the backend if the revision of the [Item] matches
+	// the stored revision.
+	ConditionalUpdate(ctx context.Context, i Item) (*Lease, error)
+
+	// ConditionalDelete deletes item by key if the revision of the [Item] matches
+	// the stored revision.
+	ConditionalDelete(ctx context.Context, key []byte, revision string) error
 }
 
 // IterateRange is a helper for stepping over a range

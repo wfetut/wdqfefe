@@ -124,7 +124,7 @@ func (s *Reporter) GetRange(ctx context.Context, startKey []byte, endKey []byte,
 
 	start := s.Clock().Now()
 	res, err := s.Backend.GetRange(ctx, startKey, endKey, limit)
-	batchReadLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
+	batchReadLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
 	batchReadRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		batchReadRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -147,7 +147,7 @@ func (s *Reporter) Create(ctx context.Context, i Item) (*Lease, error) {
 
 	start := s.Clock().Now()
 	lease, err := s.Backend.Create(ctx, i)
-	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -171,13 +171,85 @@ func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 
 	start := s.Clock().Now()
 	lease, err := s.Backend.Put(ctx, i)
-	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
 	s.trackRequest(types.OpPut, i.Key, nil)
 	return lease, err
+}
+
+// ConditionalPut puts value into backend (creates if it does not
+// exists, updates it otherwise)
+func (s *Reporter) ConditionalPut(ctx context.Context, i Item) (*Lease, error) {
+	ctx, span := s.Tracer.Start(
+		ctx,
+		"backend/Put",
+		oteltrace.WithAttributes(
+			attribute.String("key", string(i.Key)),
+			attribute.String("revision", i.Revision),
+		),
+	)
+	defer span.End()
+
+	start := s.Clock().Now()
+	lease, err := s.Backend.ConditionalPut(ctx, i)
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeRequests.WithLabelValues(s.Component).Inc()
+	if err != nil {
+		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+	}
+	s.trackRequest(types.OpPut, i.Key, nil)
+	return lease, err
+}
+
+// ConditionalUpdate puts value into backend (creates if it does not
+// exists, updates it otherwise)
+func (s *Reporter) ConditionalUpdate(ctx context.Context, i Item) (*Lease, error) {
+	ctx, span := s.Tracer.Start(
+		ctx,
+		"backend/ConditionalUpdate",
+		oteltrace.WithAttributes(
+			attribute.String("key", string(i.Key)),
+			attribute.String("revision", i.Revision),
+		),
+	)
+	defer span.End()
+
+	start := s.Clock().Now()
+	lease, err := s.Backend.ConditionalUpdate(ctx, i)
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeRequests.WithLabelValues(s.Component).Inc()
+	if err != nil {
+		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+	}
+	s.trackRequest(types.OpPut, i.Key, nil)
+	return lease, err
+}
+
+// ConditionalDelete puts value into backend (creates if it does not
+// exists, updates it otherwise)
+func (s *Reporter) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
+	ctx, span := s.Tracer.Start(
+		ctx,
+		"backend/ConditionalDelete",
+		oteltrace.WithAttributes(
+			attribute.String("key", string(key)),
+			attribute.String("revision", revision),
+		),
+	)
+	defer span.End()
+
+	start := s.Clock().Now()
+	err := s.Backend.ConditionalDelete(ctx, key, revision)
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeRequests.WithLabelValues(s.Component).Inc()
+	if err != nil {
+		writeRequestsFailed.WithLabelValues(s.Component).Inc()
+	}
+	s.trackRequest(types.OpPut, key, nil)
+	return err
 }
 
 // Update updates value in the backend
@@ -194,7 +266,7 @@ func (s *Reporter) Update(ctx context.Context, i Item) (*Lease, error) {
 
 	start := s.Clock().Now()
 	lease, err := s.Backend.Update(ctx, i)
-	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -215,9 +287,9 @@ func (s *Reporter) Get(ctx context.Context, key []byte) (*Item, error) {
 	defer span.End()
 
 	start := s.Clock().Now()
-	item, err := s.Backend.Get(ctx, key)
-	readLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
+	readLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
 	readRequests.WithLabelValues(s.Component).Inc()
+	item, err := s.Backend.Get(ctx, key)
 	if err != nil && !trace.IsNotFound(err) {
 		readRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
@@ -240,7 +312,7 @@ func (s *Reporter) CompareAndSwap(ctx context.Context, expected Item, replaceWit
 
 	start := s.Clock().Now()
 	lease, err := s.Backend.CompareAndSwap(ctx, expected, replaceWith)
-	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -262,7 +334,7 @@ func (s *Reporter) Delete(ctx context.Context, key []byte) error {
 
 	start := s.Clock().Now()
 	err := s.Backend.Delete(ctx, key)
-	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -285,7 +357,7 @@ func (s *Reporter) DeleteRange(ctx context.Context, startKey []byte, endKey []by
 
 	start := s.Clock().Now()
 	err := s.Backend.DeleteRange(ctx, startKey, endKey)
-	batchWriteLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
+	batchWriteLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
 	batchWriteRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
 		batchWriteRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -311,7 +383,7 @@ func (s *Reporter) KeepAlive(ctx context.Context, lease Lease, expires time.Time
 
 	start := s.Clock().Now()
 	err := s.Backend.KeepAlive(ctx, lease, expires)
-	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -446,7 +518,7 @@ var (
 	requests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: teleport.MetricBackendRequests,
-			Help: "Number of requests to the backend (reads, writes, and keepalives)",
+			Help: "Number of write requests to the backend",
 		},
 		[]string{teleport.ComponentLabel, teleport.TagReq, teleport.TagRange},
 	)

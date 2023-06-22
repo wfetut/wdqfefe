@@ -126,6 +126,36 @@ func (s *Sanitizer) DeleteRange(ctx context.Context, startKey []byte, endKey []b
 	return s.backend.DeleteRange(ctx, startKey, endKey)
 }
 
+// ConditionalPut puts value into backend (creates if it does not
+// exists, updates it otherwise)
+func (s *Sanitizer) ConditionalPut(ctx context.Context, i Item) (*Lease, error) {
+	if !isKeySafe(i.Key) {
+		return nil, trace.BadParameter(errorMessage, i.Key)
+	}
+
+	return s.backend.ConditionalPut(ctx, i)
+}
+
+// ConditionalUpdate puts value into backend (creates if it does not
+// exists, updates it otherwise)
+func (s *Sanitizer) ConditionalUpdate(ctx context.Context, i Item) (*Lease, error) {
+	if !isKeySafe(i.Key) {
+		return nil, trace.BadParameter(errorMessage, i.Key)
+	}
+
+	return s.backend.ConditionalUpdate(ctx, i)
+}
+
+// ConditionalDelete puts value into backend (creates if it does not
+// exists, updates it otherwise)
+func (s *Sanitizer) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
+	if !isKeySafe(key) {
+		return trace.BadParameter(errorMessage, key)
+	}
+
+	return s.backend.ConditionalDelete(ctx, key, revision)
+}
+
 // KeepAlive keeps object from expiring, updates lease on the existing object,
 // expires contains the new expiry to set on the lease,
 // some backends may ignore expires based on the implementation

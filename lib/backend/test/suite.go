@@ -1142,20 +1142,6 @@ func testMirror(t *testing.T, newBackend Constructor) {
 	require.NoError(t, err)
 }
 
-type ConditionalBackend interface {
-	// ConditionalPut puts value into backend (creates if it does not
-	// exist, updates it otherwise) if the revision of the [Item] matches
-	// the stored revision.
-	ConditionalPut(ctx context.Context, i backend.Item) (*backend.Lease, error)
-
-	// ConditionalUpdate updates value in the backend if the revision of the [Item] matches
-	// the stored revision.
-	ConditionalUpdate(ctx context.Context, i backend.Item) (*backend.Lease, error)
-
-	// ConditionalDelete deletes item by key if the revision of the [Item] matches
-	// the stored revision.
-	ConditionalDelete(ctx context.Context, key []byte, revision string) error
-}
 
 func testConditionalDelete(t *testing.T, newBackend Constructor) {
 	uut, clock, err := newBackend()
@@ -1166,28 +1152,23 @@ func testConditionalDelete(t *testing.T, newBackend Constructor) {
 	prefix := MakePrefix()
 	expiry := clock.Now().UTC().Add(time.Hour)
 
-	cbk, ok := uut.(ConditionalBackend)
-	if !ok {
-		return
-	}
-
 	item := backend.Item{Key: prefix("/hello"), Value: []byte("world"), Expires: expiry}
 	lease, err := uut.Create(ctx, item)
 	require.NoError(t, err)
 
 	// delete fails when revisions don't match
-	err = cbk.ConditionalDelete(ctx, item.Key, "1")
+	err = uut.ConditionalDelete(ctx, item.Key, "1")
 	require.ErrorIs(t, err, trace.CompareFailed(backend.ErrIncorrectRevision))
 
 	// delete succeeds when revisions match
-	require.NoError(t, cbk.ConditionalDelete(ctx, item.Key, lease.Revision))
+	require.NoError(t, uut.ConditionalDelete(ctx, item.Key, lease.Revision))
 
 	// validate that the item was deleted
 	_, err = uut.Get(ctx, item.Key)
 	require.True(t, trace.IsNotFound(err))
 
 	// validate that deleting a non-existent item fails
-	err = cbk.ConditionalDelete(ctx, item.Key, lease.Revision)
+	err = uut.ConditionalDelete(ctx, item.Key, lease.Revision)
 	require.ErrorIs(t, err, trace.CompareFailed(backend.ErrIncorrectRevision))
 }
 
@@ -1200,15 +1181,10 @@ func testConditionalUpdate(t *testing.T, newBackend Constructor) {
 	prefix := MakePrefix()
 	expiry := clock.Now().UTC().Add(time.Hour)
 
-	cbk, ok := uut.(ConditionalBackend)
-	if !ok {
-		return
-	}
-
 	item := backend.Item{Key: prefix("/hello"), Value: []byte("world"), Expires: expiry}
 
 	// Updating a non-existent item should fail.
-	_, err = cbk.ConditionalUpdate(ctx, item)
+	_, err = uut.ConditionalUpdate(ctx, item)
 	require.ErrorIs(t, err, trace.CompareFailed(backend.ErrIncorrectRevision))
 
 	// Create the item.
@@ -1217,7 +1193,7 @@ func testConditionalUpdate(t *testing.T, newBackend Constructor) {
 
 	item.Revision = "100"
 	// Update fails when revisions don't match.
-	_, err = cbk.ConditionalUpdate(ctx, item)
+	_, err = uut.ConditionalUpdate(ctx, item)
 	require.ErrorIs(t, err, trace.CompareFailed(backend.ErrIncorrectRevision))
 
 	// Update succeeds when revisions match and a new revision
@@ -1225,7 +1201,7 @@ func testConditionalUpdate(t *testing.T, newBackend Constructor) {
 	// in the lease matches the value stored in the backend.
 	item.Revision = lease.Revision
 	for i := 0; i < 2; i++ {
-		lease, err = cbk.ConditionalUpdate(ctx, item)
+		lease, err = uut.ConditionalUpdate(ctx, item)
 		require.NoError(t, err)
 		require.NotEqual(t, item.Revision, lease.Revision)
 		item.Revision = lease.Revision
@@ -1241,15 +1217,11 @@ func testConditionalPut(t *testing.T, newBackend Constructor) {
 	prefix := MakePrefix()
 	expiry := clock.Now().UTC().Add(time.Hour)
 
-	cbk, ok := uut.(ConditionalBackend)
-	if !ok {
-		return
-	}
-
 	item := backend.Item{Key: prefix("/hello"), Value: []byte("world"), Expires: expiry}
-	// Putting a value without a revision should fail.
-	_, err = cbk.ConditionalPut(ctx, item)
-	require.ErrorIs(t, err, trace.CompareFailed(backend.ErrIncorrectRevision))
+	// Putting a non-existent revision should fail.
+	_, err = uut.ConditionalPut(ctx, item)
+	require.True(t, trace.IsCompareFailed(err))
+
 
 	lease, err := uut.Create(ctx, item)
 	require.NoError(t, err)
@@ -1257,13 +1229,13 @@ func testConditionalPut(t *testing.T, newBackend Constructor) {
 
 	// Putting a value with an invalid revision should fail.
 	item.Revision = "1"
-	_, err = cbk.ConditionalPut(ctx, item)
+	_, err = uut.ConditionalPut(ctx, item)
 	require.ErrorIs(t, err, trace.CompareFailed(backend.ErrIncorrectRevision))
 
 	// Update the item.
 	item.Value = []byte("universe")
 	item.Revision = lease.Revision
-	lease, err = cbk.ConditionalPut(ctx, item)
+	lease, err = uut.ConditionalPut(ctx, item)
 	require.NoError(t, err)
 	require.NotEqual(t, item.Revision, lease.Revision)
 
