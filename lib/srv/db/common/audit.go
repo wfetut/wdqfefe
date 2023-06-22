@@ -55,12 +55,22 @@ type Query struct {
 type AuditConfig struct {
 	// Emitter is used to emit audit events.
 	Emitter events.Emitter
+	// Engine is the database engine in use.
+	Engine string
+	// Component is the component in use.
+	Component string
 }
 
 // Check validates the config.
 func (c *AuditConfig) Check() error {
 	if c.Emitter == nil {
 		return trace.BadParameter("missing Emitter")
+	}
+	if c.Engine == "" {
+		return trace.BadParameter("missing Engine")
+	}
+	if c.Component == "" {
+		c.Component = "db:audit"
 	}
 	return nil
 }
@@ -80,12 +90,18 @@ func NewAudit(config AuditConfig) (Audit, error) {
 	}
 	return &audit{
 		cfg: config,
-		log: logrus.WithField(trace.Component, "db:audit"),
+		log: logrus.WithField(trace.Component, config.Component),
 	}, nil
+}
+
+func (a *audit) methodCallMetrics() func() {
+	return methodCallMetrics(a.cfg.Component, a.cfg.Engine, 2)
 }
 
 // OnSessionStart emits an audit event when database session starts.
 func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr error) {
+	defer a.methodCallMetrics()()
+
 	event := &events.DatabaseSessionStart{
 		Metadata: MakeEventMetadata(session,
 			libevents.DatabaseSessionStartEvent,
@@ -113,6 +129,8 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 
 // OnSessionEnd emits an audit event when database session ends.
 func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
+	defer a.methodCallMetrics()()
+
 	a.EmitEvent(ctx, &events.DatabaseSessionEnd{
 		Metadata: MakeEventMetadata(session,
 			libevents.DatabaseSessionEndEvent,
@@ -125,6 +143,8 @@ func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
 
 // OnQuery emits an audit event when a database query is executed.
 func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
+	defer a.methodCallMetrics()()
+
 	event := &events.DatabaseSessionQuery{
 		Metadata: MakeEventMetadata(session,
 			libevents.DatabaseSessionQueryEvent,
@@ -155,6 +175,8 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
 
 // EmitEvent emits the provided audit event using configured emitter.
 func (a *audit) EmitEvent(ctx context.Context, event events.AuditEvent) {
+	defer a.methodCallMetrics()()
+
 	if err := a.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
 		a.log.WithError(err).Errorf("Failed to emit audit event: %s - %s.", event.GetType(), event.GetID())
 	}

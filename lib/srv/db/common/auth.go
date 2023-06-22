@@ -1023,3 +1023,28 @@ func (r *elastiCacheRedisIAMTokenRequest) getSignableRequest() (*http.Request, e
 	}
 	return req, nil
 }
+
+type reportingAuth struct {
+	Auth
+	component        string
+	databaseProtocol string
+}
+
+func GetReportingAuth(protocol string, auth Auth) Auth {
+	return &reportingAuth{
+		Auth:             auth,
+		component:        "db:auth",
+		databaseProtocol: protocol,
+	}
+}
+
+func (r *reportingAuth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
+	defer r.methodCallMetrics()()
+	return r.Auth.GetTLSConfig(ctx, sessionCtx)
+}
+
+func (r *reportingAuth) methodCallMetrics() func() {
+	return methodCallMetrics(r.component, r.databaseProtocol, 2)
+}
+
+var _ Auth = (*reportingAuth)(nil)

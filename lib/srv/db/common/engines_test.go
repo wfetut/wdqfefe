@@ -47,7 +47,9 @@ func TestRegisterEngine(t *testing.T) {
 		Audit:        &testAudit{},
 		AuthClient:   &auth.Client{},
 		CloudClients: cloudClients,
+		Name:         "dummy",
 	}
+	require.NoError(t, ec.CheckAndSetDefaults())
 
 	// No engine is registered initially.
 	engine, err := GetEngine("test", ec)
@@ -65,8 +67,12 @@ func TestRegisterEngine(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, engine)
 
+	// Expect reporting engine wrapped around test engine
+	repEngine, ok := engine.(*reportingEngine)
+	require.True(t, ok)
+
 	// Verify it's the one we registered.
-	engineInst, ok := engine.(*testEngine)
+	engineInst, ok := repEngine.engine.(*testEngine)
 	require.True(t, ok)
 	require.Equal(t, ec, engineInst.ec)
 }
