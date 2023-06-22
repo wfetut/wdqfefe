@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -40,6 +41,7 @@ import (
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
+	resourcesv6 "github.com/gravitational/teleport/integrations/operator/apis/resources/v6"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	sidecar2 "github.com/gravitational/teleport/integrations/operator/sidecar"
 )
@@ -51,7 +53,7 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
+	utilruntime.Must(resourcesv6.AddToScheme(scheme))
 	utilruntime.Must(resourcesv5.AddToScheme(scheme))
 	utilruntime.Must(resourcesv3.AddToScheme(scheme))
 	utilruntime.Must(resourcesv2.AddToScheme(scheme))
