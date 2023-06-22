@@ -37,7 +37,10 @@ export const Questionnaire = () => {
   });
 
   const updateForm = (fields: Partial<QuestionnaireFormFields>) => {
-    setValidResources(undefined);
+    if (fields.resources && validResources == false) {
+      setValidResources(undefined);
+    }
+
     setFormFields({
       role: fields.role ?? formFields.role,
       team: fields.team ?? formFields.team,
