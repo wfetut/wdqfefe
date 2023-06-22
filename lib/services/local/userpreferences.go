@@ -52,7 +52,7 @@ func NewUserPreferencesService(backend backend.Backend) *UserPreferencesService 
 
 // GetUserPreferences returns the user preferences for the given user.
 func (u *UserPreferencesService) GetUserPreferences(ctx context.Context,req *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.UserPreferences, error) {
-	return nil, trace.NotImplemented("not implemented")
+	return u.upsertUserPreferences(ctx, req.Username)
 }
 
 // UpdateUserPreferences updates the user preferences for the given user.
