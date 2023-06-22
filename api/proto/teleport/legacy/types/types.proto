@@ -87,6 +87,9 @@ message Metadata {
   ];
   // ID is a record ID
   int64 ID = 7 [(gogoproto.jsontag) = "id,omitempty"];
+  // Revision is the last known version of a resource. This field should be treated as
+  // an opaque identifier and returned as is.
+  string Revision = 8 [(gogoproto.jsontag) = "revision,omitempty"];
 }
 
 // Rotation is a status of the rotation of the certificate authority

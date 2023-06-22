@@ -52,8 +52,7 @@ func (s *DatabaseServicesService) UpsertDatabaseService(ctx context.Context, ser
 		Expires: service.Expiry(),
 		ID:      service.GetResourceID(),
 	}
-	lease, err := s.Put(ctx, item)
-	if err != nil {
+	if _, err := s.Put(ctx, item); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if service.Expiry().IsZero() {
@@ -61,7 +60,6 @@ func (s *DatabaseServicesService) UpsertDatabaseService(ctx context.Context, ser
 	}
 	return &types.KeepAlive{
 		Type:      types.KeepAlive_DATABASE_SERVICE,
-		LeaseID:   lease.ID,
 		Namespace: apidefaults.Namespace,
 		Name:      service.GetName(),
 		HostID:    service.GetName(),

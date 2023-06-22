@@ -722,7 +722,7 @@ func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Leas
 
 // KeepAlive updates TTL on the lease ID
 func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
-	if lease.ID == 0 {
+	if lease.IsEmpty() {
 		return trace.BadParameter("lease is not specified")
 	}
 
@@ -820,7 +820,6 @@ func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *
 		return trace.Wrap(err)
 	}
 	*opts = []clientv3.OpOption{clientv3.WithLease(leaseID)}
-	lease.ID = int64(leaseID)
 	lease.Key = item.Key
 	return nil
 }

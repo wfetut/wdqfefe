@@ -156,13 +156,13 @@ type Batch interface {
 type Lease struct {
 	// Key is an object representing lease
 	Key []byte
-	// ID is a lease ID, could be empty
-	ID int64
+	// Revision is the last known version of the object.
+	Revision string
 }
 
 // IsEmpty returns true if the lease is empty value
 func (l *Lease) IsEmpty() bool {
-	return l.ID == 0 && len(l.Key) == 0
+	return l.Revision == "" && len(l.Key) == 0
 }
 
 // Watch specifies watcher parameters
@@ -226,6 +226,8 @@ type Item struct {
 	// LeaseID is a lease ID, could be set on objects
 	// with TTL
 	LeaseID int64
+	// Revision is the last known version of the object.
+	Revision string
 }
 
 func (e Event) String() string {
