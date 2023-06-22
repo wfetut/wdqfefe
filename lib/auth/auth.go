@@ -291,6 +291,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
+		UserPreferences:         cfg.UserPreferences,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
