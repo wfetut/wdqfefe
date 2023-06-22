@@ -25,7 +25,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
@@ -306,6 +308,46 @@ func (s *WebSuite) makeAssistant(t *testing.T, pack *authPack, conversationID st
 	}
 
 	return ws, nil
+}
+
+func Test_generateAssistantTitle(t *testing.T) {
+	// Test setup
+	t.Parallel()
+	ctx := context.Background()
+
+	counter := atomic.Int64{}
+	responses := []string{"This is the message summary.", "troubleshooting"}
+	server := httptest.NewServer(aitest.CountHandlerInvocations(aitest.GetTestHandlerFn(t, responses), &counter))
+	t.Cleanup(server.Close)
+
+	openaiCfg := openai.DefaultConfig("test-token")
+	openaiCfg.BaseURL = server.URL
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		ClusterFeatures: &authproto.Features{
+			Cloud: true,
+		},
+		OpenAIConfig: &openaiCfg,
+	})
+
+	pack := s.authPack(t, "foo")
+
+	// Real test: we craft a request asking for a summary
+	endpoint := pack.clt.Endpoint("webapi", "assistant", "title", "summary")
+	req := generateAssistantTitleRequest{Message: "This is a test user message asking Teleport assist to do something."}
+
+	// Executing the request and validating the output is as expected
+	resp, err := pack.clt.PostJSON(ctx, endpoint, &req)
+	require.NoError(t, err)
+
+	var info conversationInfo
+	body, err := io.ReadAll(resp.Reader())
+	require.NoError(t, err)
+	err = json.Unmarshal(body, &info)
+	require.NoError(t, err)
+	require.NotEmpty(t, info.Title)
+	require.Eventually(t, func() bool {
+		return counter.Load() == 2
+	}, time.Second, 100*time.Millisecond)
 }
 
 // generateTextResponse generates a response for a text completion

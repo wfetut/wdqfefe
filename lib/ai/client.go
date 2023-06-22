@@ -77,3 +77,23 @@ func (client *Client) Summary(ctx context.Context, message string) (string, erro
 
 	return resp.Choices[0].Message.Content, nil
 }
+
+// ClassifyMessage takes a user message, a list of categories, and uses the AI mode as a zero shot classifier.
+func (client *Client) ClassifyMessage(ctx context.Context, message string, classes map[string]string) (string, error) {
+	resp, err := client.svc.CreateChatCompletion(
+		ctx,
+		openai.ChatCompletionRequest{
+			Model: openai.GPT4,
+			Messages: []openai.ChatCompletionMessage{
+				{Role: openai.ChatMessageRoleSystem, Content: model.MessageClassificationPrompt(classes)},
+				{Role: openai.ChatMessageRoleUser, Content: message},
+			},
+		},
+	)
+
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return resp.Choices[0].Message.Content, nil
+}

@@ -16,7 +16,10 @@ limitations under the License.
 
 package model
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 var observationPrefix = "Observation: "
 var thoughtPrefix = "Thought: "
@@ -99,4 +102,17 @@ USER'S INPUT
 --------------------
 
 Okay, so what is the response to my last comment? If using information obtained from the tools you must mention it explicitly without mentioning the tool names - I have forgotten all TOOL RESPONSES! Remember to respond with a markdown code snippet of a json blob with a single action, and NOTHING else.`, toolResponse)
+}
+
+func MessageClassificationPrompt(classes map[string]string) string {
+	var prompt strings.Builder
+	prompt.WriteString("Teleport is a tool that provides access to servers, kubernetes clusters, databases, or applications. All connected Teleport resources are called a cluster, server resources might be called nodes.")
+	prompt.WriteString("\n")
+	prompt.WriteString("Classify the provided message between the following categories: \n")
+	for name, description := range classes {
+		prompt.WriteString(fmt.Sprintf("- `%s` (%s)", name, description))
+	}
+	prompt.WriteString("\n")
+	prompt.WriteString("Answer only with the category name. Nothing else.")
+	return prompt.String()
 }

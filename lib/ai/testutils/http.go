@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -69,5 +70,12 @@ func GetTestHandlerFn(t *testing.T, responses []string) http.HandlerFunc {
 		assert.NoError(t, err, "Write error")
 
 		responses = responses[1:]
+	}
+}
+
+func CountHandlerInvocations(handlerFunc http.HandlerFunc, counter *atomic.Int64) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		counter.Add(1)
+		handlerFunc(writer, request)
 	}
 }
