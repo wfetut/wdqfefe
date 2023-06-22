@@ -107,6 +107,8 @@ func toErrorResponse(err error) *pgproto3.ErrorResponse {
 // middleman between the proxy and the database intercepting and interpreting
 // all messages i.e. doing protocol parsing.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	observe := e.ObserveConnectionSetupTime()
+
 	// Now we know which database/username the user is connecting to, so
 	// perform an authorization check.
 	err := e.checkAccess(ctx, sessionCtx)
@@ -161,6 +163,9 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 			e.Log.WithError(err).Error("Failed to close connection.")
 		}
 	}()
+
+	observe()
+
 	// Now launch the message exchange relaying all intercepted messages b/w
 	// the client (psql or other Postgres client) and the server (database).
 	clientErrCh := make(chan error, 1)
@@ -313,7 +318,8 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 			clientErrCh <- err
 			return
 		}
-		log.Debugf("Received client message: %#v.", message)
+		e.IncMessagesFromClient()
+
 		switch msg := message.(type) {
 		case *pgproto3.Query:
 			e.auditQueryMessage(sessionCtx, msg)
@@ -408,7 +414,9 @@ func (e *Engine) receiveFromServer(server *pgproto3.Frontend, client *pgproto3.B
 			serverErrCh <- err
 			return
 		}
-		log.Debugf("Received server message: %#v.", message)
+
+		e.IncMessagesFromServer()
+
 		// This is where we would plug in custom logic for particular
 		// messages received from the Postgres server (i.e. emitting
 		// an audit event), but for now just pass them along back to

@@ -106,13 +106,12 @@ func (e *Engine) SendError(err error) {
 // HandleConnection authorizes the incoming client connection, connects to the
 // target Elasticsearch server and starts proxying requests between client/server.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	observe := e.ObserveConnectionSetupTime()
+
 	if err := e.authorizeConnection(ctx); err != nil {
+		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)
 	}
-
-	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
-	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
-
 	clientConnReader := bufio.NewReader(e.clientConn)
 
 	if sessionCtx.Identity.RouteToDatabase.Username == "" {
@@ -130,6 +129,11 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		},
 	}
 
+	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
+	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+
+	observe()
+
 	for {
 		req, err := http.ReadRequest(clientConnReader)
 		if err != nil {
@@ -146,6 +150,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 // process reads request from connected elasticsearch client, processes the requests/responses and send data back
 // to the client.
 func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request, client *http.Client) error {
+	e.IncMessagesFromClient()
+
 	payload, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -173,6 +179,8 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 	}
 	defer resp.Body.Close()
 	responseStatusCode = uint32(resp.StatusCode)
+
+	e.IncMessagesFromServer()
 
 	return trace.Wrap(e.sendResponse(resp))
 }
@@ -258,9 +266,6 @@ func (e *Engine) authorizeConnection(ctx context.Context) error {
 		state,
 		dbRoleMatchers...,
 	)
-	if err != nil {
-		e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
-		return trace.Wrap(err)
-	}
-	return nil
+
+	return trace.Wrap(err)
 }

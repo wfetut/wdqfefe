@@ -81,6 +81,8 @@ func (e *Engine) SendError(err error) {
 // middleman between the proxy and the database intercepting and interpreting
 // all messages i.e. doing protocol parsing.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	observe := e.ObserveConnectionSetupTime()
+
 	// Perform authorization checks.
 	err := e.checkAccess(ctx, sessionCtx)
 	if err != nil {
@@ -114,8 +116,12 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+
+	observe()
+
 	// Copy between the connections.
 	clientErrCh := make(chan error, 1)
 	serverErrCh := make(chan error, 1)
@@ -300,6 +306,9 @@ func (e *Engine) receiveFromClient(clientConn, serverConn net.Conn, clientErrCh 
 			clientErrCh <- err
 			return
 		}
+
+		e.IncMessagesFromClient()
+
 		switch pkt := packet.(type) {
 		case *protocol.Query:
 			e.Audit.OnQuery(e.Context, sessionCtx, common.Query{Query: pkt.Query()})
@@ -386,6 +395,9 @@ func (e *Engine) receiveFromServer(serverConn, clientConn net.Conn, serverErrCh 
 			serverErrCh <- err
 			return
 		}
+
+		e.IncMessagesFromServer()
+
 		_, err = protocol.WritePacket(packet, clientConn)
 		if err != nil {
 			log.WithError(err).Error("Failed to write client packet.")

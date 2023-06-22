@@ -135,6 +135,8 @@ func (e *Engine) SendError(err error) {
 }
 
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	observe := e.ObserveConnectionSetupTime()
+
 	var err error
 	e.accountName, e.snowflakeHost, err = parseConnectionString(sessionCtx.Database.GetURI())
 	if err != nil {
@@ -149,6 +151,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
 	clientConnReader := bufio.NewReader(e.clientConn)
+
+	observe()
 
 	for {
 		req, err := http.ReadRequest(clientConnReader)
@@ -166,6 +170,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 // process reads request from connected Snowflake client, processes the requests/responses and send data back
 // to the client.
 func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request) error {
+	e.IncMessagesFromClient()
+
 	snowflakeToken, err := e.getConnectionToken(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -193,6 +199,8 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *h
 		return trace.Wrap(err)
 	}
 	defer resp.Body.Close()
+
+	e.IncMessagesFromServer()
 
 	switch req.URL.Path {
 	case loginRequestPath:

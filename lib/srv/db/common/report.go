@@ -95,7 +95,7 @@ func (r *reportingEngine) InitializeConnection(clientConn net.Conn, sessionCtx *
 		}
 	}()
 
-	connections.WithLabelValues(r.component, r.engineName).Inc()
+	initializedConnections.WithLabelValues(r.component, r.engineName).Inc()
 	return r.engine.InitializeConnection(trackingClientConn, sessionCtx)
 }
 
@@ -170,10 +170,18 @@ var (
 		append([]string{"method"}, commonLabels...),
 	)
 
-	connections = prometheus.NewCounterVec(
+	initializedConnections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "db_connections_total",
+			Name: "db_initialized_connections",
 			Help: "Number of initialized DB connections",
+		},
+		commonLabels,
+	)
+
+	activeConnections = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "db_active_connections",
+			Help: "Number of active DB connections",
 		},
 		commonLabels,
 	)
@@ -184,14 +192,6 @@ var (
 			Help: "Duration of connection",
 			// 1ms ... 14.5h
 			Buckets: prometheus.ExponentialBuckets(0.1, 2, 20),
-		},
-		commonLabels,
-	)
-
-	activeConnections = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "db_active_connections",
-			Help: "Number of active DB connections",
 		},
 		commonLabels,
 	)
@@ -219,7 +219,7 @@ var (
 		messagesFromClient, messagesFromServer,
 		methodCallCount, methodCallLatency,
 
-		connections, activeConnections, connectionDurations, connectionSetupTime, engineErrors,
+		initializedConnections, activeConnections, connectionDurations, connectionSetupTime, engineErrors,
 	}
 )
 
@@ -236,7 +236,7 @@ func methodCallMetrics(component, engine string, skip int) func() {
 	// find the last dot in the method name.
 	if last := strings.LastIndexByte(name, '.'); last != -1 {
 		// take everything after the last dot.
-		name = name[last+1 : len(name)]
+		name = name[last+1:]
 	}
 
 	methodCallCount.WithLabelValues(name, component, engine).Inc()

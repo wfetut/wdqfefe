@@ -128,6 +128,7 @@ func (e *Engine) SendError(err error) {
 // HandleConnection authorizes the incoming client connection, connects to the
 // target DynamoDB server and starts proxying requests between client/server.
 func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error {
+	observe := e.ObserveConnectionSetupTime()
 	err := e.checkAccess(ctx, e.sessionCtx)
 	e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
 	if err != nil {
@@ -150,6 +151,9 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 	}
 
 	clientConnReader := bufio.NewReader(e.clientConn)
+
+	observe()
+
 	for {
 		req, err := http.ReadRequest(clientConnReader)
 		if err != nil {
@@ -165,6 +169,8 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 // process reads request from connected dynamodb client, processes the requests/responses and sends data back
 // to the client.
 func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.SigningService) (err error) {
+	e.IncMessagesFromClient()
+
 	if req.Body != nil {
 		// make sure we close the incoming request's body. ignore any close error.
 		defer req.Body.Close()
@@ -228,6 +234,8 @@ func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.
 	}
 	defer resp.Body.Close()
 	responseStatusCode = uint32(resp.StatusCode)
+
+	e.IncMessagesFromServer()
 
 	return trace.Wrap(e.sendResponse(resp))
 }

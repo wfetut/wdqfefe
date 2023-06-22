@@ -72,6 +72,8 @@ func (e *Engine) SendError(err error) {
 // HandleConnection authorizes the incoming client connection, connects to the
 // target SQL Server server and starts proxying messages between client/server.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	observe := e.ObserveConnectionSetupTime()
+
 	// Pre-Login packet was handled on the Proxy. Now we expect the client to
 	// send us a Login7 packet that contains username/database information and
 	// other connection options.
@@ -101,6 +103,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+
+	observe()
 
 	clientErrCh := make(chan error, 1)
 	serverErrCh := make(chan error, 1)
@@ -144,6 +148,8 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 			return
 		}
 
+		e.IncMessagesFromClient()
+
 		sqlPacket, err := protocol.ToSQLPacket(p)
 		switch {
 		case err != nil:
@@ -165,6 +171,8 @@ func (e *Engine) receiveFromClient(clientConn, serverConn io.ReadWriteCloser, cl
 // receiveFromServer relays protocol messages received from MySQL database
 // to MySQL client.
 func (e *Engine) receiveFromServer(serverConn, clientConn io.ReadWriteCloser, serverErrCh chan<- error) {
+	// Note: we don't increment common.MessagesFromServer here because messages are not parsed, so we cannot count them.
+	// The total bytes written is still available as a metric.
 	defer clientConn.Close()
 	_, err := io.Copy(clientConn, serverConn)
 	if err != nil && !utils.IsOKNetworkError(err) {

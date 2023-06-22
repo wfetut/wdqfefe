@@ -69,6 +69,7 @@ func (e *Engine) SendError(err error) {
 // middleman between the proxy and the database intercepting and interpreting
 // all messages i.e. doing protocol parsing.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	observe := e.ObserveConnectionSetupTime()
 	// Check that the user has access to the database.
 	err := e.authorizeConnection(ctx, sessionCtx)
 	if err != nil {
@@ -80,8 +81,12 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err, "error connecting to the database")
 	}
 	defer closeFn()
+
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+
+	observe()
+
 	// Start reading client messages and sending them to server.
 	for {
 		clientMessage, err := protocol.ReadMessage(e.clientConn)
@@ -106,7 +111,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 //  4. Server can also send multiple messages in a row in which case we exhaust
 //     them before returning to listen for next client message.
 func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Session, clientMessage protocol.Message, clientConn net.Conn, serverConn driver.Connection) error {
-	e.Log.Debugf("===> %v", clientMessage)
+	e.IncMessagesFromClient()
 	// First check the client command against user's role and log in the audit.
 	err := e.authorizeClientMessage(sessionCtx, clientMessage)
 	if err != nil {
@@ -126,7 +131,8 @@ func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Ses
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	e.Log.Debugf("<=== %v", serverMessage)
+	e.IncMessagesFromServer()
+
 	// ... and pass it back to the client.
 	_, err = clientConn.Write(serverMessage.GetBytes())
 	if err != nil {
@@ -138,12 +144,13 @@ func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Ses
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		e.Log.Debugf("<=== %v", serverMessage)
+		e.IncMessagesFromServer()
 		_, err = clientConn.Write(serverMessage.GetBytes())
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
+
 	return nil
 }
 

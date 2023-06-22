@@ -167,6 +167,8 @@ func (e *Engine) sendToClient(vals interface{}) error {
 
 // HandleConnection is responsible for connecting to a Redis instance/cluster.
 func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session) error {
+	observe := e.ObserveConnectionSetupTime()
+
 	// Check that the user has access to the database.
 	err := e.authorizeConnection(ctx)
 	if err != nil {
@@ -196,6 +198,8 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
+
+	observe()
 
 	if err := e.process(ctx, sessionCtx); err != nil {
 		return trace.Wrap(err)
@@ -373,6 +377,7 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session) error 
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		e.IncMessagesFromClient()
 
 		// send valid commands to Redis instance/cluster.
 		err = e.processCmd(ctx, cmd)
@@ -384,6 +389,8 @@ func (e *Engine) process(ctx context.Context, sessionCtx *common.Session) error 
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		e.IncMessagesFromServer()
 
 		// Send response back to the client.
 		if err := e.sendToClient(value); err != nil {
