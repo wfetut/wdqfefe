@@ -24,7 +24,7 @@ import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { compareByString } from 'teleport/lib/util';
 import { ApiError } from 'teleport/services/api/parseError';
 
-import { matchLabels } from '../util';
+import { matchLabels } from '../common';
 
 import type {
   CreateDatabaseRequest,
