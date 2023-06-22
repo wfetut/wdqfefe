@@ -370,7 +370,7 @@ func TestSession_newRecorder(t *testing.T) {
 			errAssertion: require.NoError,
 			recAssertion: func(t require.TestingT, i interface{}, _ ...interface{}) {
 				require.NotNil(t, i)
-				aw, ok := i.(*events.AuditWriter)
+				aw, ok := i.(*events.SessionWriter)
 				require.True(t, ok)
 				require.NoError(t, aw.Close(context.Background()))
 			},
@@ -398,7 +398,7 @@ func TestSession_newRecorder(t *testing.T) {
 			errAssertion: require.NoError,
 			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.NotNil(t, i)
-				aw, ok := i.(*events.AuditWriter)
+				aw, ok := i.(*events.SessionWriter)
 				require.True(t, ok)
 				require.NoError(t, aw.Close(context.Background()))
 			},
@@ -727,7 +727,7 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSe
 }
 
 type mockRecorder struct {
-	events.StreamWriter
+	events.SessionRecorder
 	emitter eventstest.MockEmitter
 	done    bool
 }

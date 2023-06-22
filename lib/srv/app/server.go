@@ -1053,13 +1053,13 @@ func (s *Server) newTCPServer() (*tcpServer, error) {
 		newAudit: func(sessionID string) (common.Audit, error) {
 			// Audit stream is using server context, not session context,
 			// to make sure that session is uploaded even after it is closed.
-			streamWriter, err := s.newStreamWriter(s.closeContext, sessionID)
+			rec, err := s.newSessionRecorder(s.closeContext, sessionID)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			audit, err := common.NewAudit(common.AuditConfig{
 				Emitter:  s.c.Emitter,
-				Recorder: streamWriter,
+				Recorder: rec,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)

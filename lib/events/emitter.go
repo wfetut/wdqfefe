@@ -181,11 +181,8 @@ func (r *CheckingEmitter) EmitAuditEvent(ctx context.Context, event apievents.Au
 // This method is a "final stop" for various audit log implementations for
 // updating event fields before it gets persisted in the backend.
 func checkAndSetEventFields(event apievents.AuditEvent, clock clockwork.Clock, uid utils.UID, clusterName string) error {
-	if event.GetType() == "" {
-		return trace.BadParameter("missing mandatory event type field")
-	}
-	if event.GetCode() == "" && event.GetType() != SessionPrintEvent && event.GetType() != DesktopRecordingEvent {
-		return trace.BadParameter("missing mandatory event code field for %v event", event.GetType())
+	if err := checkBasicEventFields(event); err != nil {
+		return trace.Wrap(err)
 	}
 	if event.GetID() == "" && event.GetType() != SessionPrintEvent && event.GetType() != DesktopRecordingEvent {
 		event.SetID(uid.New())
@@ -195,6 +192,16 @@ func checkAndSetEventFields(event apievents.AuditEvent, clock clockwork.Clock, u
 	}
 	if event.GetClusterName() == "" {
 		event.SetClusterName(clusterName)
+	}
+	return nil
+}
+
+func checkBasicEventFields(event apievents.AuditEvent) error {
+	if event.GetType() == "" {
+		return trace.BadParameter("missing mandatory event type field")
+	}
+	if event.GetCode() == "" && event.GetType() != SessionPrintEvent && event.GetType() != DesktopRecordingEvent {
+		return trace.BadParameter("missing mandatory event code field for %v event", event.GetType())
 	}
 	return nil
 }

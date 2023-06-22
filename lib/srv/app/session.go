@@ -114,15 +114,15 @@ func (s *Server) newSessionChunk(ctx context.Context, identity *tlsca.Identity, 
 	// Create the stream writer that will write this chunk to the audit log.
 	// Audit stream is using server context, not session context,
 	// to make sure that session is uploaded even after it is closed.
-	streamWriter, err := s.newStreamWriter(s.closeContext, sess.id)
+	rec, err := s.newSessionRecorder(s.closeContext, sess.id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess.streamCloser = streamWriter
+	sess.streamCloser = rec
 
 	audit, err := common.NewAudit(common.AuditConfig{
 		Emitter:  s.c.Emitter,
-		Recorder: streamWriter,
+		Recorder: rec,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -274,10 +274,10 @@ func (s *Server) closeSession(sess *sessionChunk) {
 	}
 }
 
-// newStreamWriter creates a session stream that will be used to record
+// newSessionRecorder creates a session stream that will be used to record
 // requests that occur within this session chunk and upload the recording
 // to the Auth server.
-func (s *Server) newStreamWriter(ctx context.Context, chunkID string) (events.StreamWriter, error) {
+func (s *Server) newSessionRecorder(ctx context.Context, chunkID string) (events.SessionRecorder, error) {
 	recConfig, err := s.c.AccessPoint.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -288,7 +288,7 @@ func (s *Server) newStreamWriter(ctx context.Context, chunkID string) (events.St
 		return nil, trace.Wrap(err)
 	}
 
-	cfg := events.AuditWriterConfig{
+	cfg := events.SessionWriterConfig{
 		Context:     ctx,
 		Clock:       s.c.Clock,
 		SessionID:   rsession.ID(chunkID),

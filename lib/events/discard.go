@@ -99,6 +99,10 @@ func (*DiscardStream) Complete(ctx context.Context) error {
 	return nil
 }
 
+func (*DiscardStream) SetupEvent(event apievents.AuditEvent) error {
+	return nil
+}
+
 func (d *DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return d.RecordEvent(ctx, event)
 }

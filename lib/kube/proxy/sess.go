@@ -331,7 +331,7 @@ type session struct {
 
 	accessEvaluator auth.SessionAccessEvaluator
 
-	recorder events.StreamWriter
+	recorder events.SessionRecorder
 
 	emitter apievents.Emitter
 
@@ -676,7 +676,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		s.terminalSizeQueue.callback = func(resize *remotecommand.TerminalSize) {}
 	}
 
-	cfg := events.AuditWriterConfig{
+	cfg := events.SessionWriterConfig{
 		// Audit stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
 		Context:     s.forwarder.ctx,

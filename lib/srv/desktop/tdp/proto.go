@@ -256,7 +256,7 @@ func (f PNG2Frame) Encode() ([]byte, error) {
 	// Encode gets called on the reusable buffer at
 	// lib/srv/desktop/rdp/rdclient.Client.png2FrameBuffer,
 	// which was causing us recording problems due to the async
-	// nature of AuditWriter. Copying into a new buffer here is
+	// nature of SessionWriter. Copying into a new buffer here is
 	// a temporary hack that fixes that.
 	//
 	// TODO(isaiah, zmb3): remove this once a buffer pool
@@ -909,7 +909,6 @@ func decodeSharedDirectoryCreateRequest(in io.Reader) (SharedDirectoryCreateRequ
 		FileType:     fileType,
 		Path:         path,
 	}, nil
-
 }
 
 // SharedDirectoryCreateResponseis sent by the TDP client to the server with information from an executed SharedDirectoryCreateRequest.
@@ -1310,7 +1309,6 @@ func decodeSharedDirectoryWriteRequest(in byteReader, maxLen uint32) (SharedDire
 		WriteDataLength: writeDataLength,
 		WriteData:       writeData,
 	}, nil
-
 }
 
 // SharedDirectoryWriteResponse is a message sent by the TDP client to the server
@@ -1469,8 +1467,10 @@ const tdpMaxNotificationMessageLength = 10240
 // The limit is kept as an additional defense-in-depth measure.
 const tdpMaxPathLength = 10240
 
-const maxClipboardDataLength = 1024 * 1024    // 1MB
-const tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
+const (
+	maxClipboardDataLength    = 1024 * 1024 // 1MB
+	tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
+)
 
 // maxPNGFrameDataLength is maximum data length for PNG2Frame
 const maxPNGFrameDataLength = 10 * 1024 * 1024 // 10MB

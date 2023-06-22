@@ -56,7 +56,7 @@ type AuditConfig struct {
 	// Emitter is used to emit audit events.
 	Emitter events.Emitter
 	// Recorder is used to record session events.
-	Recorder events.Recorder
+	Recorder libevents.SessionRecorder
 }
 
 // Check validates the config.
@@ -160,8 +160,12 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
 
 // EmitEvent emits the provided audit event using configured emitter.
 func (a *audit) EmitEvent(ctx context.Context, event events.AuditEvent) {
+	if err := a.cfg.Recorder.SetupEvent(event); err != nil {
+		a.log.WithError(err).Errorf("Failed to setup event: %s - %s.", event.GetType(), event.GetID())
+		return
+	}
 	if err := a.cfg.Recorder.RecordEvent(ctx, event); err != nil {
-		a.log.WithError(err).Errorf("Failed to record audit event: %s - %s.", event.GetType(), event.GetID())
+		a.log.WithError(err).Errorf("Failed to record session event: %s - %s.", event.GetType(), event.GetID())
 	}
 	if err := a.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
 		a.log.WithError(err).Errorf("Failed to emit audit event: %s - %s.", event.GetType(), event.GetID())

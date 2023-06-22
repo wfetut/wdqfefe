@@ -876,7 +876,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		return trace.Wrap(err)
 	}
 
-	streamWriter, err := s.newStreamWriter(sessionCtx)
+	rec, err := s.newSessionRecorder(sessionCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -886,13 +886,13 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		go func() {
 			// Use the server closing context to make sure that upload
 			// continues beyond the session lifetime.
-			err := streamWriter.Close(s.closeContext)
+			err := rec.Close(s.closeContext)
 			if err != nil {
 				sessionCtx.Log.WithError(err).Warn("Failed to close stream writer.")
 			}
 		}()
 	}()
-	engine, err := s.dispatch(sessionCtx, streamWriter, clientConn)
+	engine, err := s.dispatch(sessionCtx, rec, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -954,10 +954,10 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 }
 
 // dispatch creates and initializes an appropriate database engine for the session.
-func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter, clientConn net.Conn) (common.Engine, error) {
+func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionRecorder, clientConn net.Conn) (common.Engine, error) {
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
 		Emitter:  s.cfg.StreamEmitter,
-		Recorder: streamWriter,
+		Recorder: rec,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

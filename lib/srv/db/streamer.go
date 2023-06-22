@@ -29,9 +29,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
-// newStreamWriter creates a streamer that will be used to stream the
+// newSessionRecorder creates a streamer that will be used to stream the
 // requests that occur within this session to the audit log.
-func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWriter, error) {
+func (s *Server) newSessionRecorder(sessionCtx *common.Session) (libevents.SessionRecorder, error) {
 	recConfig, err := s.cfg.AccessPoint.GetSessionRecordingConfig(s.closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -41,7 +41,7 @@ func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWr
 		return nil, trace.Wrap(err)
 	}
 
-	cfg := libevents.AuditWriterConfig{
+	cfg := libevents.SessionWriterConfig{
 		// Audit stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
 		Context:     s.closeContext,

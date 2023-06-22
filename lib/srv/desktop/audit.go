@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func (s *WindowsService) onSessionStart(ctx context.Context, recorder events.Recorder, id *tlsca.Identity, startTime time.Time, windowsUser, sessionID string, desktop types.WindowsDesktop, err error) {
+func (s *WindowsService) onSessionStart(ctx context.Context, recorder libevents.SessionRecorder, id *tlsca.Identity, startTime time.Time, windowsUser, sessionID string, desktop types.WindowsDesktop, err error) {
 	userMetadata := id.GetUserMetadata()
 	userMetadata.Login = windowsUser
 
@@ -69,7 +69,7 @@ func (s *WindowsService) onSessionStart(ctx context.Context, recorder events.Rec
 	s.record(ctx, recorder, event)
 }
 
-func (s *WindowsService) onSessionEnd(ctx context.Context, recorder events.Recorder, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sid string, desktop types.WindowsDesktop) {
+func (s *WindowsService) onSessionEnd(ctx context.Context, recorder libevents.SessionRecorder, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sid string, desktop types.WindowsDesktop) {
 	// Ensure audit cache gets cleaned up
 	s.auditCache.Delete(sessionID(sid))
 
@@ -518,7 +518,11 @@ func (s *WindowsService) emit(ctx context.Context, event events.AuditEvent) {
 	}
 }
 
-func (s *WindowsService) record(ctx context.Context, recorder events.Recorder, event events.AuditEvent) {
+func (s *WindowsService) record(ctx context.Context, recorder libevents.SessionRecorder, event events.AuditEvent) {
+	if err := recorder.SetupEvent(event); err != nil {
+		s.cfg.Log.WithError(err).Errorf("Failed to setup session event %v", event)
+		return
+	}
 	if err := recorder.RecordEvent(ctx, event); err != nil {
 		s.cfg.Log.WithError(err).Errorf("Failed to record session event %v", event)
 	}

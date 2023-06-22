@@ -391,8 +391,8 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	return s, nil
 }
 
-func (s *WindowsService) newStreamWriter(recConfig types.SessionRecordingConfig, sessionID string) (libevents.StreamWriter, error) {
-	cfg := libevents.AuditWriterConfig{
+func (s *WindowsService) newSessionRecorder(recConfig types.SessionRecordingConfig, sessionID string) (libevents.SessionRecorder, error) {
+	cfg := libevents.SessionWriterConfig{
 		Component:   teleport.ComponentWindowsDesktop,
 		Namespace:   apidefaults.Namespace,
 		Context:     s.closeCtx,
@@ -807,7 +807,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 		return trace.Wrap(err)
 	}
 
-	recorder, err := s.newStreamWriter(recConfig, string(sessionID))
+	recorder, err := s.newSessionRecorder(recConfig, string(sessionID))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -894,7 +894,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	return trace.Wrap(err)
 }
 
-func (s *WindowsService) makeTDPSendHandler(ctx context.Context, recorder events.Recorder, delay func() int64,
+func (s *WindowsService) makeTDPSendHandler(ctx context.Context, recorder libevents.SessionRecorder, delay func() int64,
 	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn,
 ) func(m tdp.Message, b []byte) {
 	return func(m tdp.Message, b []byte) {
@@ -915,8 +915,15 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, recorder events
 				// ones are around 2000 bytes. Anything approaching the limit of a single protobuf
 				// is likely some sort of DoS attempt and not legitimate RDP traffic, so we don't log it.
 				s.cfg.Log.Warnf("refusing to record %d byte PNG frame, image too large", len(b))
-			} else if err := recorder.RecordEvent(ctx, e); err != nil {
-				s.cfg.Log.WithError(err).Warning("could not record desktop recording event")
+			} else {
+				err := recorder.SetupEvent(e)
+				if err == nil {
+					if err := recorder.RecordEvent(ctx, e); err != nil {
+						s.cfg.Log.WithError(err).Warning("could not record desktop recording event")
+					}
+				} else {
+					s.cfg.Log.WithError(err).Warning("could not setup desktop recording event")
+				}
 			}
 		case byte(tdp.TypeClipboardData):
 			if clip, ok := m.(tdp.ClipboardData); ok {
@@ -941,7 +948,7 @@ func (s *WindowsService) makeTDPSendHandler(ctx context.Context, recorder events
 	}
 }
 
-func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, recorder events.Recorder, delay func() int64,
+func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, recorder libevents.SessionRecorder, delay func() int64,
 	id *tlsca.Identity, sessionID, desktopAddr string, tdpConn *tdp.Conn,
 ) func(m tdp.Message) {
 	return func(m tdp.Message) {
@@ -963,8 +970,15 @@ func (s *WindowsService) makeTDPReceiveHandler(ctx context.Context, recorder eve
 				// screen spec, mouse button, and mouse move are fixed size messages,
 				// so they cannot exceed the maximum size
 				s.cfg.Log.Warnf("refusing to record %d byte %T message", len(b), m)
-			} else if err := recorder.RecordEvent(ctx, e); err != nil {
-				s.cfg.Log.WithError(err).Warning("could not record desktop recording event")
+			} else {
+				err := recorder.SetupEvent(e)
+				if err == nil {
+					if err := recorder.RecordEvent(ctx, e); err != nil {
+						s.cfg.Log.WithError(err).Warning("could not record desktop recording event")
+					}
+				} else {
+					s.cfg.Log.WithError(err).Warning("could not setup desktop recording event")
+				}
 			}
 		case tdp.ClipboardData:
 			// the TDP receive handler emits a clipboard send event, because we

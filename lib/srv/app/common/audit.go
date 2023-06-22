@@ -53,7 +53,7 @@ type AuditConfig struct {
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
 	// Recorder is used to record session events.
-	Recorder apievents.Recorder
+	Recorder events.SessionRecorder
 }
 
 // Check validates the config.
@@ -220,6 +220,10 @@ func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 
 // EmitEvent emits the provided audit event.
 func (a *audit) EmitEvent(ctx context.Context, event apievents.AuditEvent) error {
+	err := a.cfg.Recorder.SetupEvent(event)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	recErr := a.cfg.Recorder.RecordEvent(ctx, event)
 	emitErr := a.cfg.Emitter.EmitAuditEvent(ctx, event)
 	return trace.NewAggregate(emitErr, recErr)

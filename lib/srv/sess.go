@@ -605,7 +605,7 @@ type session struct {
 	// login stores the login of the initial session creator
 	login string
 
-	recorder   events.StreamWriter
+	recorder   events.SessionRecorder
 	recorderMu sync.RWMutex
 
 	emitter apievents.Emitter
@@ -750,15 +750,15 @@ func (s *session) PID() int {
 	return s.term.PID()
 }
 
-// Recorder returns a StreamWriter which can be used to emit events
-// to a session as well as the audit log.
-func (s *session) Recorder() events.StreamWriter {
+// Recorder returns a SessionRecorder which can be used to record session
+// events.
+func (s *session) Recorder() events.SessionRecorder {
 	s.recorderMu.RLock()
 	defer s.recorderMu.RUnlock()
 	return s.recorder
 }
 
-func (s *session) setRecorder(rec events.StreamWriter) {
+func (s *session) setRecorder(rec events.SessionRecorder) {
 	s.recorderMu.Lock()
 	defer s.recorderMu.Unlock()
 	s.recorder = rec
@@ -1255,16 +1255,16 @@ func (s *session) startTerminal(ctx context.Context, scx *ServerContext) error {
 	return nil
 }
 
-// newRecorder creates a new events.StreamWriter to be used as the recorder
+// newRecorder creates a new events.SessionRecorder to be used as the recorder
 // of the passed in session.
-func newRecorder(s *session, ctx *ServerContext) (events.StreamWriter, error) {
+func newRecorder(s *session, ctx *ServerContext) (events.SessionRecorder, error) {
 	// Nodes discard events in cases when proxies are already recording them.
 	if s.registry.Srv.Component() == teleport.ComponentNode &&
 		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return events.NewDiscardStream(), nil
 	}
 
-	cfg := events.AuditWriterConfig{
+	cfg := events.SessionWriterConfig{
 		// Audit stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
 		Context:     ctx.srv.Context(),
@@ -1275,11 +1275,11 @@ func newRecorder(s *session, ctx *ServerContext) (events.StreamWriter, error) {
 		Component:   teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 		ClusterName: ctx.ClusterName,
 	}
-	// Return an AuditWriter with a discarding stream so closing it will
+	// Return an SessionWriter with a discarding stream so closing it will
 	// work correctly for tests
 	if ctx.IsTestStub {
 		cfg.Streamer = events.NewDiscardEmitter()
-		return events.NewAuditWriter(cfg)
+		return events.NewSessionWriter(cfg)
 	}
 
 	uploadDir := sessionsStreamingUploadDir(ctx)
@@ -2022,6 +2022,9 @@ func (s *session) recordEvent(ctx context.Context, event apievents.AuditEvent) e
 
 		return nil
 	default:
+		if err := rec.SetupEvent(event); err != nil {
+			return trace.Wrap(err)
+		}
 		return trace.Wrap(rec.RecordEvent(ctx, event))
 	}
 }

@@ -30,6 +30,14 @@ type MockEmitter struct {
 	events []events.AuditEvent
 }
 
+func (e *MockEmitter) Write(_ []byte) (int, error) {
+	return 0, nil
+}
+
+func (e *MockEmitter) SetupEvent(event events.AuditEvent) error {
+	return nil
+}
+
 // EmitAuditEvent emits audit event
 func (e *MockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	e.mu.Lock()
