@@ -20,13 +20,13 @@ package etcdbk
 import (
 	"bytes"
 	"context"
-	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -594,10 +594,11 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, lim
 			return nil, trace.Wrap(err)
 		}
 		items = append(items, backend.Item{
-			Key:     b.trimPrefix(kv.Key),
-			Value:   value,
-			ID:      kv.ModRevision,
-			LeaseID: kv.Lease,
+			Key:      b.trimPrefix(kv.Key),
+			Value:    value,
+			ID:       kv.ModRevision,
+			LeaseID:  kv.Lease,
+			Revision: strconv.FormatInt(kv.ModRevision, 10),
 		})
 	}
 	sort.Sort(backend.Items(items))
@@ -614,9 +615,10 @@ func (b *EtcdBackend) Create(ctx context.Context, item backend.Item) (*backend.L
 		}
 	}
 	start := b.clock.Now()
+	key := b.prependPrefix(item.Key)
 	re, err := b.client.Txn(ctx).
-		If(clientv3.Compare(clientv3.CreateRevision(b.prependPrefix(item.Key)), "=", 0)).
-		Then(clientv3.OpPut(b.prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
+		If(clientv3.Compare(clientv3.CreateRevision(key), "=", 0)).
+		Then(clientv3.OpPut(key, base64.StdEncoding.EncodeToString(item.Value), opts...)).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -626,6 +628,8 @@ func (b *EtcdBackend) Create(ctx context.Context, item backend.Item) (*backend.L
 	if !re.Succeeded {
 		return nil, trace.AlreadyExists("%q already exists", string(item.Key))
 	}
+
+	lease.Revision = strconv.FormatInt(re.Header.Revision, 10)
 	return &lease, nil
 }
 
@@ -639,9 +643,10 @@ func (b *EtcdBackend) Update(ctx context.Context, item backend.Item) (*backend.L
 		}
 	}
 	start := b.clock.Now()
+	key := b.prependPrefix(item.Key)
 	re, err := b.client.Txn(ctx).
-		If(clientv3.Compare(clientv3.CreateRevision(b.prependPrefix(item.Key)), "!=", 0)).
-		Then(clientv3.OpPut(b.prependPrefix(item.Key), base64.StdEncoding.EncodeToString(item.Value), opts...)).
+		If(clientv3.Compare(clientv3.CreateRevision(key), "!=", 0)).
+		Then(clientv3.OpPut(key, base64.StdEncoding.EncodeToString(item.Value), opts...)).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -651,6 +656,58 @@ func (b *EtcdBackend) Update(ctx context.Context, item backend.Item) (*backend.L
 	if !re.Succeeded {
 		return nil, trace.NotFound("%q is not found", string(item.Key))
 	}
+	lease.Revision = strconv.FormatInt(re.Header.Revision, 10)
+	return &lease, nil
+}
+
+func revision(r string) (int64, error) {
+	if r == "" {
+		return 0, nil
+	}
+
+	n, err := strconv.ParseInt(r, 10, 64)
+	if err != nil {
+		return 0, trace.BadParameter("invalid revision: %s", err)
+	}
+
+	return n, err
+}
+
+// ConditionalUpdate updates value in the backend if it hasn't been modified.
+func (b *EtcdBackend) ConditionalUpdate(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	var opts []clientv3.OpOption
+	var lease backend.Lease
+	if !item.Expires.IsZero() {
+		if err := b.setupLease(ctx, item, &lease, &opts); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	start := b.clock.Now()
+	key := b.prependPrefix(item.Key)
+	rev, err := revision(item.Revision)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	re, err := b.client.Txn(ctx).
+		If(
+			clientv3.Compare(clientv3.CreateRevision(key), "!=", 0),
+			clientv3.Compare(clientv3.ModRevision(key), "=", rev),
+		).
+		Then(
+			clientv3.OpPut(key, base64.StdEncoding.EncodeToString(item.Value), opts...),
+		).
+		Commit()
+	txLatencies.Observe(time.Since(start).Seconds())
+	txRequests.Inc()
+	if err != nil {
+		return nil, trace.Wrap(convertErr(err))
+	}
+	if !re.Succeeded {
+		return nil, trace.CompareFailed(backend.ErrIncorrectRevision)
+	}
+
+	lease.Revision = strconv.FormatInt(re.Header.Revision, 10)
 	return &lease, nil
 }
 
@@ -663,7 +720,7 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	if len(replaceWith.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if subtle.ConstantTimeCompare(expected.Key, replaceWith.Key) != 1 {
+	if !bytes.Equal(expected.Key, replaceWith.Key) {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	var opts []clientv3.OpOption
@@ -674,11 +731,11 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 		}
 	}
 	encodedPrev := base64.StdEncoding.EncodeToString(expected.Value)
-
+	key := b.prependPrefix(expected.Key)
 	start := b.clock.Now()
 	re, err := b.client.Txn(ctx).
-		If(clientv3.Compare(clientv3.Value(b.prependPrefix(expected.Key)), "=", encodedPrev)).
-		Then(clientv3.OpPut(b.prependPrefix(expected.Key), base64.StdEncoding.EncodeToString(replaceWith.Value), opts...)).
+		If(clientv3.Compare(clientv3.Value(key), "=", encodedPrev)).
+		Then(clientv3.OpPut(key, base64.StdEncoding.EncodeToString(replaceWith.Value), opts...)).
 		Commit()
 	txLatencies.Observe(time.Since(start).Seconds())
 	txRequests.Inc()
@@ -692,6 +749,7 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	if !re.Succeeded {
 		return nil, trace.CompareFailed("key %q did not match expected value", string(expected.Key))
 	}
+	lease.Revision = strconv.FormatInt(re.Header.Revision, 10)
 	return &lease, nil
 }
 
@@ -706,7 +764,7 @@ func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Leas
 		}
 	}
 	start := b.clock.Now()
-	_, err := b.client.Put(
+	re, err := b.client.Put(
 		ctx,
 		b.prependPrefix(item.Key),
 		base64.StdEncoding.EncodeToString(item.Value),
@@ -717,6 +775,44 @@ func (b *EtcdBackend) Put(ctx context.Context, item backend.Item) (*backend.Leas
 		return nil, convertErr(err)
 	}
 
+	lease.Revision = strconv.FormatInt(re.Header.Revision, 10)
+	return &lease, nil
+}
+
+// ConditionalPut puts value into backend (creates if it does not exist, updates it otherwise)
+func (b *EtcdBackend) ConditionalPut(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+	var opts []clientv3.OpOption
+	var lease backend.Lease
+	if !item.Expires.IsZero() {
+		if err := b.setupLease(ctx, item, &lease, &opts); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	start := b.clock.Now()
+	key := b.prependPrefix(item.Key)
+	rev, err := revision(item.Revision)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	re, err := b.client.Txn(ctx).
+		If(
+			clientv3.Compare(clientv3.CreateRevision(key), "!=", 0),
+			clientv3.Compare(clientv3.ModRevision(key), "=", rev),
+		).
+		Then(
+			clientv3.OpPut(key, base64.StdEncoding.EncodeToString(item.Value), opts...),
+		).
+		Commit()
+	txLatencies.Observe(time.Since(start).Seconds())
+	txRequests.Inc()
+	if err != nil {
+		return nil, trace.Wrap(convertErr(err))
+	}
+	if !re.Succeeded {
+		return nil, trace.CompareFailed(backend.ErrIncorrectRevision)
+	}
+	lease.Revision = strconv.FormatInt(re.Header.Revision, 10)
 	return &lease, nil
 }
 
@@ -758,7 +854,13 @@ func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &backend.Item{Key: key, Value: bytes, ID: kv.ModRevision, LeaseID: kv.Lease}, nil
+	return &backend.Item{
+		Key:      key,
+		Value:    bytes,
+		ID:       kv.ModRevision,
+		LeaseID:  kv.Lease,
+		Revision: strconv.FormatInt(kv.ModRevision, 10),
+	}, nil
 }
 
 // Delete deletes item by key
@@ -772,6 +874,35 @@ func (b *EtcdBackend) Delete(ctx context.Context, key []byte) error {
 	}
 	if re.Deleted == 0 {
 		return trace.NotFound("%q is not found", key)
+	}
+
+	return nil
+}
+
+// ConditionalDelete deletes the item if it hasn't been modified.
+func (b *EtcdBackend) ConditionalDelete(ctx context.Context, prefix []byte, rev string) error {
+	start := b.clock.Now()
+	key := b.prependPrefix(prefix)
+	r, err := revision(rev)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	re, err := b.client.KV.Txn(ctx).
+		If(
+			clientv3.Compare(clientv3.CreateRevision(key), "!=", 0),
+			clientv3.Compare(clientv3.ModRevision(key), "=", r),
+		).
+		Then(
+			clientv3.OpDelete(key),
+		).Commit()
+	writeLatencies.Observe(time.Since(start).Seconds())
+	writeRequests.Inc()
+	if err != nil {
+		return trace.Wrap(convertErr(err))
+	}
+	if !re.Succeeded {
+		return trace.CompareFailed(backend.ErrIncorrectRevision)
 	}
 
 	return nil
@@ -847,8 +978,9 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 	event := &backend.Event{
 		Type: fromType(e.Type),
 		Item: backend.Item{
-			Key: b.trimPrefix(e.Kv.Key),
-			ID:  e.Kv.ModRevision,
+			Key:      b.trimPrefix(e.Kv.Key),
+			ID:       e.Kv.ModRevision,
+			Revision: strconv.FormatInt(e.Kv.ModRevision, 10),
 		},
 	}
 	if event.Type == types.OpDelete {
