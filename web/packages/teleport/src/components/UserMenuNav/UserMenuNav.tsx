@@ -17,7 +17,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
-import { Sun, Moon } from 'design/Icon';
+import { Moon, Sun } from 'design/Icon';
 import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
 import { Text } from 'design';
 import { LogoutIcon } from 'design/SVGIcon';
@@ -27,6 +27,8 @@ import session from 'teleport/services/websession';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { useTeleport } from 'teleport';
 import storage from 'teleport/services/localStorage/localStorage';
+import { useUser } from 'teleport/User/UserContext';
+import { ThemePreference } from 'teleport/services/userPreferences/types';
 
 interface UserMenuNavProps {
   username: string;
@@ -169,6 +171,8 @@ const DropdownDivider = styled.div`
 export function UserMenuNav({ username }: UserMenuNavProps) {
   const [open, setOpen] = useState(false);
 
+  const { updatePreferences } = useUser();
+
   const ref = useRef<HTMLDivElement>();
 
   const ctx = useTeleport();
@@ -178,9 +182,9 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
   const currentThemeOption = storage.getThemeOption();
   const onThemeChange = () => {
     if (currentThemeOption === 'dark') {
-      storage.setThemeOption('light');
+      updatePreferences({ theme: ThemePreference.Light });
     } else {
-      storage.setThemeOption('dark');
+      updatePreferences({ theme: ThemePreference.Dark });
     }
     setOpen(false);
   };

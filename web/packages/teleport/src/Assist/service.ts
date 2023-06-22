@@ -27,7 +27,11 @@ import { EventType } from 'teleport/lib/term/enums';
 
 import NodeService from 'teleport/services/nodes';
 
-import { AssistUserPreferences, AssistUserPreferencesPayload, ServerMessageType } from './types';
+import {
+  AssistUserPreferences,
+  AssistUserPreferencesPayload,
+  ServerMessageType,
+} from './types';
 
 import type {
   CommandResultPayload,
@@ -227,14 +231,18 @@ export async function setConversationTitle(
   });
 }
 
-export function makeAssistUserPreferences(payload: AssistUserPreferencesPayload): AssistUserPreferences {
+export function makeAssistUserPreferences(
+  payload: AssistUserPreferencesPayload
+): AssistUserPreferences {
   return {
     preferredLogins: payload.preferred_logins,
     viewMode: payload.view_mode,
   };
 }
 
-export function makeAssistUserPreferencesPayload(preferences: AssistUserPreferences): AssistUserPreferencesPayload {
+export function makeAssistUserPreferencesPayload(
+  preferences: Partial<AssistUserPreferences>
+): AssistUserPreferencesPayload {
   return {
     preferred_logins: preferences.preferredLogins,
     view_mode: preferences.viewMode,

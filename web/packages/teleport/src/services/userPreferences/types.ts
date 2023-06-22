@@ -19,20 +19,25 @@ import type {
   AssistUserPreferencesPayload,
 } from 'teleport/Assist/types';
 
-enum UserTheme {
+export enum ThemePreference {
   Light = 1,
   Dark = 2,
 }
 
 export interface UserPreferences {
-  theme: UserTheme;
+  theme: ThemePreference;
   assist: AssistUserPreferences;
 }
 
 export interface UserPreferencesPayload {
-  theme: UserTheme;
+  theme: ThemePreference;
   assist: AssistUserPreferencesPayload;
 }
 
+type Subset<K> = {
+  [attr in keyof K]?: K[attr] extends object ? Subset<K[attr]> : K[attr];
+};
+
+export type UserPreferencesSubset = Subset<UserPreferences>;
 export type GetUserPreferencesResponse = UserPreferencesPayload;
 export type UpdateUserPreferencesRequest = UserPreferencesPayload;

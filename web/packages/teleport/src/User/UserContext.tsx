@@ -13,22 +13,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react';
+import React, {
+  createContext,
+  PropsWithChildren,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { Indicator } from 'design';
 
+import { Failed } from 'design/CardError';
+
 import { StyledIndicator } from 'teleport/Main';
 
 import * as service from 'teleport/services/userPreferences';
 
-import type { UserPreferences } from 'teleport/services/userPreferences/types';
-import { Failed } from 'design/CardError';
+import { ThemePreference } from 'teleport/services/userPreferences/types';
+import storage from 'teleport/services/localStorage';
+
+import type {
+  UserPreferences,
+  UserPreferencesSubset,
+} from 'teleport/services/userPreferences/types';
 
 interface UserContextValue {
   preferences: UserPreferences;
-  updatePreferences: (preferences: UserPreferences) => void;
+  updatePreferences: (preferences: Partial<UserPreferences>) => void;
 }
 
 const UserContext = createContext<UserContextValue>(null);
@@ -37,21 +50,48 @@ export function useUser() {
   return useContext(UserContext);
 }
 
+function preferenceToThemeOption(userTheme: ThemePreference) {
+  switch (userTheme) {
+    case ThemePreference.Light:
+      return 'light';
+    case ThemePreference.Dark:
+      return 'dark';
+  }
+}
+
+function themeOptionToPreference(themeOption: 'light' | 'dark') {
+  switch (themeOption) {
+    case 'light':
+      return ThemePreference.Light;
+    case 'dark':
+      return ThemePreference.Dark;
+  }
+}
+
 export function UserContextProvider(props: PropsWithChildren<unknown>) {
-  const { attempt, setAttempt, run } = useAttempt('processing');
+  const { attempt, run } = useAttempt('processing');
 
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
 
   async function loadUserPreferences() {
     const preferences = await service.getUserPreferences();
 
+    storage.setThemeOption(preferenceToThemeOption(preferences.theme));
+
     setPreferences(preferences);
   }
 
-  function updatePreferences(preferences: UserPreferences) {
-    setPreferences(preferences);
+  function updatePreferences(newPreferences: UserPreferencesSubset) {
+    if (newPreferences.theme) {
+      const currentTheme = themeOptionToPreference(storage.getThemeOption());
+      if (currentTheme !== newPreferences.theme) {
+        storage.setThemeOption(preferenceToThemeOption(newPreferences.theme));
+      }
+    }
 
-    return service.updateUserPreferences(preferences);
+    setPreferences({ ...preferences, ...newPreferences } as UserPreferences);
+
+    return service.updateUserPreferences(newPreferences);
   }
 
   useEffect(() => {

@@ -16,17 +16,27 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
-import { makeAssistUserPreferences, makeAssistUserPreferencesPayload } from 'teleport/Assist/service';
+import {
+  makeAssistUserPreferences,
+  makeAssistUserPreferencesPayload,
+} from 'teleport/Assist/service';
 
-import type { GetUserPreferencesResponse, UserPreferences, UserPreferencesPayload } from 'teleport/services/userPreferences/types';
+import type {
+  GetUserPreferencesResponse,
+  UserPreferences,
+  UserPreferencesPayload,
+  UserPreferencesSubset,
+} from 'teleport/services/userPreferences/types';
 
 export async function getUserPreferences() {
-  const res: GetUserPreferencesResponse = await api.get(cfg.api.userPreferencesPath);
+  const res: GetUserPreferencesResponse = await api.get(
+    cfg.api.userPreferencesPath
+  );
 
   return makeUserPreferences(res);
 }
 
-export function updateUserPreferences(preferences: UserPreferences) {
+export function updateUserPreferences(preferences: UserPreferencesSubset) {
   const payload = makeUserPreferencesPayload(preferences);
 
   return api.put(cfg.api.userPreferencesPath, payload);
@@ -36,12 +46,16 @@ function makeUserPreferences(payload: UserPreferencesPayload): UserPreferences {
   return {
     theme: payload.theme,
     assist: makeAssistUserPreferences(payload.assist),
-  }
+  };
 }
 
-function makeUserPreferencesPayload(preferences: UserPreferences): UserPreferencesPayload {
+function makeUserPreferencesPayload(
+  preferences: UserPreferencesSubset
+): UserPreferencesPayload {
   return {
     theme: preferences.theme,
-    assist: makeAssistUserPreferencesPayload(preferences.assist),
-  }
+    assist:
+      preferences.assist &&
+      makeAssistUserPreferencesPayload(preferences.assist),
+  };
 }
