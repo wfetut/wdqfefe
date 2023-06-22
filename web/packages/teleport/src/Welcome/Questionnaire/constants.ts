@@ -18,6 +18,13 @@ import application from 'design/assets/resources/appplication.png';
 import desktop from 'design/assets/resources/desktop.png';
 import database from 'design/assets/resources/database.png';
 import stack from 'design/assets/resources/stack.png';
+import { Option } from 'shared/components/Select';
+
+import {
+  EmployeeOptionsStrings,
+  TeamOptionsStrings,
+  TitleOptionsStrings,
+} from 'teleport/Welcome/Questionnaire/types';
 
 export enum EmployeeOptions {
   '0-19',
@@ -27,6 +34,16 @@ export enum EmployeeOptions {
   '1000-4999',
   '5000+',
 }
+
+export const EmployeeSelectOptions: Option<
+  EmployeeOptionsStrings,
+  EmployeeOptionsStrings
+>[] = Object.values(EmployeeOptions)
+  .filter(v => !isNaN(Number(v)))
+  .map(key => ({
+    value: EmployeeOptions[key],
+    label: EmployeeOptions[key],
+  }));
 
 export enum TeamOptions {
   'Software Engineering',
@@ -38,6 +55,16 @@ export enum TeamOptions {
   'Other (free-form field)',
 }
 
+export const TeamSelectOptions: Option<
+  TeamOptionsStrings,
+  TeamOptionsStrings
+>[] = Object.values(TeamOptions)
+  .filter(v => !isNaN(Number(v)))
+  .map(key => ({
+    value: TeamOptions[key],
+    label: TeamOptions[key],
+  }));
+
 export enum TitleOptions {
   'Individual contributor',
   'Manager',
@@ -45,6 +72,16 @@ export enum TitleOptions {
   'VP',
   'C-Suite/Owner',
 }
+
+export const TitleSelectOptions: Option<
+  TitleOptionsStrings,
+  TitleOptionsStrings
+>[] = Object.values(TitleOptions)
+  .filter(v => !isNaN(Number(v)))
+  .map(key => ({
+    value: TitleOptions[key],
+    label: TitleOptions[key],
+  }));
 
 export const supportedResources = [
   { label: 'Web Applications', image: application },

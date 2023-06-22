@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useMemo } from 'react';
+import React from 'react';
 
 import { Option } from 'shared/components/Select';
 
@@ -28,53 +28,31 @@ import {
   TitleOptionsStrings,
 } from 'teleport/Welcome/Questionnaire/types';
 import {
-  TeamOptions,
-  TitleOptions,
+  TeamSelectOptions,
+  TitleSelectOptions,
 } from 'teleport/Welcome/Questionnaire/constants';
 
-export const Role = ({ team, role, updateFields }: RoleProps) => {
-  const teamOptions: Option<TeamOptionsStrings, TeamOptionsStrings>[] =
-    useMemo(() => {
-      return Object.values(TeamOptions)
-        .filter(v => !isNaN(Number(v)))
-        .map(key => ({
-          value: TeamOptions[key],
-          label: TeamOptions[key],
-        }));
-    }, []);
-
-  const titleOptions: Option<TitleOptionsStrings, TitleOptionsStrings>[] =
-    useMemo(() => {
-      return Object.values(TitleOptions)
-        .filter(v => !isNaN(Number(v)))
-        .map(key => ({
-          value: TitleOptions[key],
-          label: TitleOptions[key],
-        }));
-    }, []);
-
-  return (
-    <>
-      <FieldSelect
-        label="Which Team are you on?"
-        rule={requiredField('Team is required')}
-        placeholder="Select Team"
-        onChange={(e: Option<TeamOptionsStrings, string>) =>
-          updateFields({ team: e.value })
-        }
-        options={teamOptions}
-        value={team ? { label: team, value: team } : null}
-      />
-      <FieldSelect
-        label="Job Title"
-        rule={requiredField('Job Title is required')}
-        placeholder="Select Job Title"
-        onChange={(e: Option<TitleOptionsStrings, string>) =>
-          updateFields({ role: e.value })
-        }
-        options={titleOptions}
-        value={role ? { label: role, value: role } : null}
-      />
-    </>
-  );
-};
+export const Role = ({ team, role, updateFields }: RoleProps) => (
+  <>
+    <FieldSelect
+      label="Which Team are you on?"
+      rule={requiredField('Team is required')}
+      placeholder="Select Team"
+      onChange={(e: Option<TeamOptionsStrings, string>) =>
+        updateFields({ team: e.value })
+      }
+      options={TeamSelectOptions}
+      value={team ? { label: team, value: team } : null}
+    />
+    <FieldSelect
+      label="Job Title"
+      rule={requiredField('Job Title is required')}
+      placeholder="Select Job Title"
+      onChange={(e: Option<TitleOptionsStrings, string>) =>
+        updateFields({ role: e.value })
+      }
+      options={TitleSelectOptions}
+      value={role ? { label: role, value: role } : null}
+    />
+  </>
+);
