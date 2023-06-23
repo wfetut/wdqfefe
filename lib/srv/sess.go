@@ -1274,12 +1274,6 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionRecorder, error)
 		Component:   teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 		ClusterName: ctx.ClusterName,
 	}
-	// Return an SessionWriter with a discarding stream so closing it will
-	// work correctly for tests
-	if ctx.IsTestStub {
-		cfg.Streamer = events.NewDiscardEmitter()
-		return events.NewSessionWriter(cfg)
-	}
 
 	uploadDir := sessionsStreamingUploadDir(ctx)
 	rec, err := recorder.New(ctx.SessionRecordingConfig, cfg, uploadDir, ctx.srv)

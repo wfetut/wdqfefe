@@ -378,7 +378,7 @@ func checkEventFields(event apievents.AuditEvent) error {
 		return trace.BadParameter("Time is unset, call SetupEvent before recording events")
 	}
 	if event.GetClusterName() == "" {
-		return trace.BadParameter("Time is unset, call SetupEvent before recording events")
+		return trace.BadParameter("ClusterName is unset, call SetupEvent before recording events")
 	}
 	sess, ok := event.(SessionMetadataGetter)
 	if ok && sess.GetSessionID() == "" {
