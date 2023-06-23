@@ -153,12 +153,21 @@ func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audit
 	return nil
 }
 
+// NewDiscardStreamer returns a streamer that creates streams that
+// discard events
+func NewDiscardStreamer() *DiscardStreamer {
+	return &DiscardStreamer{}
+}
+
+// DiscardStreamer creates DiscardStreams
+type DiscardStreamer struct{}
+
 // CreateAuditStream creates a stream that discards all events
-func (*DiscardEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
+func (*DiscardStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
 	return NewDiscardStream(), nil
 }
 
 // ResumeAuditStream resumes a stream that discards all events
-func (*DiscardEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
+func (*DiscardStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
 	return NewDiscardStream(), nil
 }

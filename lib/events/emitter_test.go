@@ -306,7 +306,7 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 	t.Run("CheckingStreamer.CreateAuditStream", func(t *testing.T) {
 		streamer := &events.CheckingStreamer{
 			CheckingStreamerConfig: events.CheckingStreamerConfig{
-				Inner:        &events.DiscardEmitter{},
+				Inner:        events.NewDiscardStreamer(),
 				Clock:        clock,
 				ClusterName:  "cluster",
 				UIDGenerator: utils.NewFakeUID(),
@@ -335,7 +335,7 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 	t.Run("CheckingStreamer.ResumeAuditStream", func(t *testing.T) {
 		streamer := &events.CheckingStreamer{
 			CheckingStreamerConfig: events.CheckingStreamerConfig{
-				Inner:        &events.DiscardEmitter{},
+				Inner:        events.NewDiscardStreamer(),
 				Clock:        clock,
 				ClusterName:  "cluster",
 				UIDGenerator: utils.NewFakeUID(),

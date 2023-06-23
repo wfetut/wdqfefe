@@ -129,7 +129,7 @@ func TestMovesCorruptedUploads(t *testing.T) {
 	corruptedDir := t.TempDir()
 
 	uploader, err := NewUploader(UploaderConfig{
-		Streamer:     events.NewDiscardEmitter(),
+		Streamer:     events.NewDiscardStreamer(),
 		ScanDir:      scanDir,
 		CorruptedDir: corruptedDir,
 	})

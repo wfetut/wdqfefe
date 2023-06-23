@@ -224,9 +224,15 @@ func (a *audit) EmitEvent(ctx context.Context, event apievents.AuditEvent) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	recErr := a.cfg.Recorder.RecordEvent(ctx, event)
-	emitErr := a.cfg.Emitter.EmitAuditEvent(ctx, event)
-	return trace.NewAggregate(emitErr, recErr)
+	var emitErr error
+	// AppSessionRequest events should only go to session recording
+	if event.GetType() != events.AppSessionRequestEvent {
+		emitErr = a.cfg.Emitter.EmitAuditEvent(ctx, event)
+	}
+
+	return trace.NewAggregate(recErr, emitErr)
 }
 
 // MakeAppMetadata returns common server metadata for database session.
