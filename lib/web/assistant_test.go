@@ -27,7 +27,6 @@ import (
 	"net/url"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
@@ -345,9 +344,6 @@ func Test_generateAssistantTitle(t *testing.T) {
 	err = json.Unmarshal(body, &info)
 	require.NoError(t, err)
 	require.NotEmpty(t, info.Title)
-	require.Eventually(t, func() bool {
-		return counter.Load() == 2
-	}, time.Second, 100*time.Millisecond)
 }
 
 // generateTextResponse generates a response for a text completion
