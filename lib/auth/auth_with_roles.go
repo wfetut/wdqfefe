@@ -1442,6 +1442,19 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 					}
 				}
 			}
+		case types.KindHeadlessAuthentication:
+			var filter types.HeadlessAuthenticationFilter
+			if err := filter.FromMap(kind.Filter); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+
+			// Only users can watch their own headless authentications.
+			if !hasLocalUserRole(a.context) || filter.Username != a.context.User.GetName() {
+				return nil, trace.AccessDenied("user %q cannot watch headless authentications of %q", a.context.User.GetName(), filter.Username)
+			}
 		default:
 			if err := a.action(apidefaults.Namespace, kind.Kind, types.VerbRead); err != nil {
 				if watch.AllowPartialSuccess {

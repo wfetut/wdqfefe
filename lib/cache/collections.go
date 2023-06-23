@@ -589,6 +589,9 @@ func setupCollections(c *Cache, watches []types.WatchKind) (*cacheCollections, e
 				watch: watch,
 			}
 			collections.byKind[resourceKind] = collections.integrations
+		case types.KindHeadlessAuthentication:
+			// headless authentication resources aren't directly used by Cache so there's no associated reader type
+			collections.byKind[resourceKind] = &genericCollection[*types.HeadlessAuthentication, any, headlessAuthenticationServiceExecutor]{cache: c, watch: watch}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -2299,3 +2302,34 @@ func (integrationsExecutor) getReader(cache *Cache, cacheOK bool) services.Integ
 }
 
 var _ executor[types.Integration, services.IntegrationsGetter] = integrationsExecutor{}
+
+type headlessAuthenticationServiceExecutor struct{}
+
+func (headlessAuthenticationServiceExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]*types.HeadlessAuthentication, error) {
+	return cache.headlessAuthenticationsCache.GetHeadlessAuthentications(ctx)
+}
+
+func (headlessAuthenticationServiceExecutor) upsert(ctx context.Context, cache *Cache, resource *types.HeadlessAuthentication) error {
+	return cache.headlessAuthenticationsCache.UpsertHeadlessAuthentication(ctx, resource)
+}
+
+func (headlessAuthenticationServiceExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.headlessAuthenticationsCache.DeleteAllHeadlessAuthentications(ctx)
+}
+
+func (headlessAuthenticationServiceExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	ha, ok := resource.(*types.HeadlessAuthentication)
+	if !ok {
+		return trace.BadParameter("unexpected type %T", resource)
+	}
+	return cache.headlessAuthenticationsCache.DeleteHeadlessAuthentication(ctx, ha.User, resource.GetName())
+}
+
+func (headlessAuthenticationServiceExecutor) isSingleton() bool { return false }
+
+func (headlessAuthenticationServiceExecutor) getReader(_ *Cache, _ bool) any {
+	// headless authentication resources aren't directly used by Cache so there's no associated reader type
+	return nil
+}
+
+var _ executor[*types.HeadlessAuthentication, any] = headlessAuthenticationServiceExecutor{}
