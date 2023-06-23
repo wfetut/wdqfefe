@@ -15,11 +15,8 @@
  */
 
 import React from 'react';
-
 import { Option } from 'shared/components/Select';
-
 import FieldSelect from 'shared/components/FieldSelect';
-
 import { requiredField } from 'shared/components/Validation/rules';
 
 import { RoleProps, TeamOptionsStrings, TitleOptionsStrings } from './types';

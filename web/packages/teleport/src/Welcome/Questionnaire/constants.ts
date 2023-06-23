@@ -90,3 +90,11 @@ export const supportedResources = [
   { label: 'Databases', image: database },
   { label: 'Kubernetes', image: stack },
 ];
+
+export const requiredArrayField = (value: string[]) => () => {
+  const valid = !!value.length;
+  return {
+    valid,
+    message: 'Resource is required',
+  };
+};

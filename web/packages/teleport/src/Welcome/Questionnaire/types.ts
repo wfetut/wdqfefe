@@ -38,7 +38,6 @@ export type ResourceType = {
 export type ResourcesProps = QuestionProps & {
   resources: ResourceType[];
   checked: string[];
-  valid: boolean;
 };
 
 export type QuestionnaireFormFields = {

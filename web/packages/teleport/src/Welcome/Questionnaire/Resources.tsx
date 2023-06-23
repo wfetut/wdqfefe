@@ -15,12 +15,12 @@
  */
 
 import { Flex, LabelInput, Text } from 'design';
-
 import React from 'react';
-
 import Image from 'design/Image';
-
 import { CheckboxInput } from 'design/Checkbox';
+import { useRule } from 'shared/components/Validation';
+
+import {requiredArrayField} from "teleport/Welcome/Questionnaire/constants";
 
 import { ResourcesProps, ResourceType } from './types';
 import { ResourceWrapper } from './ResourceWrapper';
@@ -29,8 +29,9 @@ export const Resources = ({
   resources,
   checked,
   updateFields,
-  valid,
 }: ResourcesProps) => {
+  const { valid, message } = useRule(requiredArrayField(checked));
+
   const updateResources = (label: string) => {
     let updated = checked;
     if (updated.includes(label)) {
@@ -55,7 +56,7 @@ export const Resources = ({
         }}
         onClick={() => updateResources(resource.label)}
       >
-        <ResourceWrapper isSelected={isSelected} invalid={valid == false}>
+        <ResourceWrapper isSelected={isSelected} invalid={!valid}>
           <CheckboxInput
             aria-labelledby="resources"
             role="checkbox"
@@ -63,6 +64,7 @@ export const Resources = ({
             name={resource.label}
             readOnly
             checked={checked.includes(resource.label)}
+            rule={requiredArrayField(checked)}
             style={{
               alignSelf: 'flex-end',
             }}
@@ -85,13 +87,11 @@ export const Resources = ({
   return (
     <>
       <Flex gap={1} mb={1}>
-        <LabelInput
-          htmlFor={'resources'}
-          hasError={valid == false}
-          color="blue"
-        >
-          Which infrastructure resources do you need to access frequently?{' '}
-          <i>Select all that apply.</i>
+        <LabelInput htmlFor={'resources'} hasError={!valid}>
+          {valid
+            ? `Which infrastructure resources do you need to access frequently?`
+            : message}
+          <i>&nbsp;Select all that apply.</i>
         </LabelInput>
       </Flex>
       <Flex gap={2} alignItems="flex-start" height="170px">
