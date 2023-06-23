@@ -507,13 +507,21 @@ func initSetAuthPreference(ctx context.Context, asrv *Server, newAuthPref types.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if shouldReplace {
-		if err := asrv.SetAuthPreference(ctx, newAuthPref); err != nil {
-			return trace.Wrap(err)
-		}
-		log.Infof("Updating cluster auth preference: %v.", newAuthPref)
+
+	if !shouldReplace {
+		return nil
 	}
-	return nil
+
+	log.Infof("Updating cluster auth preference: %v.", newAuthPref)
+	if storedAuthPref == nil {
+		return trace.Wrap(asrv.Services.CreateAuthPreference(ctx, newAuthPref))
+	}
+
+	if storedAuthPref != nil {
+		newAuthPref.SetRevision(storedAuthPref.GetRevision())
+	}
+
+	return trace.Wrap(asrv.SetAuthPreference(ctx, newAuthPref))
 }
 
 func initSetClusterNetworkingConfig(ctx context.Context, asrv *Server, newNetConfig types.ClusterNetworkingConfig) error {

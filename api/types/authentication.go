@@ -39,8 +39,9 @@ import (
 // AuthPreference is a configuration resource, never create more than one instance
 // of it.
 type AuthPreference interface {
-	// Resource provides common resource properties.
+	// ResourceWithOrigin provides common resource properties.
 	ResourceWithOrigin
+	ResourceRevision
 
 	// GetType gets the type of authentication: local, saml, or oidc.
 	GetType() string
@@ -221,6 +222,16 @@ func (c *AuthPreferenceV2) Origin() string {
 // SetOrigin sets the origin value of the resource.
 func (c *AuthPreferenceV2) SetOrigin(origin string) {
 	c.Metadata.SetOrigin(origin)
+}
+
+// GetRevision returns the revision value of the resource.
+func (c *AuthPreferenceV2) GetRevision() string {
+	return c.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision value of the resource.
+func (c *AuthPreferenceV2) SetRevision(rev string) {
+	c.Metadata.SetRevision(rev)
 }
 
 // GetKind returns resource kind.

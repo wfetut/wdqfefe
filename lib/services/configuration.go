@@ -52,6 +52,8 @@ type ClusterConfiguration interface {
 
 	// GetAuthPreference gets types.AuthPreference from the backend.
 	GetAuthPreference(context.Context) (types.AuthPreference, error)
+	// CreateAuthPreference creates the cluster authentication preferences.
+	CreateAuthPreference(ctx context.Context, preference types.AuthPreference) error
 	// SetAuthPreference sets types.AuthPreference from the backend.
 	SetAuthPreference(context.Context, types.AuthPreference) error
 	// DeleteAuthPreference deletes types.AuthPreference from the backend.

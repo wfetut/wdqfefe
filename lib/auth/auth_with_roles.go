@@ -3955,6 +3955,11 @@ func (a *ServerWithRoles) DeleteAllInstallers(ctx context.Context) error {
 	return trace.Wrap(a.authServer.DeleteAllInstallers(ctx))
 }
 
+// CreateAuthPreference not implemented: can only be called locally.
+func (a *ServerWithRoles) CreateAuthPreference(context.Context, types.AuthPreference) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // SetAuthPreference sets cluster auth preference.
 func (a *ServerWithRoles) SetAuthPreference(ctx context.Context, newAuthPref types.AuthPreference) error {
 	storedAuthPref, err := a.authServer.GetAuthPreference(ctx)

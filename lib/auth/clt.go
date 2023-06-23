@@ -443,6 +443,11 @@ func (c *Client) DeleteAuthPreference(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// CreateAuthPreference not implemented: can only be called locally.
+func (c *Client) CreateAuthPreference(context.Context, types.AuthPreference) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // SetClusterAuditConfig not implemented: can only be called locally.
 func (c *Client) SetClusterAuditConfig(ctx context.Context, auditConfig types.ClusterAuditConfig) error {
 	return trace.NotImplemented(notImplementedMessage)

@@ -177,35 +177,58 @@ func (s *ClusterConfigurationService) GetAuthPreference(ctx context.Context) (ty
 		}
 		return nil, trace.Wrap(err)
 	}
-	return services.UnmarshalAuthPreference(item.Value,
-		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	return services.UnmarshalAuthPreference(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision),
+	)
 }
 
-// SetAuthPreference sets the cluster authentication preferences
-// on the backend.
-func (s *ClusterConfigurationService) SetAuthPreference(ctx context.Context, preferences types.AuthPreference) error {
+// CreateAuthPreference creates the cluster authentication preferences.
+func (s *ClusterConfigurationService) CreateAuthPreference(ctx context.Context, preference types.AuthPreference) error {
 	// Perform the modules-provided checks.
-	if err := modules.ValidateResource(preferences); err != nil {
+	if err := modules.ValidateResource(preference); err != nil {
 		return trace.Wrap(err)
 	}
 
-	value, err := services.MarshalAuthPreference(preferences)
+	value, err := services.MarshalAuthPreference(preference)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	item := backend.Item{
-		Key:   backend.Key(authPrefix, preferencePrefix, generalPrefix),
-		Value: value,
-		ID:    preferences.GetResourceID(),
+		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
+		Value:    value,
+		ID:       preference.GetResourceID(),
+		Revision: preference.GetRevision(),
 	}
 
-	_, err = s.Put(ctx, item)
+	_, err = s.Backend.Create(ctx, item)
+	return trace.Wrap(err)
+}
+
+// SetAuthPreference updates the cluster authentication preferences.
+func (s *ClusterConfigurationService) SetAuthPreference(ctx context.Context, preference types.AuthPreference) error {
+	// Perform the modules-provided checks.
+	if err := modules.ValidateResource(preference); err != nil {
+		return trace.Wrap(err)
+	}
+
+	value, err := services.MarshalAuthPreference(preference)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	item := backend.Item{
+		Key:      backend.Key(authPrefix, preferencePrefix, generalPrefix),
+		Value:    value,
+		ID:       preference.GetResourceID(),
+		Revision: preference.GetRevision(),
+	}
+
+	_, err = s.Backend.ConditionalPut(ctx, item)
+	return trace.Wrap(err)
 }
 
 // DeleteAuthPreference deletes types.AuthPreference from the backend.

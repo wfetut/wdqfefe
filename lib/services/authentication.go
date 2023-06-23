@@ -120,6 +120,9 @@ func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (types.AuthPre
 	if !cfg.Expires.IsZero() {
 		authPreference.SetExpiry(cfg.Expires)
 	}
+	if cfg.Revision != "" {
+		authPreference.SetRevision(cfg.Revision)
+	}
 	return &authPreference, nil
 }
 
