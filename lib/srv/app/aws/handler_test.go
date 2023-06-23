@@ -390,9 +390,9 @@ func TestAWSSignerHandler(t *testing.T) {
 
 			// Validate audit event.
 			if err == nil {
-				require.Len(t, suite.emitter.C(), 1)
+				require.Len(t, suite.recorder.C(), 1)
 
-				event := <-suite.emitter.C()
+				event := <-suite.recorder.C()
 				switch appSessionEvent := event.(type) {
 				case *events.AppSessionDynamoDBRequest:
 					_, ok := tc.wantEventType.(*events.AppSessionDynamoDBRequest)
@@ -415,7 +415,7 @@ func TestAWSSignerHandler(t *testing.T) {
 					require.FailNow(t, "wrong event type", "unexpected event type: wanted %T but got %T", tc.wantEventType, appSessionEvent)
 				}
 			} else {
-				require.Len(t, suite.emitter.C(), 0)
+				require.Len(t, suite.recorder.C(), 0)
 			}
 		})
 	}
@@ -486,11 +486,11 @@ type suite struct {
 	*httptest.Server
 	identity *tlsca.Identity
 	app      types.Application
-	emitter  *eventstest.ChannelEmitter
+	recorder *eventstest.ChannelRecorder
 }
 
 func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Application, clock clockwork.Clock) *suite {
-	emitter := eventstest.NewChannelEmitter(1)
+	recorder := eventstest.NewChannelRecorder(1)
 	identity := tlsca.Identity{
 		Username: "user",
 		Expires:  clock.Now().Add(time.Hour),
@@ -512,8 +512,8 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 	require.NoError(t, err)
 
 	audit, err := common.NewAudit(common.AuditConfig{
-		Emitter:  emitter,
-		Recorder: libevents.NewDiscardRecorder(),
+		Emitter:  libevents.NewDiscardEmitter(),
+		Recorder: recorder,
 	})
 	require.NoError(t, err)
 	signerHandler, err := NewAWSSignerHandler(context.Background(),
@@ -551,7 +551,7 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 		Server:   server,
 		identity: &identity,
 		app:      app,
-		emitter:  emitter,
+		recorder: recorder,
 	}
 }
 

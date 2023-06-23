@@ -40,10 +40,6 @@ func NewChannelEmitter(capacity int) *ChannelEmitter {
 	}
 }
 
-func (e *ChannelEmitter) RecordEvent(ctx context.Context, event events.AuditEvent) error {
-	return e.EmitAuditEvent(ctx, event)
-}
-
 func (e *ChannelEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
 	e.log.Infof("EmitAuditEvent(%v)", event)
 	select {
@@ -58,26 +54,62 @@ func (e *ChannelEmitter) C() <-chan events.AuditEvent {
 	return e.events
 }
 
-func (e *ChannelEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
+// ChannelRecorder records session events by writing them to a channel.
+type ChannelRecorder struct {
+	events chan events.AuditEvent
+	log    logrus.FieldLogger
+}
+
+// NewChannelRecorder returns a new instance of test recorder.
+func NewChannelRecorder(capacity int) *ChannelRecorder {
+	return &ChannelRecorder{
+		log:    logrus.WithField(trace.Component, "channel_recorder"),
+		events: make(chan events.AuditEvent, capacity),
+	}
+}
+
+func (e *ChannelRecorder) C() <-chan events.AuditEvent {
+	return e.events
+}
+
+func (e *ChannelRecorder) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
 	return e, nil
 }
 
-func (e *ChannelEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
+func (e *ChannelRecorder) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
 	return e, nil
 }
 
-func (e *ChannelEmitter) Status() <-chan events.StreamStatus {
+func (*ChannelRecorder) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
+func (*ChannelRecorder) SetupEvent(event events.AuditEvent) error {
 	return nil
 }
 
-func (e *ChannelEmitter) Done() <-chan struct{} {
+func (e *ChannelRecorder) RecordEvent(ctx context.Context, event events.AuditEvent) error {
+	e.log.Infof("RecordEvent(%v)", event)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case e.events <- event:
+		return nil
+	}
+}
+
+func (e *ChannelRecorder) Status() <-chan events.StreamStatus {
 	return nil
 }
 
-func (e *ChannelEmitter) Close(ctx context.Context) error {
+func (e *ChannelRecorder) Done() <-chan struct{} {
 	return nil
 }
 
-func (e *ChannelEmitter) Complete(ctx context.Context) error {
+func (e *ChannelRecorder) Close(ctx context.Context) error {
+	return nil
+}
+
+func (e *ChannelRecorder) Complete(ctx context.Context) error {
 	return nil
 }
