@@ -15,17 +15,12 @@
  */
 
 import React from 'react';
-
 import { Option } from 'shared/components/Select';
-
 import FieldInput from 'shared/components/FieldInput';
-
 import FieldSelect from 'shared/components/FieldSelect';
-
 import { requiredField } from 'shared/components/Validation/rules';
 
 import { EmployeeSelectOptions } from './constants';
-
 import { CompanyProps, EmployeeOptionsStrings } from './types';
 
 export const Company = ({

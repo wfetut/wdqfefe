@@ -16,7 +16,6 @@
 
 import React, { useState } from 'react';
 import { ButtonPrimary, Card, Text } from 'design';
-
 import Validation, { Validator } from 'shared/components/Validation';
 
 import { QuestionnaireFormFields } from './types';
@@ -26,8 +25,6 @@ import { Resources } from './Resources';
 import { supportedResources } from './constants';
 
 export const Questionnaire = () => {
-  const [validResources, setValidResources] = useState<boolean>(undefined);
-
   const [formFields, setFormFields] = useState<QuestionnaireFormFields>({
     companyName: '',
     employeeCount: undefined,
@@ -37,10 +34,6 @@ export const Questionnaire = () => {
   });
 
   const updateForm = (fields: Partial<QuestionnaireFormFields>) => {
-    if (fields.resources && validResources == false) {
-      setValidResources(undefined);
-    }
-
     setFormFields({
       role: fields.role ?? formFields.role,
       team: fields.team ?? formFields.team,
@@ -51,8 +44,7 @@ export const Questionnaire = () => {
   };
 
   const submitForm = (validator: Validator) => {
-    setValidResources(formFields.resources.length !== 0);
-    if (!validator.validate() || !validResources) {
+    if (!validator.validate()) {
       return;
     }
 
@@ -83,7 +75,6 @@ export const Questionnaire = () => {
               resources={supportedResources}
               checked={formFields.resources}
               updateFields={updateForm}
-              valid={validResources}
             />
 
             <ButtonPrimary
