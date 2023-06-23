@@ -111,10 +111,10 @@ func (ws *noopCloserWS) Close() error {
 
 // syncRWWSConn is a wrapper around websocket.Conn, which serializes
 // read and write to a web socket connection. This is needed to prevent
-// a race conditions and panics in gorilla/websocket.
+// race conditions and panics in gorilla/websocket.
 // Details https://pkg.go.dev/github.com/gorilla/websocket#hdr-Concurrency
 // This struct does not lock SetReadDeadline() as the SetReadDeadline()
-// is called from the pong handler, which is interanlly called on ReadMessage()
+// is called from the pong handler, which is internally called on ReadMessage()
 // according to https://pkg.go.dev/github.com/gorilla/websocket#hdr-Control_Messages
 // This would prevent the pong handler from being called.
 type syncRWWSConn struct {

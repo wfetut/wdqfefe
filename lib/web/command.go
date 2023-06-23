@@ -176,7 +176,7 @@ func (h *Handler) executeCommand(
 	rawWS, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		errMsg := "Error upgrading to websocket"
-		h.log.WithError(err).Error(errMsg)
+		h.log.WithError(err).Debug(errMsg)
 		http.Error(w, errMsg, http.StatusInternalServerError)
 		return nil, nil
 	}
@@ -194,13 +194,14 @@ func (h *Handler) executeCommand(
 	}
 	// Update the read deadline upon receiving a pong message.
 	rawWS.SetPongHandler(func(_ string) error {
-		// This is intentonally called without a lock as this callback is
+		// This is intentionally called without a lock as this callback is
 		// called from the same goroutine as the read loop which is already locked.
 		return trace.Wrap(rawWS.SetReadDeadline(deadlineForInterval(keepAliveInterval)))
 	})
+	rawWS.SetReadLimit(teleport.MaxHTTPRequestSize)
 
 	// Wrap the raw websocket connection in a syncRWWSConn so that we can
-	// safely read and write to the the single websocket connection from
+	// safely read and write to the single websocket connection from
 	// multiple goroutines/execution nodes.
 	ws := &syncRWWSConn{WSConn: rawWS}
 
@@ -377,7 +378,7 @@ func (h *Handler) computeAndSendSummary(
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	stream := NewWStream(ctx, ws, log, nil)
+	stream := newBaseWSStream(ws, log, nil)
 	_, err = stream.Write(data)
 	return trace.Wrap(err)
 }
@@ -562,7 +563,7 @@ type commandHandler struct {
 	sshBaseHandler
 
 	// stream is the websocket stream to the client.
-	stream *WSStream
+	stream *mfaWSStream
 
 	// ws a raw websocket connection to the client.
 	ws WSConn
@@ -628,7 +629,7 @@ func (t *commandHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 }
 
 func (t *commandHandler) handler(r *http.Request) {
-	t.stream = NewWStream(r.Context(), t.ws, t.log, nil)
+	t.stream = newMFAWSStream(t.ws, t.log, nil)
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
@@ -675,7 +676,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 	}
 
 	// TODO: fix this, this hangs
-	if err := t.stream.Close(); err != nil {
+	if err := t.stream.SendCloseMessage(); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 		return
 	}

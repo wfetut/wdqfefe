@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -36,8 +35,6 @@ import (
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/text/encoding"
-	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
 	authproto "github.com/gravitational/teleport/api/client/proto"
@@ -307,6 +304,10 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errMsg, http.StatusInternalServerError)
 		return
 	}
+	defer func() {
+		ws.WriteMessage(websocket.CloseMessage, nil)
+		ws.Close()
+	}()
 
 	err = ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
 	if err != nil {
@@ -370,7 +371,7 @@ func (t *TerminalHandler) Close() error {
 // pumps raw events and audit events back to the client until the SSH session
 // is complete.
 func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
-	defer ws.Close()
+	//defer ws.Close()
 
 	// Update the read deadline upon receiving a pong message.
 	ws.SetPongHandler(func(_ string) error {
@@ -383,6 +384,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	ctx, cancel := context.WithCancel(tctx)
 	defer cancel()
 	t.stream = NewTerminalStream(ctx, ws, t.log)
+	defer t.stream.close()
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
@@ -460,7 +462,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, stream *TerminalStream
 // used to access nodes which require per-session mfa. The ceremony is performed directly
 // to make use of the authProvider already established for the session instead of leveraging
 // the TeleportClient which would require dialing the auth server a second time.
-func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient, wsStream *WSStream) ([]ssh.AuthMethod, error) {
+func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient, wsStream mfaChallenger) ([]ssh.AuthMethod, error) {
 	ctx, span := t.tracer.Start(ctx, "terminal/issueSessionMFACerts")
 	defer span.End()
 
@@ -582,7 +584,7 @@ func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.Te
 }
 
 func promptMFAChallenge(
-	stream *WSStream,
+	stream mfaChallenger,
 	codec mfaCodec,
 ) client.PromptMFAChallengeHandler {
 	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
@@ -725,7 +727,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
 				prompt := func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
-					resp, err := promptMFAChallenge(t.stream.WSStream, protobufMFACodec{})(ctx, proxyAddr, c)
+					resp, err := promptMFAChallenge(t.stream, protobufMFACodec{})(ctx, proxyAddr, c)
 					return resp, trace.Wrap(err)
 				}
 				if err := client.RunPresenceTask(ctx, out, t.authProvider, t.sessionData.ID.String(), prompt, client.WithPresenceClock(t.clock)); err != nil {
@@ -790,7 +792,7 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws WSConn, tc *clien
 // host with the retrieved single use certs.
 func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	// perform mfa ceremony and retrieve new certs
-	authMethods, err := t.issueSessionMFACerts(ctx, tc, t.stream.WSStream)
+	authMethods, err := t.issueSessionMFACerts(ctx, tc, t.stream)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -904,23 +906,6 @@ func serverHostPort(servername string) (string, int, error) {
 	return host, port, nil
 }
 
-func NewWStream(ctx context.Context, ws WSConn, log logrus.FieldLogger, handlers map[string]WSHandlerFunc) *WSStream {
-	w := &WSStream{
-		log:        log,
-		ws:         ws,
-		encoder:    unicode.UTF8.NewEncoder(),
-		decoder:    unicode.UTF8.NewDecoder(),
-		completedC: make(chan struct{}),
-		rawC:       make(chan Envelope, 100),
-		challengeC: make(chan Envelope, 1),
-		handlers:   handlers,
-	}
-
-	go w.processMessages(ctx)
-
-	return w
-}
-
 // NewTerminalStream creates a stream that manages reading and writing
 // data over the provided [websocket.Conn]
 func NewTerminalStream(ctx context.Context, ws *websocket.Conn, log logrus.FieldLogger) *TerminalStream {
@@ -934,7 +919,7 @@ func NewTerminalStream(ctx context.Context, ws *websocket.Conn, log logrus.Field
 		defaults.WebsocketFileTransferDecision: t.handleFileTransferDecision,
 	}
 
-	t.WSStream = NewWStream(ctx, ws, log, handlers)
+	t.WSStream = NewWStream(ctx, &syncRWWSConn{WSConn: ws}, log, handlers)
 
 	return t
 }
@@ -942,34 +927,6 @@ func NewTerminalStream(ctx context.Context, ws *websocket.Conn, log logrus.Field
 // WSHandlerFunc specifies a handler that processes received a specific
 // [Envelope] received via a web socket.
 type WSHandlerFunc func(context.Context, Envelope)
-
-// WSStream handles web socket communication with
-// the frontend.
-type WSStream struct {
-	// encoder is used to encode UTF-8 strings.
-	encoder *encoding.Encoder
-	// decoder is used to decode UTF-8 strings.
-	decoder *encoding.Decoder
-
-	handlers map[string]WSHandlerFunc
-	// once ensures that all channels are closed at most one time.
-	once       sync.Once
-	challengeC chan Envelope
-	rawC       chan Envelope
-	completedC chan struct{}
-
-	// buffer is a buffer used to store the remaining payload data if it did not
-	// fit into the buffer provided by the callee to Read method
-	buffer []byte
-
-	// mu protects writes to ws
-	mu sync.Mutex
-	// ws the connection to the UI
-	ws WSConn
-
-	// log holds the structured logger.
-	log logrus.FieldLogger
-}
 
 // TerminalStream manages the [websocket.Conn] to the web UI
 // for a terminal session.
@@ -979,91 +936,6 @@ type TerminalStream struct {
 	// sshSession holds the "shell" SSH channel to the node.
 	sshSession    *tracessh.Session
 	sessionReadyC chan struct{}
-}
-
-// Replace \n with \r\n so the message is correctly aligned.
-var replacer = strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
-
-// writeError displays an error in the terminal window.
-func (t *WSStream) writeError(msg string) {
-	if _, writeErr := replacer.WriteString(t, msg); writeErr != nil {
-		t.log.WithError(writeErr).Warnf("Unable to send error to terminal: %v", msg)
-	}
-}
-
-func (t *WSStream) processMessages(ctx context.Context) {
-	defer func() {
-		close(t.completedC)
-	}()
-	t.ws.SetReadLimit(teleport.MaxHTTPRequestSize)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			ty, bytes, err := t.ws.ReadMessage()
-			if err != nil {
-				if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) ||
-					websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-					return
-				}
-
-				msg := err.Error()
-				if len(bytes) > 0 {
-					msg = string(bytes)
-				}
-				select {
-				case <-ctx.Done():
-				default:
-					t.writeError(msg)
-					return
-				}
-			}
-
-			if ty != websocket.BinaryMessage {
-				t.writeError(fmt.Sprintf("Expected binary message, got %v", ty))
-				return
-			}
-
-			var envelope Envelope
-			if err := proto.Unmarshal(bytes, &envelope); err != nil {
-				t.writeError(fmt.Sprintf("Unable to parse message payload %v", err))
-				return
-			}
-
-			switch envelope.Type {
-			case defaults.WebsocketClose:
-				return
-			case defaults.WebsocketWebauthnChallenge:
-				select {
-				case <-ctx.Done():
-					return
-				case t.challengeC <- envelope:
-				default:
-				}
-			case defaults.WebsocketRaw:
-				select {
-				case <-ctx.Done():
-					return
-				case t.rawC <- envelope:
-				default:
-				}
-			default:
-				if t.handlers == nil {
-					continue
-				}
-
-				handler, ok := t.handlers[envelope.Type]
-				if !ok {
-					t.log.Warnf("Received web socket envelope with unknown type %v", envelope.Type)
-					continue
-				}
-
-				go handler(ctx, envelope)
-			}
-		}
-	}
 }
 
 // handleWindowResize receives window resize events and forwards
@@ -1168,161 +1040,6 @@ func (t *TerminalStream) handleFileTransferRequest(ctx context.Context, envelope
 func (t *TerminalStream) sessionCreated(s *tracessh.Session) {
 	t.sshSession = s
 	close(t.sessionReadyC)
-}
-
-// writeChallenge encodes and writes the challenge to the
-// websocket in the correct format.
-func (t *WSStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, codec mfaCodec) error {
-	// Send the challenge over the socket.
-	msg, err := codec.encode(challenge, defaults.WebsocketWebauthnChallenge)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return trace.Wrap(t.ws.WriteMessage(websocket.BinaryMessage, msg))
-}
-
-// readChallengeResponse reads and decodes the challenge response from the
-// websocket in the correct format.
-func (t *WSStream) readChallengeResponse(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
-	select {
-	case <-t.completedC:
-		return nil, io.EOF
-	case envelope := <-t.challengeC:
-		resp, err := codec.decodeResponse([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
-		return resp, trace.Wrap(err)
-	}
-}
-
-// readChallenge reads and decodes the challenge from the
-// websocket in the correct format.
-func (t *WSStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateChallenge, error) {
-	select {
-	case <-t.completedC:
-		return nil, io.EOF
-	case envelope := <-t.challengeC:
-		challenge, err := codec.decodeChallenge([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
-		return challenge, trace.Wrap(err)
-	}
-}
-
-// writeAuditEvent encodes and writes the audit event to the
-// websocket in the correct format.
-func (t *WSStream) writeAuditEvent(event []byte) error {
-	// UTF-8 encode the error message and then wrap it in a raw envelope.
-	encodedPayload, err := t.encoder.String(string(event))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	envelope := &Envelope{
-		Version: defaults.WebsocketVersion,
-		Type:    defaults.WebsocketAudit,
-		Payload: encodedPayload,
-	}
-
-	envelopeBytes, err := proto.Marshal(envelope)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Send bytes over the websocket to the web client.
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return trace.Wrap(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
-}
-
-// Write wraps the data bytes in a raw envelope and sends.
-func (t *WSStream) Write(data []byte) (n int, err error) {
-	// UTF-8 encode data and wrap it in a raw envelope.
-	encodedPayload, err := t.encoder.String(string(data))
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-	envelope := &Envelope{
-		Version: defaults.WebsocketVersion,
-		Type:    defaults.WebsocketRaw,
-		Payload: encodedPayload,
-	}
-	envelopeBytes, err := proto.Marshal(envelope)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	// Send bytes over the websocket to the web client.
-	t.mu.Lock()
-	err = t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
-	t.mu.Unlock()
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	return len(data), nil
-}
-
-// Read provides data received from [defaults.WebsocketRaw] envelopes. If
-// the previous envelope was not consumed in the last read any remaining data
-// is returned prior to processing the next envelope.
-func (t *WSStream) Read(out []byte) (n int, err error) {
-	if len(t.buffer) > 0 {
-		n := copy(out, t.buffer)
-		if n == len(t.buffer) {
-			t.buffer = []byte{}
-		} else {
-			t.buffer = t.buffer[n:]
-		}
-		return n, nil
-	}
-
-	select {
-	case <-t.completedC:
-		return 0, io.EOF
-	case envelope := <-t.rawC:
-		data, err := t.decoder.Bytes([]byte(envelope.Payload))
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-
-		n := copy(out, data)
-		// if payload size is greater than [out], store the remaining
-		// part in the buffer to be processed on the next Read call
-		if len(data) > n {
-			t.buffer = data[n:]
-		}
-		return n, nil
-	}
-}
-
-// Close sends a close message on the web socket and closes the web socket.
-func (t *WSStream) Close() error {
-	var closeErr error
-	t.once.Do(func() {
-		defer func() {
-			<-t.completedC
-
-			close(t.rawC)
-			close(t.challengeC)
-		}()
-
-		// Send close envelope to web terminal upon exit without an error.
-		envelope := &Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketClose,
-		}
-		envelopeBytes, err := proto.Marshal(envelope)
-		if err != nil {
-			closeErr = trace.NewAggregate(err, t.ws.Close())
-			return
-		}
-
-		t.mu.Lock()
-		defer t.mu.Unlock()
-		closeErr = trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes), t.ws.Close())
-	})
-
-	return trace.Wrap(closeErr)
 }
 
 // deadlineForInterval returns a suitable network read deadline for a given ping interval.
