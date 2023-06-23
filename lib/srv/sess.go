@@ -927,7 +927,6 @@ func (s *session) emitSessionJoinEvent(ctx *ServerContext) {
 		sessionJoinEvent.ConnectionMetadata.LocalAddr = ctx.ServerConn.LocalAddr().String()
 	}
 
-	// Emit session join event to Audit Log.
 	if err := s.recordEvent(ctx.srv.Context(), sessionJoinEvent); err != nil {
 		s.log.WithError(err).Warn("Failed to record session join event.")
 	}
@@ -1283,7 +1282,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionRecorder, error)
 	}
 
 	uploadDir := sessionsStreamingUploadDir(ctx)
-	rec, err := recorder.NewRecorder(ctx.SessionRecordingConfig, cfg, uploadDir, ctx.srv)
+	rec, err := recorder.New(ctx.SessionRecordingConfig, cfg, uploadDir, ctx.srv)
 	if err != nil {
 		switch ctx.Identity.AccessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH) {
 		case constants.SessionRecordingModeBestEffort:

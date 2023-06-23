@@ -301,7 +301,7 @@ func (s *Server) newSessionRecorder(ctx context.Context, chunkID string) (events
 		s.c.DataDir, teleport.LogsDir, teleport.ComponentUpload,
 		events.StreamingSessionsDir, apidefaults.Namespace,
 	)
-	streamWriter, err := recorder.NewRecorder(recConfig, cfg, uploadDir, s.c.AuthClient)
+	streamWriter, err := recorder.New(recConfig, cfg, uploadDir, s.c.AuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

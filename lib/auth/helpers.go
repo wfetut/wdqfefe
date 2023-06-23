@@ -69,7 +69,7 @@ type TestAuthServerConfig struct {
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
-	// Streamer allows a test to set its own session events streamer.
+	// Streamer allows a test to set its own session recording streamer.
 	Streamer events.Streamer
 	// Emitter allows a test to set its own audit events emitter.
 	Emitter apievents.Emitter

@@ -25,12 +25,12 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// NewRecorder returns a [events.SessionRecorder]. If session recording is disabled,
+// New returns a [events.SessionRecorder]. If session recording is disabled,
 // a recorder is returned that will discard all session events. If session
 // recording is set to be synchronous, the returned recorder will use
 // syncStream to create an event stream. Otherwise, a streamer will be
 // used that will back recorded session events to disk for eventual upload.
-func NewRecorder(recCfg types.SessionRecordingConfig, cfg events.SessionWriterConfig, uploadDir string, syncStream events.Streamer) (events.SessionRecorder, error) {
+func New(recCfg types.SessionRecordingConfig, cfg events.SessionWriterConfig, uploadDir string, syncStream events.Streamer) (events.SessionRecorder, error) {
 	if cfg.Streamer != nil {
 		return nil, trace.BadParameter("Streamer must be unset")
 	}

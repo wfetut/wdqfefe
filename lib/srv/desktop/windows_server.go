@@ -406,7 +406,7 @@ func (s *WindowsService) newSessionRecorder(recConfig types.SessionRecordingConf
 		libevents.StreamingSessionsDir, apidefaults.Namespace,
 	)
 
-	return recorder.NewRecorder(recConfig, cfg, uploadDir, s.cfg.AuthClient)
+	return recorder.New(recConfig, cfg, uploadDir, s.cfg.AuthClient)
 }
 
 func (s *WindowsService) tlsConfigForLDAP() (*tls.Config, error) {

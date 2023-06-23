@@ -57,5 +57,5 @@ func (s *Server) newSessionRecorder(sessionCtx *common.Session) (libevents.Sessi
 		libevents.StreamingSessionsDir, apidefaults.Namespace,
 	)
 
-	return recorder.NewRecorder(recConfig, cfg, uploadDir, s.cfg.AuthClient)
+	return recorder.New(recConfig, cfg, uploadDir, s.cfg.AuthClient)
 }

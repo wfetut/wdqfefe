@@ -418,7 +418,7 @@ func (s *CheckingStream) Complete(ctx context.Context) error {
 	return s.stream.Complete(ctx)
 }
 
-// RecordEvent emits audit event
+// RecordEvent records a session event
 func (s *CheckingStream) RecordEvent(ctx context.Context, event apievents.AuditEvent) error {
 	if err := checkAndSetEventFields(event, s.clock, s.uidGenerator, s.clusterName); err != nil {
 		log.WithError(err).Errorf("Failed to emit audit event %v(%v).", event.GetType(), event.GetCode())
@@ -571,7 +571,7 @@ func (s *CallbackStream) Complete(ctx context.Context) error {
 	return s.stream.Complete(ctx)
 }
 
-// EmitAuditEvent emits audit event
+// RecordEvent records a session event
 func (s *CallbackStream) RecordEvent(ctx context.Context, event apievents.AuditEvent) error {
 	if s.streamer.OnRecordEvent != nil {
 		if err := s.streamer.OnRecordEvent(ctx, s.sessionID, event); err != nil {

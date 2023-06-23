@@ -692,7 +692,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		events.StreamingSessionsDir, apidefaults.Namespace,
 	)
 
-	recorder, err := recorder.NewRecorder(s.ctx.recordingConfig, cfg, uploadDir, s.forwarder.cfg.AuthClient)
+	recorder, err := recorder.New(s.ctx.recordingConfig, cfg, uploadDir, s.forwarder.cfg.AuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

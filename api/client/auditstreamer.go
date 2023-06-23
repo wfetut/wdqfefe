@@ -107,7 +107,7 @@ func (s *auditStreamer) Status() <-chan events.StreamStatus {
 	return s.statusCh
 }
 
-// RecordEvent records a session event.
+// RecordEvent records adds an event to a session recording.
 func (s *auditStreamer) RecordEvent(ctx context.Context, event events.AuditEvent) error {
 	oneof, err := events.ToOneOf(event)
 	if err != nil {

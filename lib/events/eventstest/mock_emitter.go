@@ -34,7 +34,7 @@ func (e *MockEmitter) Write(_ []byte) (int, error) {
 	return 0, nil
 }
 
-func (e *MockEmitter) SetupEvent(event events.AuditEvent) error {
+func (e *MockEmitter) SetupEvent(_ events.AuditEvent) error {
 	return nil
 }
 
