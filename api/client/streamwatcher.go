@@ -73,6 +73,7 @@ func (w *streamWatcher) closeWithError(err error) {
 	defer w.mu.Unlock()
 	w.Close()
 	w.err = err
+	panic(err)
 }
 
 // Events returns the streamWatcher's events channel

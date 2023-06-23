@@ -6286,6 +6286,12 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 	return trace.Wrap(err)
 }
 
+// WatchPendingHeadlessAuthentications exists to satisfy auth.ClientI but is not implemented here.
+// Use auth.GRPCServer.WatchPendingHeadlessAuthentications or client.Client.WatchPendingHeadlessAuthentications instead.
+func (a *ServerWithRoles) WatchPendingHeadlessAuthentications(ctx context.Context) (types.Watcher, error) {
+	return nil, trace.NotImplemented("bug: WatchPendingHeadlessAuthentications must not be called on auth.ServerWithRoles")
+}
+
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
 	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbCreate); err != nil {
