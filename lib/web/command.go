@@ -254,6 +254,8 @@ func (h *Handler) executeCommand(
 			return trace.Wrap(err)
 		}
 		handler.ws = &noopCloserWS{ws}
+		handler.stream = newMFAWSStream(handler.ws, h.log, nil)
+		go handler.stream.processMessages(r.Context())
 
 		h.userConns.Add(1)
 		defer h.userConns.Add(-1)
@@ -625,15 +627,13 @@ func (t *commandHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t.handler(r)
+	t.handler(r.Context())
 }
 
-func (t *commandHandler) handler(r *http.Request) {
-	t.stream = newMFAWSStream(t.ws, t.log, nil)
-
+func (t *commandHandler) handler(ctx context.Context) {
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
-	tc, err := t.makeClient(r.Context(), t.ws)
+	tc, err := t.makeClient(ctx, t.ws)
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a client for session")
 		t.writeError(err)
@@ -643,10 +643,10 @@ func (t *commandHandler) handler(r *http.Request) {
 	t.log.Debug("Creating websocket stream")
 
 	// Start sending ping frames through websocket to the client.
-	go startPingLoop(r.Context(), t.ws, t.keepAliveInterval, t.log, t.Close)
+	go startPingLoop(ctx, t.ws, t.keepAliveInterval, t.log, t.Close)
 
 	// Pump raw terminal in/out and audit events into the websocket.
-	t.streamOutput(r.Context(), tc)
+	t.streamOutput(ctx, tc)
 }
 
 // streamOutput opens an SSH connection to the remote host and streams
