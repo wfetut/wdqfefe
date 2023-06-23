@@ -30,7 +30,7 @@ import (
 
 // MarshalConfig specifies marshaling options
 type MarshalConfig struct {
-	// Version specifies particular version we should marshal resources with
+	// Version specifies a particular version we should marshal resources with
 	Version string
 
 	// ID is a record ID to assign
@@ -42,6 +42,10 @@ type MarshalConfig struct {
 
 	// Expires is an optional expiry time
 	Expires time.Time
+
+	// Revision is the last known version of a resource. This field should be treated as
+	// an opaque identifier and returned as is.
+	Revision string
 }
 
 // GetVersion returns explicitly provided version or sets latest as default
@@ -107,6 +111,14 @@ func WithVersion(v string) MarshalOption {
 func PreserveResourceID() MarshalOption {
 	return func(c *MarshalConfig) error {
 		c.PreserveResourceID = true
+		return nil
+	}
+}
+
+// WithRevision sets the revision on the config.
+func WithRevision(rev string) MarshalOption {
+	return func(c *MarshalConfig) error {
+		c.Revision = rev
 		return nil
 	}
 }

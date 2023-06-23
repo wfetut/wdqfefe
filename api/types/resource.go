@@ -83,6 +83,14 @@ type ResourceWithOrigin interface {
 	SetOrigin(string)
 }
 
+// ResourceRevision provides revision information of a resource.
+type ResourceRevision interface {
+	// GetRevision returns the revision of the resource.
+	GetRevision() string
+	// SetRevision sets the revision of the resource.
+	SetRevision(rev string)
+}
+
 // ResourceWithLabels is a common interface for resources that have labels.
 type ResourceWithLabels interface {
 	// ResourceWithOrigin is the base resource interface.
@@ -324,6 +332,16 @@ func (h *ResourceHeader) SetOrigin(origin string) {
 	h.Metadata.SetOrigin(origin)
 }
 
+// GetRevision returns the revision of the resource.
+func (h *ResourceHeader) GetRevision() string {
+	return h.Metadata.GetRevision()
+}
+
+// SetRevision sets the revision of the resource.
+func (h *ResourceHeader) SetRevision(rev string) {
+	h.Metadata.SetRevision(rev)
+}
+
 // GetStaticLabels returns the static labels for the resource.
 func (h *ResourceHeader) GetStaticLabels() map[string]string {
 	return h.Metadata.Labels
@@ -408,6 +426,16 @@ func (m *Metadata) SetOrigin(origin string) {
 		m.Labels = map[string]string{}
 	}
 	m.Labels[OriginLabel] = origin
+}
+
+// GetRevision returns the revision of the resource.
+func (m *Metadata) GetRevision() string {
+	return m.Revision
+}
+
+// SetRevision sets the revision of the resource.
+func (m *Metadata) SetRevision(s string) {
+	m.Revision = s
 }
 
 // CheckAndSetDefaults checks validity of all parameters and sets defaults
