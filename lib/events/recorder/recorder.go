@@ -36,7 +36,7 @@ func New(recCfg types.SessionRecordingConfig, cfg events.SessionWriterConfig, up
 	}
 
 	if recCfg.GetMode() == types.RecordOff {
-		return events.NewDiscardStream(), nil
+		return events.NewDiscardRecorder(), nil
 	}
 
 	var streamer events.Streamer = syncStream

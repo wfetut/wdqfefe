@@ -284,7 +284,7 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	t.Run("CheckingStream", func(t *testing.T) {
-		stream := events.NewCheckingStream(events.NewDiscardStream(), clock, "cluster")
+		stream := events.NewCheckingStream(events.NewDiscardRecorder(), clock, "cluster")
 		event := &apievents.SessionStart{
 			Metadata: apievents.Metadata{
 				ID:   "event.id",

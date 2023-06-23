@@ -513,7 +513,7 @@ func createSuite(t *testing.T, mockAWSHandler http.HandlerFunc, app types.Applic
 
 	audit, err := common.NewAudit(common.AuditConfig{
 		Emitter:  emitter,
-		Recorder: libevents.NewDiscardStream(),
+		Recorder: libevents.NewDiscardRecorder(),
 	})
 	require.NoError(t, err)
 	signerHandler, err := NewAWSSignerHandler(context.Background(),

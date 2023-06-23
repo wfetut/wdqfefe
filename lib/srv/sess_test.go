@@ -266,7 +266,7 @@ func TestSession_newRecorder(t *testing.T) {
 			errAssertion: require.NoError,
 			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.NotNil(t, i)
-				_, ok := i.(*events.DiscardStream)
+				_, ok := i.(*events.DiscardRecorder)
 				require.True(t, ok)
 			},
 		},
@@ -289,7 +289,7 @@ func TestSession_newRecorder(t *testing.T) {
 			errAssertion: require.NoError,
 			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.NotNil(t, i)
-				_, ok := i.(*events.DiscardStream)
+				_, ok := i.(*events.DiscardRecorder)
 				require.True(t, ok)
 			},
 		},

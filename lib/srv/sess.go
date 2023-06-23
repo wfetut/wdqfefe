@@ -1260,7 +1260,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionRecorder, error)
 	// Nodes discard events in cases when proxies are already recording them.
 	if s.registry.Srv.Component() == teleport.ComponentNode &&
 		services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
-		return events.NewDiscardStream(), nil
+		return events.NewDiscardRecorder(), nil
 	}
 
 	cfg := events.SessionWriterConfig{
@@ -1283,7 +1283,7 @@ func newRecorder(s *session, ctx *ServerContext) (events.SessionRecorder, error)
 			s.log.WithError(err).Warning("Failed to initialize session recording, disabling it for this session.")
 
 			s.BroadcastSystemMessage(sessionRecordingWarningMessage)
-			return events.NewDiscardStream(), nil
+			return events.NewDiscardRecorder(), nil
 		}
 
 		return nil, trace.ConnectionProblem(err, sessionRecordingErrorMessage)
@@ -2011,7 +2011,7 @@ func (s *session) recordEvent(ctx context.Context, event apievents.AuditEvent) e
 	rec := s.Recorder()
 	select {
 	case <-rec.Done():
-		s.setRecorder(events.NewDiscardStream())
+		s.setRecorder(events.NewDiscardRecorder())
 
 		return nil
 	default:

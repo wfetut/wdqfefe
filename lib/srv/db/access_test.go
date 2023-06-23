@@ -2178,7 +2178,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 			// underlying emitter so events can be tracked in tests.
 			return common.NewAudit(common.AuditConfig{
 				Emitter:  c.emitter,
-				Recorder: libevents.NewDiscardStream(),
+				Recorder: libevents.NewDiscardRecorder(),
 			})
 		},
 		CADownloader:             p.CADownloader,

@@ -154,7 +154,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 			emitterMock := &eventstest.MockEmitter{}
 			audit, err := common.NewAudit(common.AuditConfig{
 				Emitter:  emitterMock,
-				Recorder: libevents.NewDiscardStream(),
+				Recorder: libevents.NewDiscardRecorder(),
 			})
 			require.NoError(t, err)
 
