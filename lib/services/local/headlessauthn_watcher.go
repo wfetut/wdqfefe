@@ -198,7 +198,7 @@ func (h *HeadlessAuthenticationWatcher) newWatcher(ctx context.Context) (backend
 	watcher, err := h.identityService.NewWatcher(ctx, backend.Watch{
 		Name:            types.KindHeadlessAuthentication,
 		MetricComponent: types.KindHeadlessAuthentication,
-		Prefixes:        [][]byte{headlessAuthenticationKey("")},
+		Prefixes:        [][]byte{backend.Key("headless_authentication")},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -225,27 +225,37 @@ func (h *HeadlessAuthenticationWatcher) notify(headlessAuthns ...*types.Headless
 
 	for _, ha := range headlessAuthns {
 		for _, s := range h.subscribers {
-			if s != nil && s.name == ha.Metadata.Name {
+			if s != nil && s.name == ha.Metadata.Name && s.username == ha.User {
 				s.update(ha)
 			}
 		}
 	}
 }
 
-// HeadlessAuthenticationSubscriber is a subscriber of updates
-// for a specific headless authentication resource.
+// HeadlessAuthenticationSubscriber is a subscriber for a specific headless authentication.
 type HeadlessAuthenticationSubscriber interface {
-	Name() string
 	// Updates is a channel used by the watcher to send headless authentication updates.
 	Updates() <-chan *types.HeadlessAuthentication
+	// WaitForUpdate returns the first update which passes the given condition, or returns
+	// early if the condition results in an error or if the subscriber or given context is closed.
+	WaitForUpdate(ctx context.Context, cond func(*types.HeadlessAuthentication) (bool, error)) (*types.HeadlessAuthentication, error)
+	// Done returns a channel that's closed when the subscriber is closed.
+	Done() <-chan struct{}
 	// Close closes the subscriber and its channels. This frees up resources for the watcher
 	// and should always be called on completion.
 	Close()
 }
 
-// Subscribe creates a new headless authentication subscriber for the given headless authentication name.
-func (h *HeadlessAuthenticationWatcher) Subscribe(ctx context.Context, name string) (HeadlessAuthenticationSubscriber, error) {
-	i, err := h.assignSubscriber(name)
+// Subscribe creates a subscriber for a specific headless authentication.
+func (h *HeadlessAuthenticationWatcher) Subscribe(ctx context.Context, username, name string) (HeadlessAuthenticationSubscriber, error) {
+	if name == "" {
+		return nil, trace.BadParameter("name must be provided")
+	}
+	if username == "" {
+		return nil, trace.BadParameter("username must be provided")
+	}
+
+	i, err := h.assignSubscriber(username, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -253,17 +263,18 @@ func (h *HeadlessAuthenticationWatcher) Subscribe(ctx context.Context, name stri
 
 	go func() {
 		select {
-		case <-ctx.Done():
-		case <-subscriber.closed:
+		case <-subscriber.Done():
+		case <-h.Done():
+			subscriber.Close()
 		}
 
-		// reclaim the subscriber and close remaining open channels.
+		// reclaim the subscriber and close its updates channel.
 		h.unassignSubscriber(i)
 		close(subscriber.updates)
 	}()
 
 	// Check for an existing backend entry and send it as the first update.
-	if ha, err := h.identityService.GetHeadlessAuthentication(ctx, subscriber.Name()); err == nil {
+	if ha, err := h.identityService.GetHeadlessAuthentication(ctx, username, name); err == nil {
 		subscriber.update(ha)
 	} else if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
@@ -272,7 +283,7 @@ func (h *HeadlessAuthenticationWatcher) Subscribe(ctx context.Context, name stri
 	return subscriber, nil
 }
 
-func (h *HeadlessAuthenticationWatcher) assignSubscriber(name string) (int, error) {
+func (h *HeadlessAuthenticationWatcher) assignSubscriber(username, name string) (int, error) {
 	h.Lock()
 	defer h.Unlock()
 
@@ -285,7 +296,8 @@ func (h *HeadlessAuthenticationWatcher) assignSubscriber(name string) (int, erro
 	for i := range h.subscribers {
 		if h.subscribers[i] == nil {
 			h.subscribers[i] = &headlessAuthenticationSubscriber{
-				name: name,
+				name:     name,
+				username: username,
 				// small buffer for updates so we can replace stale updates.
 				updates: make(chan *types.HeadlessAuthentication, 1),
 				closed:  make(chan struct{}),
@@ -305,51 +317,35 @@ func (h *HeadlessAuthenticationWatcher) unassignSubscriber(i int) {
 
 // headlessAuthenticationSubscriber is a subscriber for a specific headless authentication.
 type headlessAuthenticationSubscriber struct {
-	// name is the name of the headless authentication resource being subscribed to.
+	// name is a headless authentication name.
 	name string
+	// username is a teleport username.
+	username string
 	// updates is a channel used by the watcher to send resource updates. This channel
 	// will either be empty or have the latest update in its buffer.
-	updates   chan *types.HeadlessAuthentication
-	updatesMu sync.Mutex
+	updates chan *types.HeadlessAuthentication
 	// closed is a channel used to determine if the subscriber is closed.
-	closed chan struct{}
+	closed    chan struct{}
+	closeOnce sync.Once
 }
 
-func (s *headlessAuthenticationSubscriber) Name() string {
-	return s.name
-}
-
+// Updates is a channel used by the watcher to send headless authentication updates.
 func (s *headlessAuthenticationSubscriber) Updates() <-chan *types.HeadlessAuthentication {
 	return s.updates
 }
 
-func (s *headlessAuthenticationSubscriber) update(ha *types.HeadlessAuthentication) {
-	s.updatesMu.Lock()
-	defer s.updatesMu.Unlock()
-
-	// Drain stale update if there is one.
-	select {
-	case <-s.updates:
-	default:
-	}
-
-	s.updates <- apiutils.CloneProtoMsg(ha)
-}
-
-func (s *headlessAuthenticationSubscriber) Close() {
-	close(s.closed)
-}
-
-// WaitForUpdate waits until the headless authentication with the given name is updated in the
-// backend to meet the given condition or returns early if the condition results in an
-// error or if the watcher or given context is closed.
-func (h *HeadlessAuthenticationWatcher) WaitForUpdate(ctx context.Context, subscriber HeadlessAuthenticationSubscriber, cond func(*types.HeadlessAuthentication) (bool, error)) (*types.HeadlessAuthentication, error) {
+// WaitForUpdate returns the first update which passes the given condition, or returns
+// early if the condition results in an error or if the subscriber or given context is closed.
+func (s *headlessAuthenticationSubscriber) WaitForUpdate(ctx context.Context, cond func(*types.HeadlessAuthentication) (bool, error)) (*types.HeadlessAuthentication, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	for {
 		select {
-		case ha := <-subscriber.Updates():
+		case ha, ok := <-s.Updates():
+			if !ok {
+				return nil, ErrHeadlessAuthenticationWatcherClosed
+			}
 			if ok, err := cond(ha); err != nil {
 				return nil, trace.Wrap(err)
 			} else if ok {
@@ -357,8 +353,31 @@ func (h *HeadlessAuthenticationWatcher) WaitForUpdate(ctx context.Context, subsc
 			}
 		case <-ctx.Done():
 			return nil, trace.Wrap(ctx.Err())
-		case <-h.Done():
+		case <-s.Done():
 			return nil, ErrHeadlessAuthenticationWatcherClosed
 		}
 	}
+}
+
+// Done returns a channel that's closed when the subscriber is closed.
+func (s *headlessAuthenticationSubscriber) Done() <-chan struct{} {
+	return s.closed
+}
+
+// Close closes the subscriber and its channels. This frees up resources for the watcher
+// and should always be called on completion.
+func (s *headlessAuthenticationSubscriber) Close() {
+	s.closeOnce.Do(func() {
+		close(s.closed)
+	})
+}
+
+func (s *headlessAuthenticationSubscriber) update(ha *types.HeadlessAuthentication) {
+	// Drain stale update if there is one.
+	select {
+	case <-s.updates:
+	default:
+	}
+
+	s.updates <- apiutils.CloneProtoMsg(ha)
 }
