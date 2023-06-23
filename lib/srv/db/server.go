@@ -83,8 +83,6 @@ type Config struct {
 	AccessPoint auth.DatabaseAccessPoint
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
-	// StreamEmitter is a non-blocking audit events emitter.
-	StreamEmitter events.StreamEmitter
 	// NewAudit allows to override audit logger in tests.
 	NewAudit NewAuditFn
 	// TLSConfig is the *tls.Config for this server.
@@ -156,9 +154,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint")
-	}
-	if c.StreamEmitter == nil {
-		return trace.BadParameter("missing StreamEmitter")
 	}
 	if c.Emitter == nil {
 		c.Emitter = c.AuthClient
@@ -956,7 +951,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 // dispatch creates and initializes an appropriate database engine for the session.
 func (s *Server) dispatch(sessionCtx *common.Session, rec events.SessionRecorder, clientConn net.Conn) (common.Engine, error) {
 	audit, err := s.cfg.NewAudit(common.AuditConfig{
-		Emitter:  s.cfg.StreamEmitter,
+		Emitter:  s.cfg.Emitter,
 		Recorder: rec,
 	})
 	if err != nil {

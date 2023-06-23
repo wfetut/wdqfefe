@@ -2158,7 +2158,6 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		DataDir:          t.TempDir(),
 		AuthClient:       c.authClient,
 		AccessPoint:      c.authClient,
-		StreamEmitter:    c.authClient,
 		Authorizer:       dbAuthorizer,
 		Hostname:         constants.APIDomain,
 		HostID:           p.HostID,

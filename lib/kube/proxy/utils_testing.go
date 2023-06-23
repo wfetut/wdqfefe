@@ -218,7 +218,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			AuthClient: &fakeClient{ClientI: client, closeC: testCtx.closeSessionTrackers},
 			// StreamEmitter is required although not used because we are using
 			// "node-sync" as session recording mode.
-			StreamEmitter:     testCtx.Emitter,
+			Emitter:           testCtx.Emitter,
 			DataDir:           t.TempDir(),
 			CachingAuthClient: client,
 			HostID:            testCtx.HostID,
@@ -313,7 +313,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			AuthClient: &fakeClient{ClientI: client, closeC: testCtx.closeSessionTrackers},
 			// StreamEmitter is required although not used because we are using
 			// "node-sync" as session recording mode.
-			StreamEmitter:     testCtx.Emitter,
+			Emitter:           testCtx.Emitter,
 			DataDir:           t.TempDir(),
 			CachingAuthClient: client,
 			HostID:            testCtx.HostID,

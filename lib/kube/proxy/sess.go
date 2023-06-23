@@ -698,7 +698,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 	}
 
 	s.recorder = recorder
-	s.emitter = s.forwarder.cfg.StreamEmitter
+	s.emitter = s.forwarder.cfg.Emitter
 
 	s.io.AddWriter(sessionRecorderID, recorder)
 
