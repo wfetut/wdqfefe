@@ -111,7 +111,7 @@ func TestExecuteCommandHistory(t *testing.T) {
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
 
 	// Close the stream if not already closed
-	_ = stream.Close()
+	_ = ws.Close()
 
 	// Then command execution history is saved
 	var messages *assist.GetAssistantMessagesResponse
@@ -186,7 +186,7 @@ func TestExecuteCommandSummary(t *testing.T) {
 	require.NotEmpty(t, env.GetPayload())
 
 	// Close the stream if not already closed
-	_ = stream.Close()
+	stream.Close()
 
 	// Then command execution history is saved
 	var messages *assist.GetAssistantMessagesResponse

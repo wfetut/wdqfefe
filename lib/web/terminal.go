@@ -313,6 +313,10 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		t.log.WithError(err).Error("Error setting websocket readline")
 		return
 	}
+	defer func() {
+		ws.WriteControl(websocket.CloseMessage, []byte{}, time.Now().Add(time.Second))
+		ws.Close()
+	}()
 
 	var sessionMetadataResponse []byte
 
@@ -360,7 +364,7 @@ func (t *TerminalHandler) Close() error {
 		// If the terminal handler was closed (most likely due to the *SessionContext
 		// closing) then the stream should be closed as well.
 		if t.stream != nil {
-			err = t.stream.Close()
+			t.stream.Close()
 		}
 	})
 	return trace.Wrap(err)
@@ -370,8 +374,6 @@ func (t *TerminalHandler) Close() error {
 // pumps raw events and audit events back to the client until the SSH session
 // is complete.
 func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
-	defer ws.Close()
-
 	// Update the read deadline upon receiving a pong message.
 	ws.SetPongHandler(func(_ string) error {
 		return trace.Wrap(ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval)))
@@ -744,7 +746,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		return
 	}
 
-	if err := t.stream.Close(); err != nil {
+	if err := t.stream.SendEndMessage(); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 		return
 	}
@@ -1295,9 +1297,24 @@ func (t *WSStream) Read(out []byte) (n int, err error) {
 	}
 }
 
+func (t *WSStream) SendEndMessage() error {
+	// Send close envelope to web terminal upon exit without an error.
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketClose,
+	}
+	envelopeBytes, err := proto.Marshal(envelope)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+}
+
 // Close sends a close message on the web socket and closes the web socket.
-func (t *WSStream) Close() error {
-	var closeErr error
+func (t *WSStream) Close() {
 	t.once.Do(func() {
 		defer func() {
 			<-t.completedC
@@ -1305,24 +1322,7 @@ func (t *WSStream) Close() error {
 			close(t.rawC)
 			close(t.challengeC)
 		}()
-
-		// Send close envelope to web terminal upon exit without an error.
-		envelope := &Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketClose,
-		}
-		envelopeBytes, err := proto.Marshal(envelope)
-		if err != nil {
-			closeErr = trace.NewAggregate(err, t.ws.Close())
-			return
-		}
-
-		t.mu.Lock()
-		defer t.mu.Unlock()
-		closeErr = trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes), t.ws.Close())
 	})
-
-	return trace.Wrap(closeErr)
 }
 
 // deadlineForInterval returns a suitable network read deadline for a given ping interval.

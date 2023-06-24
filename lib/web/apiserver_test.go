@@ -9087,7 +9087,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	peerWS, sess, err := s.makeTerminal(t, peer)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, peerWS.Close()) })
+	t.Cleanup(func() { require.True(t, utils.IsOKNetworkError(peerWS.Close())) })
 
 	handleMFAWebauthnChallenge(t, peerWS, peer.device)
 
@@ -9097,7 +9097,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 	moderatorWS, _, err := s.makeTerminal(t, moderator, withSessionID(sess.ID), withParticipantMode(types.SessionModeratorMode))
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, moderatorWS.Close()) })
+	t.Cleanup(func() { require.True(t, utils.IsOKNetworkError(moderatorWS.Close())) })
 
 	handleMFAWebauthnChallenge(t, moderatorWS, moderator.device)
 

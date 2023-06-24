@@ -479,7 +479,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
             nodeIdToResultId.clear();
 
             // TODO(ryan): move this to after the summary is sent once it's implemented
-            executeCommandWebSocket.current.close();
+            // executeCommandWebSocket.current.close();
           }
 
           break;

@@ -200,9 +200,11 @@ func (h *Handler) executeCommand(
 	})
 
 	// Wrap the raw websocket connection in a syncRWWSConn so that we can
-	// safely read and write to the the single websocket connection from
+	// safely read and write to the single websocket connection from
 	// multiple goroutines/execution nodes.
 	ws := &syncRWWSConn{WSConn: rawWS}
+	wsStream := NewWStream(r.Context(), ws, h.log, nil)
+	defer wsStream.Close()
 
 	hosts, err := findByQuery(ctx, clt, req.Query)
 	if err != nil {
@@ -253,6 +255,7 @@ func (h *Handler) executeCommand(
 			return trace.Wrap(err)
 		}
 		handler.ws = &noopCloserWS{ws}
+		handler.stream = wsStream
 
 		h.userConns.Add(1)
 		defer h.userConns.Add(-1)
@@ -628,8 +631,6 @@ func (t *commandHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 }
 
 func (t *commandHandler) handler(r *http.Request) {
-	t.stream = NewWStream(r.Context(), t.ws, t.log, nil)
-
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
 	tc, err := t.makeClient(r.Context(), t.ws)
@@ -674,13 +675,10 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 		return
 	}
 
-	// TODO: fix this, this hangs
-	/*
-		if err := t.stream.Close(); err != nil {
-			t.log.WithError(err).Error("Unable to send close event to web client.")
-			return
-		}
-	*/
+	if err := t.stream.SendEndMessage(); err != nil {
+		t.log.WithError(err).Error("Unable to send close event to web client.")
+		return
+	}
 
 	t.log.Debug("Sent close event to web client.")
 }

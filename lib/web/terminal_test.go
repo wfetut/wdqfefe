@@ -68,7 +68,7 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 
 	// close the stream before we attempt to read from it,
 	// this will produce a net.ErrClosed error on the read
-	require.NoError(t, stream.Close())
+	require.NoError(t, conn.Close())
 
 	_, err = io.Copy(io.Discard, stream)
 	require.NoError(t, err)
