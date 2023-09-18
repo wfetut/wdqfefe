@@ -25,5 +25,5 @@ uuid = { version = "1.2.1", features = ["v4"] }
 utf16string = "0.2.0"
 
 [build-dependencies]
-cbindgen = "0.24.3"
+cbindgen = "0.26.0"
 tempfile = "3.3.0"
